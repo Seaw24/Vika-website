@@ -282,14 +282,19 @@
     </header>
 
     <main id="content" class="privacy-page" style="padding-top: 120px; padding-bottom: 80px; max-width: 800px; margin: 0 auto; padding-left: 20px; padding-right: 20px;">
-      <h1 style="font-family: 'Playfair Display', serif; font-size: 2.5rem; margin-bottom: 20px;">CHÍNH SÁCH QUYỀN RIÊNG TƯ — VIKA</h1>
-      
-      <div style="font-size: 0.9rem; color: #666; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid #ddd; display: flex; gap: 20px;">
-          <p><strong>Hiệu lực từ:</strong> 16/05/2026 </p>
-          <p><strong>Cập nhật lần cuối:</strong> 29/07/2026 </p>
+      <h1 style="font-family: 'Playfair Display', serif; font-size: 2.5rem; margin-bottom: 20px;">CHÍNH SÁCH QUYỀN RIÊNG TƯ — VIKA<br/><span style="font-size: 1.5rem; color: #666;">PRIVACY POLICY</span></h1>
+
+      <div style="font-size: 0.9rem; color: #666; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #ddd; display: flex; gap: 20px; flex-wrap: wrap;">
+          <p><strong>Hiệu lực từ / Effective:</strong> 16/05/2026 </p>
+          <p><strong>Cập nhật lần cuối / Last updated:</strong> 05/08/2026 </p>
       </div>
 
-      <div class="rich-text" style="line-height: 1.6; color: #333; font-family: 'Inter', sans-serif;">
+      <div style="margin-bottom: 32px; display: flex; gap: 8px;" role="group" aria-label="Chọn ngôn ngữ / Language">
+          <button type="button" id="lang-vi-btn" onclick="showPolicyLang('vi')" style="padding: 8px 20px; border-radius: 999px; border: 1px solid #111; background: #111; color: #fff; font-family: 'Inter', sans-serif; font-weight: 600; cursor: pointer;">Tiếng Việt</button>
+          <button type="button" id="lang-en-btn" onclick="showPolicyLang('en')" style="padding: 8px 20px; border-radius: 999px; border: 1px solid #ccc; background: transparent; color: #333; font-family: 'Inter', sans-serif; font-weight: 600; cursor: pointer;">English</button>
+      </div>
+
+      <div id="policy-vi" class="rich-text" style="line-height: 1.6; color: #333; font-family: 'Inter', sans-serif;">
           <p style="margin-bottom: 1rem;">Vika ("Bên Kiểm Soát Dữ Liệu", "chúng tôi") là ứng dụng huấn luyện thể dục cá nhân hóa, phân tích chuyển động ngay trên thiết bị của Người dùng. Chính sách này mô tả cách chúng tôi thu thập, sử dụng và bảo vệ dữ liệu cá nhân của Người dùng, theo Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15 do Quốc hội nước Cộng hòa Xã hội Chủ nghĩa Việt Nam ban hành và Nghị định số 356/2025/NĐ-CP do Chính phủ nước Cộng hòa Xã hội Chủ nghĩa Việt Nam ban hành.</p>
           <p style="margin-bottom: 2rem;">Bằng việc sử dụng Vika, Người dùng đồng ý với chính sách này. Nếu không đồng ý, vui lòng ngừng sử dụng Ứng dụng.</p>
 
@@ -304,7 +309,7 @@
           </ul>
 
           <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">2. CAMERA VÀ XỬ LÝ TRÊN THIẾT BỊ</h2>
-          <p style="margin-bottom: 1rem;">Vika sử dụng camera điện thoại để phân tích tư thế trong quá trình tập. Toàn bộ video được xử lý ngay trên thiết bị của Người dùng bằng mô hình nhận diện tư thế Google MediaPipe (chạy hoàn toàn cục bộ, không kết nối mạng). Video không được tải lên máy chủ, không được lưu trữ sau khi phân tích, và không được nhân viên Vika hoặc bên thứ ba xem.</p>
+          <p style="margin-bottom: 1rem;">Vika sử dụng camera điện thoại để phân tích tư thế trong quá trình tập. Toàn bộ video được xử lý ngay trên thiết bị của Người dùng bằng bộ công cụ nhận diện tư thế Google ML Kit; việc phân tích diễn ra hoàn toàn cục bộ trên máy. Video không được tải lên máy chủ, không được lưu trữ sau khi phân tích, và không được nhân viên Vika hoặc bên thứ ba xem. SDK ML Kit tự động gửi số liệu chẩn đoán kỹ thuật về Google (chi tiết tại Mục 5); số liệu này không bao giờ chứa hình ảnh camera hay dữ liệu tư thế.</p>
           <p style="margin-bottom: 2rem;">Chỉ kết quả phân tích (góc khớp, số rep, điểm form) được lưu trên máy chủ để theo dõi tiến độ luyện tập.</p>
 
           <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">3. DỮ LIỆU THU THẬP VÀ MỤC ĐÍCH SỬ DỤNG</h2>
@@ -348,7 +353,7 @@
           <p style="margin-bottom: 1rem;">Ứng dụng tích hợp các dịch vụ sau:</p>
           <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc;">
               <li style="margin-bottom: 0.5rem;"><strong>Supabase (Singapore):</strong> Lưu trữ dữ liệu tài khoản và kết quả luyện tập.</li>
-              <li style="margin-bottom: 0.5rem;"><strong>MediaPipe (Google):</strong> Thư viện nhận diện tư thế, chạy hoàn toàn trên thiết bị Người dùng. Video và dữ liệu tư thế không bao giờ được gửi đến Google; SDK chỉ gửi số liệu chẩn đoán kỹ thuật ẩn danh (hiệu năng, phiên bản) không gắn với danh tính Người dùng.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Google ML Kit (Google):</strong> Bộ công cụ nhận diện tư thế, chạy hoàn toàn trên thiết bị Người dùng. Video và dữ liệu tư thế không bao giờ được gửi đến Google. SDK tự động gửi số liệu chẩn đoán kỹ thuật về Google, gồm: dòng máy, phiên bản hệ điều hành và ứng dụng, ngôn ngữ thiết bị, và một mã định danh cài đặt ngẫu nhiên — không gắn với tên, email hay tài khoản của Người dùng. Google xử lý số liệu này với vai trò bên cung cấp hạ tầng và không dùng dữ liệu của Người dùng để huấn luyện mô hình.</li>
               <li style="margin-bottom: 0.5rem;"><strong>Apple Sign-In, Google Sign-In, Facebook Login:</strong> Xác thực và cung cấp tên, email, ảnh hồ sơ.</li>
               <li style="margin-bottom: 0.5rem;"><strong>PostHog Inc. (khu vực EU):</strong> Phân tích sản phẩm — cách Người dùng sử dụng Ứng dụng (thao tác, bước hoàn thành, thời gian sử dụng), gắn với tài khoản của Người dùng (tên và email) để cải thiện sản phẩm. PostHog chỉ xử lý dữ liệu thay Vika theo hợp đồng xử lý dữ liệu, với mức bảo vệ tương đương chính sách này, và không dùng cho quảng cáo. Người dùng có thể tắt trong phần Hồ sơ của Ứng dụng.</li>
           </ul>
@@ -404,6 +409,138 @@
               </div>
           </div>
       </div>
+
+      <div id="policy-en" class="rich-text" style="display: none; line-height: 1.6; color: #333; font-family: 'Inter', sans-serif;">
+          <p style="margin-bottom: 1rem;">Vika (the "Data Controller", "we") is a personalized fitness coaching application that analyzes movement directly on the User's device. This policy describes how we collect, use, and protect Users' personal data, in accordance with the Law on Personal Data Protection No. 91/2025/QH15 issued by the National Assembly of the Socialist Republic of Vietnam and Decree No. 356/2025/NĐ-CP issued by the Government of the Socialist Republic of Vietnam.</p>
+          <p style="margin-bottom: 2rem;">By using Vika, the User agrees to this policy. If you do not agree, please stop using the Application.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">1. DEFINITIONS</h2>
+          <ul style="margin-bottom: 2rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li style="margin-bottom: 0.5rem;"><strong>Personal Data Controller:</strong> Vika, represented by Mr. Trần Tuấn Kiệt, responsible for determining the purposes and means of personal data processing under the Law on Personal Data Protection No. 91/2025/QH15.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Application:</strong> The Vika mobile application on iOS and Android, and related services.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>User:</strong> An individual using the Application.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Basic personal data:</strong> Information identifying the User such as name, email, and profile photo.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Sensitive personal data:</strong> Health and biometric information, including height, weight, BMI, pain areas, workout history, and body-movement data extracted from the camera (joint angles, torso tilt, movement phase speed, form scores). This category receives heightened protection under the Law on Personal Data Protection No. 91/2025/QH15.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Applicable law:</strong> The Law on Personal Data Protection No. 91/2025/QH15 (effective 01/01/2026), Decree No. 356/2025/NĐ-CP, and related regulations of Vietnam.</li>
+          </ul>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">2. CAMERA AND ON-DEVICE PROCESSING</h2>
+          <p style="margin-bottom: 1rem;">Vika uses the phone camera to analyze exercise form during workouts. All video is processed directly on the User's device using the Google ML Kit pose-detection toolkit; the analysis itself runs entirely locally. Video is never uploaded to any server, is never stored after analysis, and is never viewed by Vika staff or any third party. The ML Kit SDK automatically sends technical diagnostics to Google (see Section 5); these diagnostics never contain camera images or pose data.</p>
+          <p style="margin-bottom: 2rem;">Only analysis results (joint angles, rep counts, form scores) are stored on our servers to track training progress.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">3. DATA COLLECTED AND PURPOSES OF USE</h2>
+
+          <h3 style="font-size: 1.2rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem;">Vika collects:</h3>
+          <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li>Name, email, profile photo (via email/Apple/Google/Facebook sign-up).</li>
+              <li>Self-reported physical information (gender, age, height, weight, pain areas, goals).</li>
+              <li>Workout history and performance data (sessions, exercises, pose-analysis results).</li>
+              <li>Device information (operating system, app version, usage data and error reports).</li>
+          </ul>
+
+          <h3 style="font-size: 1.2rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem;">Purposes of use:</h3>
+          <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li>Creating and managing accounts.</li>
+              <li>Providing core features (exercises, form analysis, feedback).</li>
+              <li>Personalizing training plans.</li>
+              <li>Improving Application performance.</li>
+              <li>Communicating with Users (updates, reminders, support).</li>
+          </ul>
+
+          <h3 style="font-size: 1.2rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem;">Vika does NOT:</h3>
+          <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li>Sell User data.</li>
+              <li>Share data with advertisers.</li>
+              <li>Use data for targeted advertising.</li>
+              <li>Provide Users' health data to insurance organizations or third-party healthcare services (per Article 26 of the Law on Personal Data Protection No. 91/2025/QH15).</li>
+          </ul>
+
+          <p style="margin-bottom: 2rem;">App usage data (interactions, completed steps, session duration) is collected for product analytics only with the User's consent, and can be turned off at any time in the Profile section of the Application. Vika does not use Users' data to train AI models.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">4. LEGAL BASIS AND CONSENT</h2>
+          <ul style="margin-bottom: 2rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li style="margin-bottom: 0.5rem;">The legal basis for processing personal data is the User's explicit consent, expressed at sign-up and during use of the Application.</li>
+              <li style="margin-bottom: 0.5rem;">Consent must be expressed through the User's affirmative action. Vika does not use default consent mechanisms (pre-ticked boxes) and does not treat silence as consent.</li>
+              <li style="margin-bottom: 0.5rem;">The User may withdraw consent at any time. Withdrawal does not affect the lawfulness of processing carried out before withdrawal.</li>
+              <li style="margin-bottom: 0.5rem;">Because Vika processes sensitive personal data (health, biometrics), the Data Controller prepares and maintains a Data Processing Impact Assessment (DPIA) under the Law on Personal Data Protection No. 91/2025/QH15, submitted to the Department of Cybersecurity and High-Tech Crime Prevention (A05 — Ministry of Public Security of Vietnam) within the statutory deadline.</li>
+          </ul>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">5. THIRD-PARTY SERVICES</h2>
+          <p style="margin-bottom: 1rem;">The Application integrates the following services:</p>
+          <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li style="margin-bottom: 0.5rem;"><strong>Supabase (Singapore):</strong> Stores account data and workout results.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Google ML Kit (Google):</strong> Pose-detection toolkit that runs entirely on the User's device. Video and pose data are never sent to Google. The SDK automatically sends technical diagnostics to Google, consisting of: device model, operating system and app version, device language, and a random installation identifier — not linked to the User's name, email, or account. Google processes these diagnostics as an infrastructure provider and does not use Users' data to train its models.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Apple Sign-In, Google Sign-In, Facebook Login:</strong> Authentication, providing name, email, and profile photo. Facebook Login is used for sign-in only: automatic event logging and advertiser-ID collection are disabled.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>PostHog Inc. (EU region):</strong> Product analytics — how the User uses the Application (interactions, completed steps, session duration), linked to the User's account (name and email) to improve the product. PostHog processes data solely on Vika's behalf under a data-processing agreement, with protection equivalent to this policy, and never for advertising. Analytics is off by default and runs only after the User opts in; it can be turned off in the Profile section of the Application.</li>
+          </ul>
+          <p style="margin-bottom: 2rem;">The list above is exhaustive. Vika does <strong>not</strong> integrate and does <strong>not</strong> send any of the User's personal data to any third-party artificial intelligence (AI) service; all pose analysis happens directly on the device. If Vika adds a new third-party service in the future, this policy will be updated first, stating exactly what data is sent and to whom, and Vika will obtain the User's explicit, separate consent before sharing any data.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">6. DATA RETENTION AND DELETION</h2>
+          <p style="margin-bottom: 1rem;">Account data is retained for as long as the account is active. After account deletion, data is erased within 30 days, unless the law requires longer retention (for example, payment records for accounting and tax obligations).</p>
+          <p style="margin-bottom: 2rem;">Users can request account deletion via the settings inside the Application or by email.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">7. USER RIGHTS</h2>
+          <p style="margin-bottom: 1rem;">Under the Law on Personal Data Protection No. 91/2025/QH15, Users have the following rights over their personal data:</p>
+          <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc;">
+              <li style="margin-bottom: 0.5rem;">The right to be informed about personal data processing.</li>
+              <li style="margin-bottom: 0.5rem;">The right to consent or refuse consent to processing.</li>
+              <li style="margin-bottom: 0.5rem;">The right to access their personal data.</li>
+              <li style="margin-bottom: 0.5rem;">The right to rectify inaccurate data.</li>
+              <li style="margin-bottom: 0.5rem;">The right to withdraw consent at any time.</li>
+              <li style="margin-bottom: 0.5rem;">The right to delete personal data.</li>
+              <li style="margin-bottom: 0.5rem;">The right to restrict processing in cases provided by law.</li>
+              <li style="margin-bottom: 0.5rem;">The right to data portability — to request a copy of personal data in a machine-readable format.</li>
+              <li style="margin-bottom: 0.5rem;">The right to object to processing.</li>
+              <li style="margin-bottom: 0.5rem;">The right to complain, denounce, or initiate legal action with the competent authority.</li>
+              <li style="margin-bottom: 0.5rem;">The right to claim compensation for damage caused by violations of their data.</li>
+          </ul>
+          <p style="margin-bottom: 2rem;">Users exercise these rights via the settings inside the Application or by sending a request to support@vikavn.app. The Data Controller responds within the deadlines set by the Law on Personal Data Protection No. 91/2025/QH15 and Decree No. 356/2025/NĐ-CP, and states the reason if a request needs more time or is refused on lawful grounds.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">8. SECURITY AND BREACH NOTIFICATION</h2>
+          <p style="margin-bottom: 1rem;">Data is transmitted over encrypted HTTPS connections. Passwords are hashed and never stored in plain text. The Data Controller applies industry-standard security measures but cannot guarantee absolute security.</p>
+          <p style="margin-bottom: 2rem;">In the event of a leak, loss, or unauthorized access to personal data that may harm Users' rights and interests, the Data Controller will notify the Department of Cybersecurity and High-Tech Crime Prevention (A05 — Ministry of Public Security of Vietnam) and affected Users within 72 hours of discovery, under Article 23 of the Law on Personal Data Protection No. 91/2025/QH15.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">9. CHILDREN</h2>
+          <p style="margin-bottom: 2rem;">The Application is intended for users aged 16 and older. Users self-confirm their age at sign-up. If the Data Controller discovers, or receives a substantiated report, that an account belongs to a person under 16, the account will be deleted within 7 days.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">10. CROSS-BORDER DATA TRANSFERS</h2>
+          <p style="margin-bottom: 1rem;">Data may be stored on servers in Singapore (Supabase) and the EU region (PostHog). Cross-border transfers are based on the User's consent given by accepting this policy.</p>
+          <p style="margin-bottom: 2rem;">The Data Controller prepares and maintains an Overseas Transfer Impact Assessment (TIA) under the Law on Personal Data Protection No. 91/2025/QH15 and Decree No. 356/2025/NĐ-CP, submitted to the Department of Cybersecurity and High-Tech Crime Prevention (A05 — Ministry of Public Security of Vietnam) within the statutory deadline.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">11. POLICY CHANGES</h2>
+          <p style="margin-bottom: 2rem;">The Data Controller may update this policy. Changes will be announced via the Application or email. Continued use after an update constitutes acceptance of the changes.</p>
+
+          <h2 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: #111;">12. CONTACT</h2>
+          <div style="background-color: #f9fafb; padding: 2rem; border-radius: 1rem; border: 1px solid #e5e7eb; margin-top: 1rem;">
+              <p style="margin-bottom: 1rem; font-weight: 600; font-size: 1.1rem; color: #111;">Personal Data Controller — Data Protection Officer (DPO):</p>
+              <div style="margin-bottom: 1.5rem;">
+                  <p style="margin-bottom: 0.5rem;"><strong>Mr.:</strong> Trần Tuấn Kiệt</p>
+                  <p style="margin-bottom: 0.5rem;"><strong>Phone:</strong> 0566665536</p>
+                  <p style="margin-bottom: 0.5rem;"><strong>Email:</strong> <a href="mailto:support@vikavn.app" style="color: #ffb701; text-decoration: none;">support@vikavn.app</a></p>
+              </div>
+              <div style="padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                  <p style="font-size: 0.85rem; color: #6b7280; font-style: italic;">
+                      Users may lodge a complaint with the Department of Cybersecurity and High-Tech Crime Prevention (A05 — Ministry of Public Security of Vietnam), hotline <strong>1800 4040</strong>, if they believe their personal data rights have been violated.
+                  </p>
+              </div>
+          </div>
+      </div>
+
+      <script>
+        function showPolicyLang(lang) {
+          var vi = document.getElementById('policy-vi');
+          var en = document.getElementById('policy-en');
+          var viBtn = document.getElementById('lang-vi-btn');
+          var enBtn = document.getElementById('lang-en-btn');
+          var active = 'padding: 8px 20px; border-radius: 999px; border: 1px solid #111; background: #111; color: #fff; font-family: Inter, sans-serif; font-weight: 600; cursor: pointer;';
+          var idle = 'padding: 8px 20px; border-radius: 999px; border: 1px solid #ccc; background: transparent; color: #333; font-family: Inter, sans-serif; font-weight: 600; cursor: pointer;';
+          vi.style.display = lang === 'vi' ? 'block' : 'none';
+          en.style.display = lang === 'en' ? 'block' : 'none';
+          viBtn.style.cssText = lang === 'vi' ? active : idle;
+          enBtn.style.cssText = lang === 'en' ? active : idle;
+        }
+        if ((navigator.language || '').toLowerCase().indexOf('vi') !== 0) showPolicyLang('en');
+      </script>
     </main>
     <footer class="site-footer" id="about">
       <div class="container footer-grid">
