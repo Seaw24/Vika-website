@@ -436,6 +436,15 @@ thead th{color:var(--muted);font-weight:500;font-size:12px}
 .profile .av{width:56px;height:56px;font-size:22px}
 .profile b{display:block;font-size:22px;font-weight:500;letter-spacing:-.02em;line-height:1.2}
 .profile .out{margin-left:auto}
+.profile .grow{min-width:0;flex:1 1 0}
+.profile .grow span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+.profile-form .field{margin:18px 0 0}
+.field > .inline-save{display:flex;gap:8px;margin:0;font-size:16px;color:var(--ink)}
+.inline-save input{flex:1;min-width:0}
+.inline-save .btn{flex:none;min-height:50px}
+.field > .at-input{position:relative;display:block;margin:0;font-size:16px;font-weight:400;color:var(--ink)}
+.at-input i{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-style:normal;color:var(--muted);pointer-events:none}
+.field .at-input input{padding-left:34px}
 .acct-form{margin-top:12px}
 .acct-form .top-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .acct-form .top-row h2{font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;min-width:0}

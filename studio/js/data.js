@@ -161,3 +161,11 @@ export async function ensureLink({ ct, account_id, card_id = null, kind }) {
 export async function saveSettings({ account_id, r2_template, account_code }) {
   must(await supabase.from('account_settings').insert({ account_id, r2_template, account_code }));
 }
+
+// Members may change only their own name and their own accounts' handles (migration member_self_edit).
+async function updateOwn(table, id, values) {
+  const rows = must(await supabase.from(table).update(values).eq('id', id).select('id'));
+  if (!rows.length) throw Object.assign(new Error('not yours'), { code: '42501' });
+}
+export const saveMemberName = (id, name) => updateOwn('members', id, { name });
+export const saveHandle = (id, handle) => updateOwn('accounts', id, { handle });
