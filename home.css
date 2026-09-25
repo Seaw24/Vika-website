@@ -527,3 +527,34 @@ h2 { font-size: clamp(34px, 4.2vw, 62px); font-weight: 500; letter-spacing: -.03
   .hero-device .callout { translate: none; }
   .btn::before { display: none; }
 }
+
+/* Download: App Store badge and QR, after Cal AI's store buttons */
+.store-badge { display: inline-flex; align-items: center; gap: 12px; min-height: 58px; padding: 0 26px 0 20px; border-radius: 999px; text-decoration: none; transition: transform .4s var(--ease), background .3s; }
+.store-badge:hover { transform: translateY(-2px); }
+.store-badge .apple { width: 24px; height: 24px; flex: none; margin-top: -3px; }
+.store-badge span { display: flex; flex-direction: column; font-size: 19px; font-weight: 600; line-height: 1.05; letter-spacing: -.01em; }
+.store-badge small { font-size: 11px; font-weight: 500; letter-spacing: .02em; opacity: .8; }
+.store-gold { background: var(--gold); color: var(--dark); }
+.store-gold:hover { background: var(--gold-2); }
+.store-ink { background: var(--dark); color: var(--on-dark); }
+.store-ink:hover { background: #2b231b; }
+.download { --focus: var(--dark); background: var(--gold); color: var(--dark); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8%; padding: clamp(56px, 7vw, 104px) var(--gutter); margin-bottom: 12px; }
+.download::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 80% at 12% 0%, rgba(255, 243, 208, .55), transparent 62%), radial-gradient(50% 60% at 95% 100%, rgba(127, 94, 16, .3), transparent 60%); pointer-events: none; }
+.download > * { position: relative; }
+.download h2 { color: var(--dark); }
+.download-copy p:not(.eyebrow) { margin-top: 20px; font-size: clamp(16px, 1.3vw, 19px); color: rgba(23, 18, 14, .8); max-width: 42ch; }
+.download-actions { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 12px; }
+.qr-card { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 26px 26px 22px; border-radius: 26px; background: var(--raised); box-shadow: 0 40px 80px -36px rgba(23, 18, 14, .55); }
+.qr-card img { width: 184px; height: 184px; }
+.qr-card figcaption { text-align: center; }
+.qr-card strong { display: block; font-size: 15px; font-weight: 600; }
+.qr-card span { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+.footer-store { margin-left: auto; }
+.footer-store + nav { margin-left: 0; }
+@media (max-width: 900px) {
+  .download { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 56px 22px; }
+  /* A phone already is the phone: the QR only helps on a computer. */
+  .qr-card { display: none; }
+  .store-badge { min-height: 54px; }
+  .footer-store { margin-left: 0; }
+}
