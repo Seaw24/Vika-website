@@ -128,7 +128,8 @@ function wire(ctx, f) {
 }
 
 export async function renderSettings(main, ctx) {
-  const mine = ctx.team.accounts.filter((a) => a.member_id === ctx.me.id);
+  // Posting accounts first, then the creative one.
+  const mine = ctx.team.accounts.filter((a) => a.member_id === ctx.me.id).sort((a, b) => (a.kind === 'creative') - (b.kind === 'creative'));
   main.innerHTML = `<div class="page-head"><div><p class="eyebrow">Cài đặt</p><h1 class="page-title">Tài khoản của bạn</h1>
       <p class="sub">Tên của bạn, tên từng tài khoản Threads, bình luận 2 và mã link. Đặt {link} ở chỗ cần link tải app.</p></div></div>
     ${profile(ctx)}
