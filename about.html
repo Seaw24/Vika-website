@@ -4,333 +4,46 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>VIKA - Huấn luyện viên AI cá nhân cho người Việt</title>
+  <title>Câu chuyện Vika · Vui, khỏe, an toàn</title>
   <meta name="description"
     content="VIKA dùng AI và camera điện thoại để chỉnh tư thế, đếm rep và cá nhân hóa lộ trình tập luyện bằng tiếng Việt." />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="vika-logo-square.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
-    rel="stylesheet" />
+
+
+
   <link rel="preload" href="vika-wordmark-blacktext.png" as="image" />
   <link rel="stylesheet" href="styles.css?v=1.3" />
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link rel="preload" href="assets/home/fonts/BeVietnamPro-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="interior.css">
 </head>
 
-<body>
+<body class="interior">
   <a class="skip-link" href="#content">Bỏ qua để đến nội dung chính</a>
 
-  <header class="site-header" data-header>
+    <header class="site-header" data-header>
     <div class="header-inner">
-      <a class="brand" href="/#top" aria-label="VIKA">
-        <img class="brand-logo" src="vika-wordmark-blacktext.png" width="359" height="164" alt="VIKA"
-          decoding="async" />
-      </a>
-
+      <a class="brand" href="index.html" aria-label="Vika, về trang chủ"><img class="brand-logo" src="vika-wordmark-blacktext.png" width="486" height="164" alt="VIKA" decoding="async"></a>
       <nav class="desktop-nav" aria-label="Điều hướng chính">
-        <button class="nav-link nav-link-button" type="button" data-mega-trigger="mega-features" aria-expanded="false">
-          Tính năng
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em"
-            style="display: inline-block; vertical-align: middle; margin-top: -2px; margin-left: 2px;"
-            aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <button class="nav-link nav-link-button" type="button" data-mega-trigger="mega-how" aria-expanded="false">
-          Cách hoạt động
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em"
-            style="display: inline-block; vertical-align: middle; margin-top: -2px; margin-left: 2px;"
-            aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <button class="nav-link nav-link-button" type="button" data-mega-trigger="mega-community" aria-expanded="false">
-          Cộng đồng
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em"
-            style="display: inline-block; vertical-align: middle; margin-top: -2px; margin-left: 2px;"
-            aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <button class="nav-link nav-link-button" type="button" data-mega-trigger="mega-blog" aria-expanded="false">
-          Blog
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em"
-            style="display: inline-block; vertical-align: middle; margin-top: -2px; margin-left: 2px;"
-            aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <button class="nav-link nav-link-button" type="button" data-mega-trigger="mega-about" aria-expanded="false">
-          Về VIKA
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em"
-            style="display: inline-block; vertical-align: middle; margin-top: -2px; margin-left: 2px;"
-            aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
+        <a class="nav-link" href="index.html#how">Cách hoạt động</a>
+        <a class="nav-link" href="index.html#product">Trong buổi tập</a>
+        <a class="nav-link" href="about.html">Về Vika</a>
+        <a class="nav-link" href="support.html">Hỗ trợ</a>
       </nav>
-
       <div class="header-actions">
-        <a class="button button-primary" href="#experience-modal" data-modal-trigger="experience-modal">Trải nghiệm
-          ngay</a>
-        <button class="menu-toggle" type="button" data-menu-toggle aria-label="Mở menu" aria-expanded="false">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <a class="button button-primary" href="index.html#start">Trải nghiệm Vika</a>
+        <button class="menu-toggle" type="button" data-menu-toggle aria-label="Mở menu" aria-expanded="false"><span></span><span></span><span></span></button>
       </div>
     </div>
-
-    <div class="mega-panel" data-mega-panel id="mega-features">
-      <div class="mega-inner">
-        <div class="mega-column">
-          <p class="mega-title">Hiện có</p>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>Lộ trình cá nhân hóa</strong></span>
-          </a>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>AI Tracking dáng</strong></span>
-          </a>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>Hướng dẫn sau bài tập</strong></span>
-          </a>
-        </div>
-        <div class="mega-column">
-          <p class="mega-title">Sắp ra mắt</p>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>Bài tập cho bệnh lý đặc thù</strong></span>
-          </a>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>Đa dạng bộ môn</strong></span>
-          </a>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>Quản lý dinh dưỡng & thực đơn</strong></span>
-          </a>
-          <a href="#features" class="mega-item no-icon">
-            <span><strong>Nhắc nhở & lịch tập thông minh</strong></span>
-          </a>
-        </div>
-        <div class="mega-feature">
-          <div class="image-placeholder">
-            [Ảnh demo AI tracking]
-          </div>
-          <p style="margin-top: 14px;">Xem VIKA hoạt động thực tế như thế nào</p>
-          <a class="text-link" href="#demo">▶ Xem video demo</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="mega-panel" data-mega-panel id="mega-how">
-      <div class="mega-inner mega-inner-2col">
-        <div class="mega-column">
-          <p class="mega-title">Quy trình</p>
-          <a href="#how" class="mega-item no-icon">
-            <span><strong>Thiết lập hồ sơ cá nhân</strong></span>
-          </a>
-          <a href="#how" class="mega-item no-icon">
-            <span><strong>Đặt điện thoại và tập</strong></span>
-          </a>
-          <a href="#how" class="mega-item no-icon">
-            <span><strong>Xem kết quả và tiến bộ</strong></span>
-          </a>
-        </div>
-        <div class="mega-feature">
-          <h3>Bắt đầu chỉ trong 3 phút</h3>
-          <p>Không cần thiết bị.<br />Không cần kinh nghiệm.<br />Chỉ cần điện thoại.</p>
-          <a class="text-link" href="#download">Tải miễn phí ngay →</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="mega-panel" data-mega-panel id="mega-community">
-      <div class="mega-inner">
-        <div class="mega-column">
-          <p class="mega-title">Hiện có</p>
-          <a href="#blog" class="mega-item no-icon">
-            <span><strong>Blog VIKA</strong></span>
-          </a>
-          <a href="#community" class="mega-item no-icon">
-            <span><strong>Chia sẻ thành tích</strong></span>
-          </a>
-        </div>
-        <div class="mega-column">
-          <p class="mega-title">Sắp ra mắt</p>
-          <a href="#community" class="mega-item no-icon">
-            <span><strong>Bảng xếp hạng</strong></span>
-          </a>
-          <a href="#community" class="mega-item no-icon">
-            <span><strong>Thử thách hàng tuần</strong></span>
-          </a>
-          <a href="#community" class="mega-item no-icon">
-            <span><strong>Tìm bạn cùng tập</strong></span>
-          </a>
-          <a href="#community" class="mega-item no-icon">
-            <span><strong>Thi đấu ảo & điểm thưởng</strong></span>
-          </a>
-        </div>
-        <div class="mega-feature">
-          <h3>Cộng đồng VIKA đang được xây dựng</h3>
-          <p>Đăng ký sớm để nhận thông báo khi ra mắt + ưu đãi thành viên đầu</p>
-          <a class="text-link" href="#register">Đăng ký nhận thông báo</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="mega-panel" data-mega-panel id="mega-blog">
-      <div class="mega-inner mega-inner-2col">
-        <div class="mega-column">
-          <p class="mega-title">Chủ đề</p>
-          <a href="#blog" class="mega-item no-icon">
-            <span><strong>Kỹ thuật tập luyện</strong></span>
-          </a>
-          <a href="#blog" class="mega-item no-icon">
-            <span><strong>Sức khỏe & Dinh dưỡng</strong></span>
-          </a>
-          <a href="#blog" class="mega-item no-icon">
-            <span><strong>Yoga & Phục hồi</strong></span>
-          </a>
-          <a href="#blog" class="mega-item no-icon">
-            <span><strong>Câu chuyện thành công</strong></span>
-          </a>
-        </div>
-        <div class="mega-feature">
-          <div class="image-placeholder">
-            [Ảnh thumbnail]
-          </div>
-          <h3 style="margin-top: 14px;">7 lỗi squat phổ biến và cách sửa từng cái</h3>
-          <p class="eyebrow" style="margin-top: 4px;">5 phút đọc · Kỹ thuật</p>
-          <a class="text-link" href="#blog" style="margin-top: 4px;">Đọc ngay →</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="mega-panel" data-mega-panel id="mega-about">
-      <div class="mega-inner mega-inner-2col">
-        <div class="mega-column">
-          <p class="mega-title">Công ty</p>
-          <a href="/about" class="mega-item no-icon">
-            <span>
-              <strong>Về VIKA</strong>
-            </span>
-          </a>
-        </div>
-        <div class="mega-column">
-          <p class="mega-title">Liên hệ & Hỗ trợ</p>
-          <a href="mailto:hello@vikavn.app" class="mega-item no-icon">
-            <span>
-              <strong>Liên hệ</strong>
-            </span>
-          </a>
-          <a href="/support.html" class="mega-item no-icon">
-            <span>
-              <strong>Trung tâm hỗ trợ</strong>
-            </span>
-          </a>
-          <a href="/privacy" class="mega-item no-icon">
-            <span>
-              <strong>Chính sách quyền riêng tư</strong>
-            </span>
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <nav class="mobile-nav" data-mobile-nav aria-label="Điều hướng mobile">
+    <nav class="mobile-nav" data-mobile-nav aria-label="Điều hướng trên điện thoại">
       <div class="mobile-nav-inner">
-        <button class="mobile-accordion-button" type="button" data-mobile-accordion aria-expanded="false">
-          Tính năng
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <div class="mobile-accordion-panel">
-          <a href="#features">Lộ trình cá nhân hóa</a>
-          <a href="#features">AI Tracking dáng</a>
-          <a href="#features">Hướng dẫn sau bài tập</a>
-          <a href="#features">Bài tập cho bệnh lý đặc thù</a>
-          <a href="#features">Đa dạng bộ môn</a>
-          <a href="#features">Quản lý dinh dưỡng & thực đơn</a>
-          <a href="#features">Nhắc nhở & lịch tập thông minh</a>
-        </div>
-
-        <button class="mobile-accordion-button" type="button" data-mobile-accordion aria-expanded="false">
-          Cách hoạt động
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <div class="mobile-accordion-panel">
-          <a href="#how">Thiết lập hồ sơ cá nhân</a>
-          <a href="#how">Đặt điện thoại và tập</a>
-          <a href="#how">Xem kết quả và tiến bộ</a>
-        </div>
-
-        <button class="mobile-accordion-button" type="button" data-mobile-accordion aria-expanded="false">
-          Cộng đồng
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <div class="mobile-accordion-panel">
-          <a href="#blog">Blog VIKA</a>
-          <a href="#community">Chia sẻ thành tích</a>
-          <a href="#community">Bảng xếp hạng</a>
-          <a href="#community">Thử thách hàng tuần</a>
-          <a href="#community">Tìm bạn cùng tập</a>
-          <a href="#community">Thi đấu ảo & điểm thưởng</a>
-        </div>
-
-        <button class="mobile-accordion-button" type="button" data-mobile-accordion aria-expanded="false">
-          Blog
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <div class="mobile-accordion-panel">
-          <a href="#blog">Kỹ thuật tập luyện</a>
-          <a href="#blog">Sức khỏe & Dinh dưỡng</a>
-          <a href="#blog">Yoga & Phục hồi</a>
-          <a href="#blog">Câu chuyện thành công</a>
-        </div>
-
-        <button class="mobile-accordion-button" type="button" data-mobile-accordion aria-expanded="false">
-          Về VIKA
-          <svg class="chevron" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24"
-            height="1.2em" width="1.2em" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <path fill="none" d="M0 0h24v24H0V0z"></path>
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
-          </svg>
-        </button>
-        <div class="mobile-accordion-panel">
-          <a href="/about">Về VIKA</a>
-          <a href="mailto:hello@vikavn.app">Liên hệ</a>
-          <a href="/support.html">Trung tâm hỗ trợ</a>
-          <a href="/privacy">Chính sách quyền riêng tư</a>
-        </div>
-
-        <div class="mobile-nav-actions">
-          <a class="button button-primary" href="#experience-modal" data-modal-trigger="experience-modal">Trải nghiệm
-            ngay</a>
-        </div>
+        <a class="mobile-accordion-button" href="index.html#how">Cách hoạt động</a>
+        <a class="mobile-accordion-button" href="index.html#product">Trong buổi tập</a>
+        <a class="mobile-accordion-button" href="index.html#film">Xem video Vika</a>
+        <a class="mobile-accordion-button" href="about.html">Về Vika</a>
+        <a class="mobile-accordion-button" href="support.html">Hỗ trợ</a>
+        <a class="mobile-accordion-button" href="privacy.html">Quyền riêng tư</a>
       </div>
     </nav>
   </header>
@@ -338,7 +51,7 @@
   <main id="content">
     <section class="section about-hero">
       <div class="container">
-        <h1>VIKA là gì?</h1>
+        <p class="eyebrow">Câu chuyện Vika</p><h1>Vui. Khỏe. An toàn.</h1>
         <p class="lead-text">VIKA viết tắt của Vui · Khỏe · An Toàn là ứng dụng tập luyện thông minh đầu tiên được xây
           dựng dành riêng cho người Việt.</p>
         <details class="about-more-details">
@@ -369,7 +82,7 @@
         <div class="founder-features">
           <article class="founder-feature feature-left">
             <div class="founder-feature-img">
-              <img src="Nguyễn Đức Nam.jpg" alt="Nguyễn Đức Nam">
+              <img src="Nguyễn Đức Nam.jpg" alt="Nguyễn Đức Nam" loading="lazy" decoding="async" width="800" height="1000">
             </div>
             <div class="founder-feature-content">
               <h3>Nguyễn Đức Nam</h3>
@@ -379,20 +92,20 @@
                   thực tế bây giờ, đó đang là đặc quyền của người có tiền. VIKA ra đời để xoá bỏ cái đó: mang trải
                   nghiệm huấn luyện bài bản, chuẩn chỉ đến tất cả mọi người ở Việt Nam, không phân biệt túi tiền."</p>
               </div>
-              <div class="founder-quote-full">
+              <details class="founder-story"><summary>Đọc câu chuyện đầy đủ <span aria-hidden="true">+</span></summary><div class="founder-quote-full">
                 <p>Khi mới tập, tôi cũng như hầu hết mọi người: xem video, làm theo, nghĩ rằng chăm chỉ là đủ. Mãi sau tôi mới nhận ra mình đã tập sai ngay từ đầu, không phải vì thiếu kỷ luật, mà vì không có ai hướng dẫn. Kết quả là thời gian và công sức bị lãng phí, trong khi không hề hay biết.</p>
                 <p>Tôi nhìn thấy điều tương tự ở bạn bè, bố mẹ, những người xung quanh. Họ không thiếu quyết tâm họ thiếu một lộ trình đúng và ai đó để nói: "Bạn đang sai ở đây."</p>
                 <p>Vấn đề là tập đúng cách đang bị định giá quá cao. Một buổi PT tại Hà Nội hay TP.HCM dao động 300.000–700.000 đồng, tức 5–10 triệu mỗi tháng nếu tập đều. Với phần lớn sinh viên hay nhân viên văn phòng, đó là con số không thực tế.</p>
                 <p>Vậy là nhiều người buộc phải tự tập. Rồi tập sai. Rồi không thấy kết quả. Rồi bỏ cuộc không phải vì lười, mà vì không biết mình sai ở đâu.</p>
                 <p>Chẳng lẽ chỉ chi phí cao, một người lại không thể được tập đúng và an toàn?</p>
                 <p>VIKA ra đời từ câu hỏi đó. Một huấn luyện viên cá nhân luôn ở trong túi áo của bạn: nhắc lỗi sai theo thời gian thực, xây lộ trình phù hợp với thể trạng và mục tiêu của từng người, và biến tập luyện thành hành trình bền vững chứ không chỉ là chuỗi ngày cố gắng một mình.</p>
-              </div>
+              </div></details>
             </div>
           </article>
 
           <article class="founder-feature feature-right">
             <div class="founder-feature-img">
-              <img src="Trần Tuấn Kiệt.jpg" alt="Trần Tuấn Kiệt">
+              <img src="Trần Tuấn Kiệt.jpg" alt="Trần Tuấn Kiệt" loading="lazy" decoding="async" width="800" height="1000">
             </div>
             <div class="founder-feature-content">
               <h3>Trần Tuấn Kiệt</h3>
@@ -403,12 +116,12 @@
                   bánh chưng là vừa, chứ không phải cứ phải là ức gà, rau trộn hay bít tết. Người Việt xứng đáng có công
                   cụ chăm sóc sức khoẻ được xây riêng cho mình."</p>
               </div>
-              <div class="founder-quote-full">
+              <details class="founder-story"><summary>Đọc câu chuyện đầy đủ <span aria-hidden="true">+</span></summary><div class="founder-quote-full">
                 <p>Lần đầu dùng app thể thao của nước ngoài, sau buổi tập tôi nhận đề xuất những món ăn rất đặc thù nhưng trong khi mâm cơm tối của tôi là: canh chua, thịt kho, giò lụa, nem rán.</p>
                 <p>Dinh dưỡng tốt nhất là thứ bạn thực sự duy trì được, trong chính văn hóa ăn uống của mình. Người Việt ăn cơm, phở, bún, bánh mì không phải ức gà hay bít tết. Tập luyện cũng vậy: không phải ai cũng tập gym. Thực tế chỉ ra rằng, Yoga, pilates, phục hồi cột sống đó là nhu cầu thật của hàng triệu người. Và thứ bị bỏ qua nhiều nhất chính là động lực. Người Việt làm tốt hơn khi có người đồng hành, khi có ai đó thực sự quan tâm đến sự tiến bộ của mình.</p>
                 <p>Vấn đề còn sâu hơn thế: cấu trúc xương khác, thói quen ăn uống khác, nhịp sống khác. Một chỉ số BMI chuẩn phương Tây áp lên người Việt cho kết quả không phù hợp</p>
                 <p>VIKA được xây từ dữ liệu nhân trắc học người Việt, bằng tiếng Việt, hiểu văn hóa Việt không phải bản dịch hời hợt của sản phẩm ngoại. Tầm nhìn của chúng tôi đơn giản: nền tảng sức khỏe đầu tiên được xây từ trong ra ngoài, cho chính người Việt Nam.</p>
-              </div>
+              </div></details>
             </div>
           </article>
         </div>
@@ -548,37 +261,12 @@
     </section>
   </main>
 
-  <footer class="site-footer" id="about">
-    <div class="container footer-grid">
-      <div>
-        <a class="brand footer-brand" href="/#top" aria-label="VIKA">
-          <img class="brand-logo" src="vika-wordmark-blacktext.png" width="359" height="164" alt="VIKA"
-            loading="lazy" />
-        </a>
-        <p>Huấn luyện viên AI tại nhà</p>
-        <p class="footer-small">&copy; 2026 VIKA. All rights reserved.</p>
-      </div>
-      <div>
-        <h3>Sản phẩm</h3>
-        <a href="#features">Tính năng</a>
-        <a href="#how">Cách hoạt động</a>
-      </div>
-      <div>
-        <h3>Công ty</h3>
-        <a href="/about">Về VIKA</a>
-        <a href="#blog">Blog</a>
-        <a href="mailto:hello@vikavn.app">Liên hệ</a>
-      </div>
-      <div>
-        <h3>Hỗ trợ</h3>
-        <a href="/privacy">Quyền riêng tư</a>
-        <a href="#experience-modal" data-modal-trigger="experience-modal">Trải nghiệm ngay</a>
-      </div>
-      <div>
-        <h3>Kết nối</h3>
-        <a href="https://web.facebook.com/profile.php?id=61590066156123&locale=vi_VN">Facebook</a>
-      </div>
+  <footer class="site-footer">
+    <div class="footer-grid container">
+      <div><a class="brand" href="index.html" aria-label="Vika, về trang chủ"><img class="brand-logo" src="vika-wordmark-blacktext.png" width="486" height="164" alt="VIKA" loading="lazy"></a><p>Huấn luyện viên AI tại nhà.<br>Dành cho người Việt.</p></div>
+      <nav aria-label="Thông tin Vika"><a href="about.html">Về Vika</a><a href="support.html">Hỗ trợ</a><a href="privacy.html">Quyền riêng tư</a></nav>
     </div>
+    <div class="interior-footer-bottom container"><span>© 2026 Vika</span><a href="index.html#start">Bắt đầu cùng Vika <span aria-hidden="true">↗</span></a></div>
   </footer>
 
 
@@ -588,7 +276,7 @@
     </svg>
   </button>
 
-  <div class="chatbox-container" id="chatbox">
+  <div class="chatbox-container" id="chatbox" inert aria-hidden="true">
     <div class="chatbox-header">
       <h3>Giải đáp thắc mắc</h3>
       <button class="chatbox-close" id="chat-close" aria-label="Đóng chat">&times;</button>
@@ -666,26 +354,26 @@
 
       <div class="thank-you-letter" style="text-align: left; color: var(--color-ink); line-height: 1.45; font-size: 14px;">
         <p style="margin-bottom: 10px;">Thân gửi Anh/Chị <strong class="user-name-display" style="font-weight: 800; color: #000; font-size: 15px;"></strong>,</p>
-        
+
         <p style="margin-bottom: 10px;">Lời đầu tiên, <strong style="color: #000;">Vika: Huấn luyện viên AI tại nhà</strong> xin gửi lời cảm ơn chân thành đến Anh/Chị <strong class="user-name-display" style="font-weight: 800; color: #000; font-size: 15px;"></strong> vì đã đồng hành và hỗ trợ cho <strong style="color: #000;">Vika</strong> trong chương trình trải nghiệm sớm của ứng dụng.</p>
-        
+
         <p style="margin-bottom: 10px; font-weight: 800; color: #4CAF50; font-size: 15px; text-align: center; text-transform: uppercase;">Chúc mừng Anh/Chị đã đăng ký thành công<br>chương trình trải nghiệm sớm VIKA!</p>
-        
+
         <p style="margin-bottom: 10px;">Sự quan tâm và sẵn sàng đồng hành của Anh/Chị là nguồn động lực to lớn đối với đội ngũ phát triển trong quá trình hoàn thiện <strong style="color: #000;">Vika</strong> - ứng dụng hỗ trợ tập luyện ứng dụng công nghệ AI, hướng đến việc mang lại trải nghiệm tập luyện cá nhân hóa, thuận tiện và dễ tiếp cận hơn cho mọi người.</p>
-        
+
         <p style="margin-bottom: 10px;">Hiện tại, <strong style="color: #000;">Vika</strong> đang tiến hành tổng hợp danh sách đăng ký và chuẩn bị các bước tiếp theo cho chương trình thử nghiệm. Trong thời gian tới, <strong style="color: #000;">Vika</strong> sẽ liên hệ với Anh/Chị qua email hoặc Zalo để cung cấp thông tin chi tiết về việc tham gia trải nghiệm, hướng dẫn cài đặt và các hoạt động liên quan.</p>
-        
+
         <p style="margin-bottom: 12px;">Anh/Chị có thể tham gia nhóm Zalo thông qua đường dẫn dưới đây:</p>
-        
+
         <a href="https://zalo.me/g/ubsja1ciq2isacaibru2" target="_blank" class="button button-primary button-large" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #0068FF; color: white; border-color: #0068FF; margin-bottom: 16px; min-height: 44px; padding: 0 16px;">
           <img src="zalo.png" alt="Zalo" width="24" height="24" style="border-radius: 50%;">
           Tham gia Cộng đồng Zalo
         </a>
-        
+
         <p style="margin-bottom: 10px;">Một lần nữa, <strong style="color: #000;">Vika</strong> xin trân trọng cảm ơn Anh/Chị <strong class="user-name-display" style="font-weight: 800; color: #000; font-size: 15px;"></strong> vì đã dành thời gian quan tâm và đồng hành cùng chúng tôi. Chúc Anh/Chị một ngày tốt lành!</p>
-        
+
         <p style="margin-bottom: 16px;">Trân trọng,<br><strong style="font-weight: 800; color: #000;">Vika team</strong></p>
-        
+
         <div style="background: var(--color-background); padding: 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--color-line);">
           <p style="font-weight: 600; margin-bottom: 6px;">Mọi thắc mắc xin liên hệ:</p>
           <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px;">

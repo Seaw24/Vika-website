@@ -123,7 +123,9 @@ megaTriggers.forEach(trigger => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    const wasMenuOpen = menuToggle?.getAttribute('aria-expanded') === 'true';
     setMobileMenu(false);
+    if (wasMenuOpen) menuToggle.focus();
     if (activeTrigger) setMega(activeTrigger, false);
   }
 });
@@ -182,7 +184,11 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
       return;
     }
     event.preventDefault();
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: "start" });
+    if (link.classList.contains('skip-link')) {
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    }
     history.pushState(null, "", id);
   });
 });
@@ -212,7 +218,9 @@ document.addEventListener('click', (event) => {
                           btn.hasAttribute('data-modal-close') || 
                           btn.type === 'submit' || 
                           btn.id === 'chat-toggle' || 
-                          btn.id === 'chat-close' || 
+                          btn.id === 'chat-close' ||
+                          btn.id === 'lang-vi-btn' ||
+                          btn.id === 'lang-en-btn' ||
                           btn.classList.contains('banner-dot') ||
                           btn.closest('.banner-dots') ||
                           btn.closest('.chat-notification');
@@ -648,11 +656,20 @@ let chatUserInfo = {};
 // Open/Close Chatbox
 if (chatToggleBtn && chatboxContainer) {
   chatToggleBtn.addEventListener('click', () => {
+    chatboxContainer.inert = false;
+    chatboxContainer.setAttribute('aria-hidden', 'false');
     chatboxContainer.classList.add('active');
+    chatCloseBtn.focus();
   });
 
   chatCloseBtn.addEventListener('click', () => {
     chatboxContainer.classList.remove('active');
+    chatboxContainer.inert = true;
+    chatboxContainer.setAttribute('aria-hidden', 'true');
+    chatToggleBtn.focus();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && chatboxContainer.classList.contains('active')) chatCloseBtn.click();
   });
 }
 

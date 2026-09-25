@@ -8,52 +8,39 @@
   <meta name="description" content="Liên hệ VIKA để báo lỗi ứng dụng, đóng góp ý kiến hoặc yêu cầu hỗ trợ." />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="vika-logo-square.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
-    rel="stylesheet" />
+
+
+
   <link rel="stylesheet" href="styles.css?v=1.3" />
+  <link rel="preload" href="assets/home/fonts/BeVietnamPro-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="interior.css">
 </head>
 
-<body>
+<body class="interior">
   <a class="skip-link" href="#content">Bỏ qua để đến nội dung chính</a>
 
-  <header class="site-header" data-header>
+    <header class="site-header" data-header>
     <div class="header-inner">
-      <a class="brand" href="/#top" aria-label="VIKA">
-        <img class="brand-logo" src="vika-wordmark-blacktext.png" width="359" height="164" alt="VIKA"
-          decoding="async" />
-      </a>
-
+      <a class="brand" href="index.html" aria-label="Vika, về trang chủ"><img class="brand-logo" src="vika-wordmark-blacktext.png" width="486" height="164" alt="VIKA" decoding="async"></a>
       <nav class="desktop-nav" aria-label="Điều hướng chính">
-        <a class="nav-link" href="/#features">Tính năng</a>
-        <a class="nav-link" href="/#how">Cách hoạt động</a>
-        <a class="nav-link" href="/#community">Cộng đồng</a>
-        <a class="nav-link" href="/#blog">Blog</a>
-        <a class="nav-link" href="/about">Về VIKA</a>
+        <a class="nav-link" href="index.html#how">Cách hoạt động</a>
+        <a class="nav-link" href="index.html#product">Trong buổi tập</a>
+        <a class="nav-link" href="about.html">Về Vika</a>
+        <a class="nav-link" href="support.html">Hỗ trợ</a>
       </nav>
-
       <div class="header-actions">
-        <a class="button button-primary" href="/#download">Trải nghiệm ngay</a>
-        <button class="menu-toggle" type="button" data-menu-toggle aria-label="Mở menu" aria-expanded="false">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <a class="button button-primary" href="index.html#start">Trải nghiệm Vika</a>
+        <button class="menu-toggle" type="button" data-menu-toggle aria-label="Mở menu" aria-expanded="false"><span></span><span></span><span></span></button>
       </div>
     </div>
-
-    <nav class="mobile-nav" data-mobile-nav aria-label="Điều hướng mobile">
+    <nav class="mobile-nav" data-mobile-nav aria-label="Điều hướng trên điện thoại">
       <div class="mobile-nav-inner">
-        <a class="mobile-accordion-button" href="/#features">Tính năng</a>
-        <a class="mobile-accordion-button" href="/#how">Cách hoạt động</a>
-        <a class="mobile-accordion-button" href="/#community">Cộng đồng</a>
-        <a class="mobile-accordion-button" href="/#blog">Blog</a>
-        <a class="mobile-accordion-button" href="/about">Về VIKA</a>
-        <a class="mobile-accordion-button" href="/privacy">Chính sách quyền riêng tư</a>
-        <div class="mobile-nav-actions">
-          <a class="button button-primary" href="/#download">Trải nghiệm ngay</a>
-        </div>
+        <a class="mobile-accordion-button" href="index.html#how">Cách hoạt động</a>
+        <a class="mobile-accordion-button" href="index.html#product">Trong buổi tập</a>
+        <a class="mobile-accordion-button" href="index.html#film">Xem video Vika</a>
+        <a class="mobile-accordion-button" href="about.html">Về Vika</a>
+        <a class="mobile-accordion-button" href="support.html">Hỗ trợ</a>
+        <a class="mobile-accordion-button" href="privacy.html">Quyền riêng tư</a>
       </div>
     </nav>
   </header>
@@ -124,31 +111,11 @@
   </main>
 
   <footer class="site-footer">
-    <div class="container footer-grid">
-      <div>
-        <a class="brand footer-brand" href="/#top" aria-label="VIKA">
-          <img class="brand-logo" src="vika-wordmark-blacktext.png" width="359" height="164" alt="VIKA"
-            loading="lazy" />
-        </a>
-        <p>Huấn luyện viên AI tại nhà</p>
-        <p class="footer-small">&copy; 2026 VIKA. All rights reserved.</p>
-      </div>
-      <div>
-        <h3>Sản phẩm</h3>
-        <a href="/#features">Tính năng</a>
-        <a href="/#how">Cách hoạt động</a>
-      </div>
-      <div>
-        <h3>Công ty</h3>
-        <a href="/about">Về VIKA</a>
-        <a href="/#blog">Blog</a>
-      </div>
-      <div>
-        <h3>Hỗ trợ</h3>
-        <a href="/support.html" aria-current="page">Trung tâm hỗ trợ</a>
-        <a href="/privacy">Quyền riêng tư</a>
-      </div>
+    <div class="footer-grid container">
+      <div><a class="brand" href="index.html" aria-label="Vika, về trang chủ"><img class="brand-logo" src="vika-wordmark-blacktext.png" width="486" height="164" alt="VIKA" loading="lazy"></a><p>Huấn luyện viên AI tại nhà.<br>Dành cho người Việt.</p></div>
+      <nav aria-label="Thông tin Vika"><a href="about.html">Về Vika</a><a href="support.html">Hỗ trợ</a><a href="privacy.html">Quyền riêng tư</a></nav>
     </div>
+    <div class="interior-footer-bottom container"><span>© 2026 Vika</span><a href="index.html#start">Bắt đầu cùng Vika <span aria-hidden="true">↗</span></a></div>
   </footer>
 
   <script src="script.js?v=1.3"></script>
