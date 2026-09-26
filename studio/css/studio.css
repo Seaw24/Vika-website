@@ -161,32 +161,88 @@ select{appearance:none;-webkit-appearance:none;min-height:44px;padding:0 40px 0 
 
 /* ---------- Hôm nay ---------- */
 .today-hero{margin-top:8px}
+.hero-grid{display:grid;gap:clamp(24px,4vw,40px);align-items:end}
 .today-hero h1{font-size:clamp(36px,7vw,66px);letter-spacing:-.045em;line-height:1.02;max-width:13ch}
-.hero-meta{display:flex;align-items:center;justify-content:space-between;gap:14px 24px;flex-wrap:wrap;margin-top:18px}
-.hero-meta p{color:var(--on-dark-muted);font-size:15px;max-width:44ch}
-.progress{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--on-dark-muted)}
-.progress .bars{display:flex;gap:4px}
-.progress .bars i{width:28px;height:6px;border-radius:99px;background:rgba(244,238,226,.18)}
-.progress .bars i.on{background:var(--gold)}
-.progress .bars i.half{background:linear-gradient(90deg,var(--gold) 50%,rgba(244,238,226,.18) 50%)}
+.hero-lead .lede{color:var(--on-dark-muted);font-size:15px;max-width:44ch;margin-top:16px}
+
+/* The week strip: one row per card account, one cell per day. Solid gold is a confirmed post, a ring is one waiting for the read. */
+.strip{display:grid;gap:12px;padding:16px 18px 14px;border-radius:18px;background:rgba(244,238,226,.05);box-shadow:inset 0 0 0 1px var(--on-dark-line)}
+.strip-grid{display:grid;grid-template-columns:auto repeat(7,minmax(0,1fr));gap:4px 2px;align-items:center}
+.strip-grid .d{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:500;color:var(--on-dark-muted);text-align:center;padding-bottom:6px;position:relative}
+.strip-grid .d.today{color:var(--gold)}
+.strip-grid .d.today::after{content:"";position:absolute;left:50%;bottom:0;width:14px;height:2px;border-radius:2px;background:var(--gold);transform:translateX(-50%)}
+.strip-grid .who{font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--on-dark-muted);padding-right:10px;line-height:1}
+.strip-grid .cell{display:grid;place-items:center;height:28px}
+.strip-grid .cell i{display:block;width:12px;height:12px;border-radius:50%;background:rgba(244,238,226,.16);transition:transform .35s var(--ease)}
+.strip-grid .cell.future i{width:5px;height:5px;background:rgba(244,238,226,.16)}
+.strip-grid .cell.today.none i{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(244,238,226,.35)}
+.strip-grid .cell.claimed i{background:transparent;box-shadow:inset 0 0 0 2px var(--gold);animation:breathe 2.4s ease-in-out infinite}
+.strip-grid .cell.confirmed i{background:var(--gold);box-shadow:0 0 0 3px rgba(229,179,58,.16)}
+.strip-sum{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;font-size:12.5px;color:var(--on-dark-muted)}
+.strip-sum b{color:var(--on-dark);font-weight:500;font-variant-numeric:tabular-nums}
+.strip-key{display:inline-flex;align-items:center;gap:6px;font-size:11px}
+.strip-key .k{display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:8px}
+.strip-key .k.on{background:var(--gold)}
+.strip-key .k.ring{box-shadow:inset 0 0 0 1.5px var(--gold)}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* Tickets: one per card account */
 .tickets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:clamp(22px,4vw,36px)}
-.ticket{position:relative;display:flex;flex-direction:column;gap:14px;padding:20px;border-radius:22px;background:var(--raised);color:var(--ink);text-decoration:none;
+.ticket{position:relative;display:flex;flex-direction:column;gap:14px;padding:22px 22px 18px;border-radius:22px;background:var(--raised);color:var(--ink);
   box-shadow:0 30px 60px -30px rgba(0,0,0,.6);transition:transform .45s var(--ease),box-shadow .45s var(--ease)}
-a.ticket:hover{transform:translateY(-3px);box-shadow:0 36px 70px -30px rgba(0,0,0,.7)}
-.ticket.done{background:rgba(244,238,226,.07);color:var(--on-dark);box-shadow:inset 0 0 0 1px var(--on-dark-line)}
-.ticket.done .ticket-op{color:var(--on-dark-muted)}
-.ticket.done .av{background:var(--gold);color:var(--dark)}
-.ticket.empty{background:transparent;color:var(--on-dark-muted);box-shadow:none;border:1px dashed rgba(244,238,226,.24)}
-.ticket.empty .av{background:rgba(244,238,226,.1);color:var(--on-dark-muted)}
-.ticket-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ticket:has(.ticket-link:hover){transform:translateY(-3px);box-shadow:0 36px 70px -30px rgba(0,0,0,.7)}
+.ticket.is-chosen{box-shadow:0 30px 60px -30px rgba(0,0,0,.6),inset 0 0 0 1.5px var(--gold)}
+.ticket.is-empty{background:transparent;color:var(--on-dark-muted);box-shadow:none;border:1px dashed rgba(244,238,226,.24)}
+.ticket.is-empty .av{background:rgba(244,238,226,.1);color:var(--on-dark-muted)}
+.ticket.is-empty .ticket-op{font-size:15px}
+.ticket-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .handle{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;min-width:0}
 .handle span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ticket-op{font-size:18px;line-height:1.5;letter-spacing:-.01em;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.ticket-kicker{display:flex;align-items:center;gap:6px;margin-top:-4px;font-size:12.5px;font-weight:500;color:var(--gold-text)}
+.ticket-kicker svg{width:14px;height:14px;flex:none}
+.ticket-kicker b{font-weight:700}
+.ticket-link{color:inherit;text-decoration:none;min-width:0}
+.ticket-link::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.ticket-op{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;font-size:18px;line-height:1.5;letter-spacing:-.01em;white-space:pre-wrap}
 .ticket-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;flex-wrap:wrap}
-.ticket .go{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;background:var(--gold);color:var(--dark);font-weight:500;font-size:14px}
-.ticket.done .go{background:rgba(244,238,226,.1);color:var(--on-dark)}
+.ticket .acts{position:relative;z-index:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ticket .go{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;background:var(--gold);color:var(--dark);font-weight:500;font-size:14px;text-decoration:none}
+.ticket.is-chosen .go{background:var(--sand);color:var(--ink)}
+.ticket.is-done .go{background:var(--sand);color:var(--ink)}
 .ticket .go svg{width:16px;height:16px;transition:transform .35s var(--ease)}
-a.ticket:hover .go svg{transform:translateX(3px)}
+.ticket:has(.ticket-link:hover) .go svg{transform:translateX(3px)}
+
+/* The board: this week's posts beside the cards still to post */
+.today-board{display:grid;gap:0}
+.ledger{position:relative}
+.ledger::before{content:"";position:absolute;left:6px;top:24px;bottom:24px;width:1px;background:var(--line-2)}
+.led{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:18px 0}
+.led + .led{border-top:1px solid var(--line)}
+.led-rail{display:grid;justify-items:start;padding-top:4px}
+.led-rail i{display:grid;place-items:center;width:13px;height:13px;border-radius:50%;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.led-rail svg{width:9px;height:9px;stroke-width:3.2}
+.led.claimed .led-rail i{box-shadow:inset 0 0 0 2px var(--gold);animation:breathe 2.4s ease-in-out infinite}
+.led.confirmed .led-rail i{background:var(--gold);box-shadow:none;color:var(--dark)}
+.led.missing .led-rail i{background:var(--warn-bg);box-shadow:inset 0 0 0 2px var(--warn)}
+.led-body{min-width:0;display:grid;gap:8px}
+.led-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.led-when{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.led-op{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16.5px;line-height:1.5;color:inherit;text-decoration:none;white-space:pre-wrap;transition:color .2s}
+.led-op:hover{color:var(--gold-text)}
+.led-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.led-foot .num{font-variant-numeric:tabular-nums}
+.led-foot .num b{font-weight:500;color:var(--ink)}
+.led.missing .led-foot{color:var(--warn)}
+.ledger-empty{padding:22px 24px;border:1px dashed var(--line-2);border-radius:var(--card-r);color:var(--muted);font-size:14.5px;max-width:52ch}
+.tag.warn{background:var(--warn-bg);color:var(--warn)}
+.notice.warn{background:var(--warn-bg);color:var(--warn)}
+.notice.warn b{font-weight:500}
+@media (min-width:900px){
+  .hero-grid{grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr)}
+  .today-board{grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);column-gap:clamp(32px,5vw,64px)}
+  .today-board .library{display:block;border-top:1px solid var(--line)}
+  .today-board .library li{border-top:0}
+}
 
 /* Library of the week */
 .library-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
@@ -225,6 +281,16 @@ details[open] > summary .plus::after{transform:translate(-50%,-50%) rotate(90deg
 .minted .plain{font-size:15px;line-height:1.55;margin-bottom:12px}
 .hint{display:flex;align-items:center;gap:14px;justify-content:space-between;margin-top:18px;padding:14px 18px;border-radius:18px;border:1px dashed var(--line-2);font-size:13.5px;color:var(--muted)}
 .hint b{color:var(--ink);font-weight:500}
+
+/* Card page: the member's own "posted" mark */
+.claim-banner{display:flex;align-items:flex-start;gap:14px;padding:16px 18px;border-radius:18px;background:var(--gold-wash);color:var(--gold-text);flex-wrap:wrap}
+.claim-banner > svg{flex:none;width:22px;height:22px;margin-top:2px}
+.claim-banner .grow{flex:1 1 240px;min-width:0;font-size:15px;line-height:1.5}
+.claim-banner b{font-weight:500;color:var(--ink)}
+.claim-banner small{display:block;font-size:12.5px;margin-top:4px}
+.claim-banner .linkish{min-height:40px;color:var(--gold-text)}
+.pick-acts{display:inline-flex;align-items:center;gap:14px;flex-wrap:wrap}
+.linkish.strong{color:var(--ink)}
 
 /* Next-day questions */
 .question{margin-top:14px}

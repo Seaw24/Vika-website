@@ -92,6 +92,16 @@ export async function loadPosts(assignmentIds) {
   return allRows(() => supabase.from('posts').select('*').in('assignment_id', assignmentIds).order('id'));
 }
 
+// The newest reading of each post, for the Hôm nay ledger.
+export async function loadLatestObservations(postIds) {
+  if (!postIds.length) return new Map();
+  const rows = await allRows(() => supabase.from('observations').select('post_id,captured_at,views,likes,replies,other_replies,reposts')
+    .in('post_id', postIds).order('captured_at', { ascending: false }).order('id', { ascending: false }));
+  const latest = new Map();
+  for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r);
+  return latest;
+}
+
 export async function loadQuestions(memberId) {
   return allRows(() => supabase.from('questions').select('*,assignment:assignments(card_id)').eq('member_id', memberId).order('created_at').order('id'));
 }
