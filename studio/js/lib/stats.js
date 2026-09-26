@@ -70,3 +70,108 @@ export function breakdown(rows, key) {
   }
   return [...groups].map(([label, posts]) => ({ label, ...summarize(posts) }));
 }
+
+// ---- Helpers behind the charts (2026-09-25) ----
+export const MIN_BAND = 3;
+export const MIN_COMPARE = 3;
+const log10 = (v) => Math.round(Math.log10(v) * 1e9) / 1e9;
+
+export function percentile(values, p) {
+  const a = values.filter((v) => typeof v === 'number' && Number.isFinite(v)).sort((x, y) => x - y);
+  if (!a.length) return null;
+  const i = (a.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i);
+  return a[lo] + (a[hi] - a[lo]) * (i - lo);
+}
+
+// One entry per week that has a post, oldest first, with the week's medians and counts.
+export function weeklySeries(rows) {
+  const weeks = new Map();
+  for (const p of rows) { if (!weeks.has(p.week)) weeks.set(p.week, []); weeks.get(p.week).push(p); }
+  return [...weeks].sort(([a], [b]) => a.localeCompare(b)).map(([week, posts]) => ({ week, ...summarize(posts) }));
+}
+
+// The week asked for (or the latest with a mature post) against the previous week that had one.
+// Rates need at least MIN_COMPARE mature posts on both sides; a zero base has no rate.
+export function weekOverWeek(series, week) {
+  const withData = series.filter((w) => w.n > 0);
+  const current = (week ? series.find((w) => w.week === week) : withData.at(-1)) ?? null;
+  if (!current) return { current: null, previous: null, delta: null };
+  const previous = withData.filter((w) => w.week < current.week).at(-1) ?? null;
+  const ok = previous && current.n >= MIN_COMPARE && previous.n >= MIN_COMPARE;
+  const rate = (m) => previous[m] > 0 && current[m] != null ? (current[m] - previous[m]) / previous[m] : null;
+  return { current, previous, delta: ok ? { views: rate('views'), other_replies: rate('other_replies'), reposts: rate('reposts') } : null };
+}
+
+// One post's readings with their age in days since publishing, oldest first.
+export const readingsByAge = (post, observations) => observations.filter((o) => o.post_id === post.id)
+  .map((o) => ({ ...o, age: (Date.parse(o.captured_at) - Date.parse(post.published_at)) / DAY }))
+  .sort((a, b) => a.age - b.age);
+export const indexReadings = (posts, observations) => new Map(posts.map((p) => [p.id, readingsByAge(p, observations)]));
+const readingsOf = (post, source) => source instanceof Map ? (source.get(post.id) ?? []) : readingsByAge(post, source);
+
+// Views at an age, interpolated between readings and from zero at publish; nothing after the last reading.
+export function viewsAt(readings, age) {
+  const r = readings.filter((o) => o.views != null);
+  if (!r.length || age > r.at(-1).age) return null;
+  let prev = { age: 0, views: 0 };
+  for (const o of r) {
+    if (o.age >= age) return o.age === prev.age ? o.views : prev.views + (o.views - prev.views) * (age - prev.age) / (o.age - prev.age);
+    prev = o;
+  }
+  return r.at(-1).views;
+}
+
+// The middle half of the mature posts' view curves, day by day: what a usual post looks like on its way to day 7.
+export function lifecycleBand(rows, source, days = [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7]) {
+  const mature = rows.filter((p) => p.d7).map((p) => readingsOf(p, source));
+  if (mature.length < MIN_BAND) return { n: mature.length, days: [] };
+  const out = [];
+  for (const day of days) {
+    const values = mature.map((r) => viewsAt(r, day)).filter((v) => v != null);
+    if (values.length >= MIN_BAND) out.push({ day, n: values.length, p25: percentile(values, 0.25), median: percentile(values, 0.5), p75: percentile(values, 0.75) });
+  }
+  return { n: mature.length, days: out };
+}
+
+// Where a post stands, at the age of its latest reading, among the previous posts of the same account at that age.
+export function rankAtAge(post, rows, source, limit = 14) {
+  const last = readingsOf(post, source).filter((o) => o.views != null).at(-1);
+  if (!last) return null;
+  const previous = rows.filter((p) => p.account_id === post.account_id && Date.parse(p.published_at) < Date.parse(post.published_at))
+    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at)).slice(0, limit)
+    .map((p) => viewsAt(readingsOf(p, source), last.age)).filter((v) => v != null);
+  if (!previous.length) return null;
+  return { rank: 1 + previous.filter((v) => v > last.views).length, of: previous.length, age: last.age, views: last.views };
+}
+
+const themeKey = (t) => String(t ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/[.,;:!?…]+$/g, '').trim();
+// The same theme across posts, merged on spelling alone; the first spelling seen is the one shown.
+export function themeCounts(rows) {
+  const map = new Map();
+  for (const p of rows) for (const t of p.latest?.reply_themes ?? []) {
+    const key = themeKey(t.theme);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, { theme: String(t.theme).trim().replace(/[.,;:!?…]+$/g, ''), posts: 0, mentions: 0, ids: [] });
+    const e = map.get(key);
+    e.posts++; e.mentions += t.count ?? 0; e.ids.push(p.id);
+  }
+  return [...map.values()].sort((a, b) => b.posts - a.posts || b.mentions - a.mentions || a.theme.localeCompare(b.theme));
+}
+
+// A log axis from the power of ten under the smallest value (never under 10) to the one over the largest.
+export function logScale(values) {
+  const positive = values.filter((v) => typeof v === 'number' && v > 0);
+  const lo = Math.max(10, positive.length ? 10 ** Math.floor(log10(Math.min(...positive))) : 10);
+  let hi = positive.length ? 10 ** Math.ceil(log10(Math.max(...positive))) : 100;
+  if (hi <= lo) hi = lo * 10;
+  const ticks = [];
+  for (let t = lo; t <= hi; t *= 10) ticks.push(t);
+  const a = log10(lo), b = log10(hi);
+  return { lo, hi, ticks, pos: (v) => (log10(Math.min(hi, Math.max(lo, v ?? lo))) - a) / (b - a) };
+}
+
+// Rank change per id: positive means it climbed; null when it was not ranked before.
+export function movement(current, previous) {
+  const prev = new Map(previous.map((id, i) => [id, i]));
+  return new Map(current.map((id, i) => [id, prev.has(id) ? prev.get(id) - i : null]));
+}
