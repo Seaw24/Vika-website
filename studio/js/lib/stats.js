@@ -66,10 +66,14 @@ export function enrichPosts({ posts = [], observations = [], installs = [], vers
   });
 }
 
+// Day-3 medians feed the weekly comparisons. The "now" medians take each post's day-3 reading, or its
+// latest reading while it is younger (Nam, 2026-09-27: the numbers show every day, not only from day 3).
 export function summarize(rows) {
   const mature = rows.filter((p) => p.d3);
-  return { posts: rows.length, n: mature.length,
+  const current = rows.map((p) => p.d3 ?? p.latest).filter(Boolean);
+  return { posts: rows.length, n: mature.length, read: current.length,
     ...Object.fromEntries(['views', 'likes', 'other_replies', 'reposts'].map((m) => [m, median(mature.map((p) => p.d3[m]))])),
+    now: Object.fromEntries(['views', 'likes', 'other_replies', 'reposts'].map((m) => [m, median(current.map((o) => o[m]))])),
     engagement: rows.reduce((s, p) => s + (p.scoring.score ?? 0), 0),
     points: rows.reduce((s, p) => s + p.points, 0),
     installs: rows.reduce((s, p) => s + (p.installs ?? 0), 0),

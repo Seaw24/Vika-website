@@ -47,7 +47,9 @@ function model(s) {
   const enriched = enrichPosts(data, now);
   const index = indexReadings(data.posts, data.observations);
   const weeks = [...new Set(enriched.map((p) => p.week))].sort().reverse();
-  const laneAccounts = ctx.team.accounts.filter((a) => a.kind === s.lane && (!s.member || a.member_id === s.member));
+  // A slot still holding its setup name (like thaiha.2) is not an account on Threads yet, so it stays off the page.
+  const laneAccounts = ctx.team.accounts.filter((a) => a.kind === s.lane && (!s.member || a.member_id === s.member)
+    && (!/^[a-z]+\.(1|2|creative)$/.test(a.handle) || enriched.some((p) => p.account_id === a.id)));
   const accounts = laneAccounts.filter((a) => !s.compare.length || s.compare.includes(a.id));
   const allRows = enriched.filter((p) => accounts.some((a) => a.id === p.account_id));
   const rows = allRows.filter((p) => !s.week || p.week === s.week);
@@ -118,12 +120,12 @@ function hero({ s, total, wow, weekly }) {
     if (!cur) sub = 'chưa có bài đủ ngày 3';
     else if (s.week) sub = !prev ? 'chưa có tuần trước để so' : !wow.delta ? `cần ${MIN_COMPARE} bài đủ ngày 3 mỗi tuần để so` : d == null ? `tuần trước ${dash(prev[key])}` : `${pct(d)} so với tuần trước (${dash(prev[key])})`;
     else sub = `tuần ${shortWeek(cur.week)}: ${dash(cur[key])}${d != null ? `, ${pct(d)} so với tuần trước` : ''}`;
-    return `<div class="kpi"><div class="big${total[key] == null ? ' na' : ''}">${total[key] == null ? '–' : int(total[key])}</div><p class="lbl">${label}</p><p class="delta${d > 0 ? ' up' : d < 0 ? ' down' : ''}">${esc(sub)}</p></div>`;
+    return `<div class="kpi"><div class="big${total.now[key] == null ? ' na' : ''}">${total.now[key] == null ? '–' : int(total.now[key])}</div><p class="lbl">${label}</p><p class="delta${d > 0 ? ' up' : d < 0 ? ' down' : ''}">${esc(sub)}</p></div>`;
   };
   const shown = weekly.slice(-10);
-  return `<section class="stage hero-stats"><div><p class="eyebrow">Trung vị ngày 3 · ${total.n} bài · ${s.week ? `tuần ${shortWeek(s.week)}` : 'mọi tuần'}</p>
+  return `<section class="stage hero-stats"><div><p class="eyebrow">Trung vị hiện tại · ${total.read} bài · ${s.week ? `tuần ${shortWeek(s.week)}` : 'mọi tuần'}</p>
       <div class="kpis">${kpi('views', 'Lượt xem')}${kpi('other_replies', 'Trả lời của người khác')}${kpi('reposts', 'Đăng lại')}</div>
-      <p class="summary-foot"><span>${total.n} bài có lần đọc ngày 3 / ${total.posts} bài đã đăng. Số chưa đọc không tính thành 0.</span><span>${total.installs} lượt cài được báo cáo</span></p></div>
+      <p class="summary-foot"><span>${total.n} bài đủ ngày 3, ${total.read - total.n} bài đang tăng dùng số mới nhất / ${total.posts} bài đã đăng. Số chưa đọc không tính thành 0.</span><span>${total.installs} lượt cài được báo cáo</span></p></div>
     ${shown.length ? `<figure class="hero-weeks"><figcaption>Trung vị lượt xem theo tuần<span>${shown.length} tuần · cột rỗng: chưa có bài đủ ngày 3</span></figcaption>${weekColumns({ weeks: shown, key: 'views', highlight: s.week || wow.current?.week, format: int })}</figure>` : ''}</section>`;
 }
 
@@ -154,13 +156,13 @@ function accountsTable({ s, groups, rows, scale }) {
     const values = mine.map((p) => ({ id: p.id, views: p.d3 ? p.d3.views : p.latest?.views, young: !p.d3,
       title: `${title(p)} · ${p.d3 ? `ngày 3: ${dash(p.d3.views)}` : `đang tăng: ${dash(p.latest?.views)}`} lượt xem` })).filter((x) => x.views != null);
     return `<div class="strip-row${mine.length ? '' : ' is-empty'}"><div class="strip-who"><i class="av sm light">${esc(mark(g.handle))}</i><span><b>@${esc(g.handle)}</b><small>${mine.length ? `${g.n} bài đủ ngày 3 / ${g.posts} · đọc ${esc(date(g.lastRead))}` : 'Chưa có bài trong lựa chọn này'}</small></span></div>
-      ${stripRow({ values, median: g.views, scale, label: `Lượt xem từng bài của @${g.handle}`, format: int })}
-      <dl class="strip-nums"><div><dt>Xem</dt><dd>${dash(g.views)}</dd></div><div><dt>Thích</dt><dd>${dash(g.likes)}</dd></div><div><dt>Trả lời</dt><dd>${dash(g.other_replies)}</dd></div><div><dt>Đăng lại</dt><dd>${dash(g.reposts)}</dd></div><div class="pts"><dt>Điểm</dt><dd>${g.points ? number(g.points) : '0'}${g.provisional ? '<small>tạm</small>' : ''}</dd></div></dl></div>`;
+      ${stripRow({ values, median: g.now.views, scale, label: `Lượt xem từng bài của @${g.handle}`, format: int })}
+      <dl class="strip-nums"><div><dt>Xem</dt><dd>${dash(g.now.views)}</dd></div><div><dt>Thích</dt><dd>${dash(g.now.likes)}</dd></div><div><dt>Trả lời</dt><dd>${dash(g.now.other_replies)}</dd></div><div><dt>Đăng lại</dt><dd>${dash(g.now.reposts)}</dd></div><div class="pts"><dt>Điểm</dt><dd>${g.points ? number(g.points) : '0'}${g.provisional ? '<small>tạm</small>' : ''}</dd></div></dl></div>`;
   };
   return `<section class="section"><div class="section-head"><div><p class="eyebrow">Tài khoản</p><h2 class="section-title">Từng tài khoản</h2>
       <p class="sub">Mỗi chấm là một bài, đặt theo lượt xem ngày 3 trên thang log; chấm rỗng là bài đang tăng với số mới nhất. Vạch đậm là trung vị của tài khoản.</p></div>
       <label><span class="sr-only">Sắp xếp theo</span><select id="sort">${SORTS.map(([v, l]) => option(v, `Sắp xếp: ${l}`, s.sort)).join('')}</select></label></div>
-    <div class="strip-table"><div class="strip-head"><span>Tài khoản</span>${axis}<span>Trung vị ngày 3</span></div><div class="strip-axis-m">${axis}</div>${groups.map(row).join('')}</div></section>`;
+    <div class="strip-table"><div class="strip-head"><span>Tài khoản</span>${axis}<span>Trung vị hiện tại</span></div><div class="strip-axis-m">${axis}</div>${groups.map(row).join('')}</div></section>`;
 }
 
 // One row per account, one cell per day of the last four weeks, shaded by that post's score.
