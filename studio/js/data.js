@@ -179,3 +179,27 @@ async function updateOwn(table, id, values) {
 }
 export const saveMemberName = (id, name) => updateOwn('members', id, { name });
 export const saveHandle = (id, handle) => updateOwn('accounts', id, { handle });
+
+/* ---------- The owner's team view (every member already reads every row under RLS) ---------- */
+
+// Everything that places a post on a day, across all card weeks: members post a card week's
+// cards before and after its Monday, so the page groups by the day posted, not by card week.
+export async function loadTeamActivity() {
+  const [assignments, events, posts] = await Promise.all([
+    allRows(() => supabase.from('assignments').select(ASSIGNMENT).order('id')),
+    allRows(() => supabase.from('events').select('id,at,member_id,type,assignment_id,card_id,account_id,payload')
+      .in('type', ['chose_account', 'undo_choice', 'choice_expired', 'skipped', 'posted', 'posted_undo']).order('id')),
+    allRows(() => supabase.from('posts').select('*').order('id')),
+  ]);
+  return { assignments, events, posts };
+}
+
+// The newest captured OP of each post, for posts that have no card text.
+export async function loadLatestOps(postIds) {
+  if (!postIds.length) return new Map();
+  const rows = await allRows(() => supabase.from('post_versions').select('post_id,op,captured_at,id')
+    .in('post_id', postIds).order('captured_at', { ascending: false }).order('id', { ascending: false }));
+  const latest = new Map();
+  for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r.op);
+  return latest;
+}

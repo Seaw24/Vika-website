@@ -11,7 +11,7 @@ export const shortWeek = (iso) => { const [, m, d] = iso.split('-').map(Number);
 const topRound = (x, y, w, h, r) => { const c = Math.min(r, h, w / 2); return `M${r1(x)},${r1(y + h)}v${r1(-(h - c))}a${c},${c} 0 0 1 ${c},${-c}h${r1(w - 2 * c)}a${c},${c} 0 0 1 ${c},${c}v${r1(h - c)}z`; };
 
 // Views of every post as it ages, drawn over the middle half of the mature posts (the band) and their median.
-export const LC = { width: 720, height: 300, L: 54, R: 18, T: 18, B: 30, xMax: 8 };
+export const LC = { width: 720, height: 300, L: 54, R: 18, T: 18, B: 30, xMax: 5 };
 export function lifecycleChart({ series, band, scale, width = LC.width, height = LC.height, xMax = LC.xMax, format = fmt }) {
   if (!series.length) return '';
   const { L, R, T, B } = LC;
@@ -19,7 +19,7 @@ export function lifecycleChart({ series, band, scale, width = LC.width, height =
   const y = (v) => r1(T + (1 - scale.pos(v)) * (height - T - B));
   const grid = scale.ticks.map((t) => `<line class="ax-grid" x1="${L}" x2="${width - R}" y1="${y(t)}" y2="${y(t)}"/><text class="ax-lbl" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${format(t)}</text>`).join('');
   const days = Array.from({ length: xMax + 1 }, (_, d) => `<text class="ax-lbl" x="${x(d)}" y="${height - 9}" text-anchor="middle">${d}</text>`).join('');
-  const day7 = `<line class="lc-day7" x1="${x(7)}" x2="${x(7)}" y1="${T - 4}" y2="${height - B + 4}"/><text class="ax-lbl lc-day7-lbl" x="${x(7)}" y="${T - 7}" text-anchor="middle">ngày 7</text>`;
+  const day3 = `<line class="lc-day3" x1="${x(3)}" x2="${x(3)}" y1="${T - 4}" y2="${height - B + 4}"/><text class="ax-lbl lc-day3-lbl" x="${x(3)}" y="${T - 7}" text-anchor="middle">ngày 3</text>`;
   let bandSvg = '';
   if (band.days.length >= 2) {
     const up = band.days.map((d) => `${x(d.day)},${y(d.p75)}`), down = [...band.days].reverse().map((d) => `${x(d.day)},${y(d.p25)}`);
@@ -36,7 +36,7 @@ export function lifecycleChart({ series, band, scale, width = LC.width, height =
   };
   // Mature curves are the field; the band and median sit on the field; the young curves sit on top.
   const mature = series.filter((s) => !s.young).map(line).join(''), young = series.filter((s) => s.young).map(line).join('');
-  return `<svg class="lc" viewBox="0 0 ${width} ${height}" role="img" aria-label="Lượt xem của từng bài theo số ngày sau khi đăng, thang log">${grid}${days}${day7}${mature}${bandSvg}${young}</svg>`;
+  return `<svg class="lc" viewBox="0 0 ${width} ${height}" role="img" aria-label="Lượt xem của từng bài theo số ngày sau khi đăng, thang log">${grid}${days}${day3}${mature}${bandSvg}${young}</svg>`;
 }
 
 // One column per week: the week's median, the chosen week highlighted, weeks without a mature post as a stub.
@@ -49,7 +49,7 @@ export function weekColumns({ weeks, key = 'views', highlight, width = 320, heig
     const v = w[key];
     const h = v == null ? 3 : Math.max(3, r1((height - T - B) * v / max));
     const cx = L + slot * i + slot / 2, hi = w.week === highlight;
-    return `<g class="wk-col${hi ? ' is-hi' : ''}${v == null ? ' is-na' : ''}"><title>Tuần ${shortWeek(w.week)} · ${w.n} bài đủ ngày 7${v == null ? '' : ` · ${format(v)}`}</title>` +
+    return `<g class="wk-col${hi ? ' is-hi' : ''}${v == null ? ' is-na' : ''}"><title>Tuần ${shortWeek(w.week)} · ${w.n} bài đủ ngày 3${v == null ? '' : ` · ${format(v)}`}</title>` +
       `<path d="${topRound(cx - bw / 2, height - B - h, bw, h, 4)}"/>` +
       (hi && v != null ? `<text class="wk-val" x="${r1(cx)}" y="${r1(height - B - h - 7)}" text-anchor="middle">${format(v)}</text>` : '') + '</g>';
   }).join('');

@@ -8,22 +8,23 @@ export const median = (values) => {
 };
 export const ageDays = (post, now = Date.now()) => Math.max(0, (now - Date.parse(post.published_at)) / DAY);
 
-// The first reading between 168 and 192 hours is the day-7 result. Later readings
-// remain in the history but cannot inflate that cohort or score.
-export function day7(post, observations, asOf = Date.now()) {
-  const start = Date.parse(post.published_at) + 7 * DAY;
+// A post's result is its first reading at or after day 3 (Nam, 2026-09-27): views barely move after
+// day 2 or 3, so a reading taken late because the desktop was off still counts.
+export const RESULT_DAY = 3;
+export function day3(post, observations, asOf = Date.now()) {
+  const start = Date.parse(post.published_at) + RESULT_DAY * DAY;
   return observations.filter((o) => o.post_id === post.id && Date.parse(o.captured_at) >= start
-    && Date.parse(o.captured_at) < start + DAY && Date.parse(o.captured_at) <= asOf)
+    && Date.parse(o.captured_at) <= asOf)
     .sort((a, b) => Date.parse(a.captured_at) - Date.parse(b.captured_at))[0] ?? null;
 }
 
 export function scorePost(post, posts, observations, asOf = Date.now()) {
-  const reading = day7(post, observations, asOf);
+  const reading = day3(post, observations, asOf);
   if (!reading || METRICS.some((m) => reading[m] == null)) return { score: null, n: 0, baseline: null };
   const previous = posts.filter((p) => p.account_id === post.account_id && Date.parse(p.published_at) < Date.parse(post.published_at))
     .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at)).slice(0, 14)
-    // Only results already observable at this post's day-7 reading can set its baseline.
-    .map((p) => day7(p, observations, Date.parse(reading.captured_at)))
+    // Only results already observable at this post's day-3 reading can set its baseline.
+    .map((p) => day3(p, observations, Date.parse(reading.captured_at)))
     .filter((o) => o && METRICS.every((m) => o[m] != null));
   if (!previous.length) return { score: null, n: 0, baseline: null };
   const baseline = Object.fromEntries(METRICS.map((m) => [m, median(previous.map((o) => o[m]))]));
@@ -40,17 +41,17 @@ export function enrichPosts({ posts = [], observations = [], installs = [], vers
     const version = versions.filter((v) => v.post_id === post.id && Date.parse(v.captured_at) <= now)
       .sort((a, b) => Date.parse(b.captured_at) - Date.parse(a.captured_at))[0];
     const scoring = scorePost(post, posts, observations, now);
-    const d7 = day7(post, observations, now);
+    const d3 = day3(post, observations, now);
     return { ...post, week: mondayOf(vnDate(new Date(post.published_at))), age: ageDays(post, now), latest: readings[0] ?? null,
-      d7, scoring, version, card: cards.find((c) => c.id === post.card_id), installs: install?.installs ?? null,
+      d3, scoring, version, card: cards.find((c) => c.id === post.card_id), installs: install?.installs ?? null,
       installPoints: (install?.installs ?? 0) * 3, points: (scoring.score ?? 0) + (install?.installs ?? 0) * 3 };
   });
 }
 
 export function summarize(rows) {
-  const mature = rows.filter((p) => p.d7);
+  const mature = rows.filter((p) => p.d3);
   return { posts: rows.length, n: mature.length,
-    ...Object.fromEntries(['views', 'likes', 'other_replies', 'reposts'].map((m) => [m, median(mature.map((p) => p.d7[m]))])),
+    ...Object.fromEntries(['views', 'likes', 'other_replies', 'reposts'].map((m) => [m, median(mature.map((p) => p.d3[m]))])),
     engagement: rows.reduce((s, p) => s + (p.scoring.score ?? 0), 0),
     points: rows.reduce((s, p) => s + p.points, 0),
     installs: rows.reduce((s, p) => s + (p.installs ?? 0), 0),
@@ -61,7 +62,7 @@ export function summarize(rows) {
 
 export function breakdown(rows, key) {
   const groups = new Map();
-  for (const p of rows.filter((r) => r.d7)) {
+  for (const p of rows.filter((r) => r.d3)) {
     const value = key(p);
     for (const label of Array.isArray(value) ? value : [value ?? 'Chưa phân nhóm']) {
       if (!groups.has(label)) groups.set(label, []);
@@ -121,9 +122,9 @@ export function viewsAt(readings, age) {
   return r.at(-1).views;
 }
 
-// The middle half of the mature posts' view curves, day by day: what a usual post looks like on its way to day 7.
-export function lifecycleBand(rows, source, days = [0.5, 1, 1.5, 2, 3, 4, 5, 6, 7]) {
-  const mature = rows.filter((p) => p.d7).map((p) => readingsOf(p, source));
+// The middle half of the mature posts' view curves, day by day: what a usual post looks like on its way to day 3.
+export function lifecycleBand(rows, source, days = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5]) {
+  const mature = rows.filter((p) => p.d3).map((p) => readingsOf(p, source));
   if (mature.length < MIN_BAND) return { n: mature.length, days: [] };
   const out = [];
   for (const day of days) {

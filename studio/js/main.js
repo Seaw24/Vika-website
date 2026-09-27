@@ -3,7 +3,8 @@ import { currentEmail, loadTeam, flushPending } from './data.js';
 import { renderSignIn } from './views/signin.js';
 import { esc, toast, icon, initial } from './ui.js';
 
-const TABS = [['#/', 'Hôm nay', 'today'], ['#/so-lieu', 'Số liệu', 'stats'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']];
+// Nhóm: every member sees the whole team's posts, by day (Nam, 2026-09-27).
+const TABS = [['#/', 'Hôm nay', 'today'], ['#/so-lieu', 'Số liệu', 'stats'], ['#/nhom', 'Nhóm', 'team'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']];
 const main = document.getElementById('main');
 const tabs = document.getElementById('tabs');
 const me = document.getElementById('me');
@@ -19,6 +20,7 @@ const views = {
   settings: () => import('./views/settings.js').then((m) => m.renderSettings),
   stats: () => import('./views/stats.js').then((m) => m.renderStats),
   review: () => import('./views/review.js').then((m) => m.renderReview),
+  team: () => import('./views/team.js').then((m) => m.renderTeam),
 };
 
 function paintTabs(active) {
@@ -55,6 +57,10 @@ async function route() {
       paintTabs('#/so-lieu');
       mode();
       await (await views.stats())(main, ctx);
+    } else if (hash === '#/nhom') {
+      paintTabs('#/nhom');
+      mode();
+      await (await views.team())(main, ctx);
     } else if (hash.startsWith('#/cuoi-tuan/')) {
       paintTabs('#/');
       mode({ narrow: true });

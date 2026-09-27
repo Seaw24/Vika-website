@@ -1,5 +1,5 @@
 import { loadAnalytics } from '../data.js';
-import { DAY, enrichPosts, summarize, breakdown, weeklySeries, weekOverWeek, indexReadings, lifecycleBand, rankAtAge, themeCounts, logScale, movement, viewsAt, MIN_BAND, MIN_COMPARE } from '../lib/stats.js';
+import { DAY, enrichPosts, summarize, breakdown, weeklySeries, weekOverWeek, indexReadings, lifecycleBand, rankAtAge, themeCounts, logScale, movement, viewsAt, MIN_BAND, MIN_COMPARE, RESULT_DAY } from '../lib/stats.js';
 import { mondayOf, vnDate } from '../lib/week.js';
 import { LC, lifecycleChart, weekColumns, stripAxis, stripRow, barList, sparkline, meter, heatGrid, shortWeek } from '../lib/charts.js';
 import { demoAnalytics } from '../lib/demo.js';
@@ -21,7 +21,7 @@ const MEASURE_LABEL = Object.fromEntries(MEASURES);
 // Accounts of one member differ by their last part (…1, …2), so that character marks them.
 const mark = (handle) => String(handle).split(/[._]/).filter(Boolean).at(-1)?.charAt(0) ?? '@';
 const title = (p) => firstLine(p.version?.op || p.card?.op || 'Bài sáng tạo');
-const explain = `<p>Điểm tương tác là trung bình của lượt xem, lượt thích và trả lời của người khác, mỗi số chia cho trung vị ngày 7 của 14 bài trước trên cùng tài khoản. Mỗi tỷ lệ tối đa 5. Mẫu số bằng 0 được tính là 1.</p><p>Chưa có lịch sử thì chưa có điểm tương tác. Có dưới 14 bài đủ số liệu thì điểm được ghi là tạm. Mỗi lượt cài có báo cáo theo ct được 3 điểm. Chưa thấy báo cáo thì 0 điểm cài, không có nghĩa là 0 lượt cài thật.</p><p>Bài dưới 7 ngày vẫn hiển thị số mới nhất với nhãn "đang tăng". Chỉ lần đọc đầu tiên trong khoảng 168 đến dưới 192 giờ mới vào trung vị và điểm ngày 7.</p>`;
+const explain = `<p>Điểm tương tác là trung bình của lượt xem, lượt thích và trả lời của người khác, mỗi số chia cho trung vị ngày 3 của 14 bài trước trên cùng tài khoản. Mỗi tỷ lệ tối đa 5. Mẫu số bằng 0 được tính là 1.</p><p>Chưa có lịch sử thì chưa có điểm tương tác. Có dưới 14 bài đủ số liệu thì điểm được ghi là tạm. Mỗi lượt cài có báo cáo theo ct được 3 điểm. Chưa thấy báo cáo thì 0 điểm cài, không có nghĩa là 0 lượt cài thật.</p><p>Bài dưới 3 ngày vẫn hiển thị số mới nhất với nhãn "đang tăng". Lần đọc đầu tiên từ 72 giờ trở đi là kết quả ngày 3 của bài, dùng cho trung vị và điểm. Sau ngày 3 lượt xem gần như không tăng nữa.</p>`;
 
 export async function renderStats(main, ctx) {
   const data = await loadAnalytics();
@@ -72,15 +72,15 @@ function model(s) {
   const keywords = new Map();
   for (const k of data.keywords) { if (!keywords.has(k.card_id)) keywords.set(k.card_id, []); keywords.get(k.card_id).push(k.keyword); }
   const laneRows = enriched.filter((p) => (!s.week || p.week === s.week) && ctx.team.accounts.some((a) => a.id === p.account_id && (!s.member || a.member_id === s.member)));
-  const scale = logScale(rows.flatMap((p) => [p.d7?.views, p.latest?.views]));
+  const scale = logScale(rows.flatMap((p) => [p.d3?.views, p.latest?.views]));
   const band = lifecycleBand(rows, index);
   const slotOf = (id) => s.compare.length >= 2 ? s.compare.indexOf(id) + 1 : null;
   const latestOf = new Map();
   for (const p of rows) { const c = latestOf.get(p.account_id); if (!c || Date.parse(p.published_at) > Date.parse(c.published_at)) latestOf.set(p.account_id, p); }
   // Mature posts first so the young ones draw on top.
-  const series = [...rows].sort((a, b) => (a.age < 7) - (b.age < 7) || Date.parse(a.published_at) - Date.parse(b.published_at)).map((p) => {
+  const series = [...rows].sort((a, b) => (a.age < RESULT_DAY) - (b.age < RESULT_DAY) || Date.parse(a.published_at) - Date.parse(b.published_at)).map((p) => {
     const slot = slotOf(p.account_id);
-    return { id: p.id, label: `${title(p)} · @${handle(p.account_id)}`, points: (index.get(p.id) ?? []).map((o) => ({ age: o.age, views: o.views })), young: p.age < 7,
+    return { id: p.id, label: `${title(p)} · @${handle(p.account_id)}`, points: (index.get(p.id) ?? []).map((o) => ({ age: o.age, views: o.views })), young: p.age < RESULT_DAY,
       slot: slot ?? undefined, endLabel: slot && latestOf.get(p.account_id) === p ? `@${handle(p.account_id)}` : undefined };
   });
   const newest = [...rows].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
@@ -92,7 +92,7 @@ function model(s) {
 }
 
 function head({ s, ctx, weeks, laneAccounts, readLine, rows }) {
-  return `<div class="page-head"><div><p class="eyebrow">Số liệu</p><h1 class="page-title">Kết quả ngày 7</h1>
+  return `<div class="page-head"><div><p class="eyebrow">Số liệu</p><h1 class="page-title">Kết quả ngày 3</h1>
       <p class="sub">${esc(readLine)}. Trả lời chỉ tính người khác.</p></div>
       ${rows.length || s.sample ? `<button class="btn ${s.sample ? 'btn-ink' : 'btn-line'} sm" data-sample>${s.sample ? 'Về số liệu thật' : `${icon('eye')}Số liệu mẫu`}</button>` : ''}</div>
     ${s.sample ? `<p class="notice" role="status">${icon('info')}<span>Đang xem số liệu mẫu. Các con số được tạo để thử giao diện, không phải kết quả Threads hay lượt cài thật.</span></p>` : ''}
@@ -115,35 +115,35 @@ function hero({ s, total, wow, weekly }) {
   const kpi = (key, label) => {
     const d = wow.delta?.[key], cur = wow.current, prev = wow.previous;
     let sub;
-    if (!cur) sub = 'chưa có bài đủ ngày 7';
-    else if (s.week) sub = !prev ? 'chưa có tuần trước để so' : !wow.delta ? `cần ${MIN_COMPARE} bài đủ ngày 7 mỗi tuần để so` : d == null ? `tuần trước ${dash(prev[key])}` : `${pct(d)} so với tuần trước (${dash(prev[key])})`;
+    if (!cur) sub = 'chưa có bài đủ ngày 3';
+    else if (s.week) sub = !prev ? 'chưa có tuần trước để so' : !wow.delta ? `cần ${MIN_COMPARE} bài đủ ngày 3 mỗi tuần để so` : d == null ? `tuần trước ${dash(prev[key])}` : `${pct(d)} so với tuần trước (${dash(prev[key])})`;
     else sub = `tuần ${shortWeek(cur.week)}: ${dash(cur[key])}${d != null ? `, ${pct(d)} so với tuần trước` : ''}`;
     return `<div class="kpi"><div class="big${total[key] == null ? ' na' : ''}">${total[key] == null ? '–' : int(total[key])}</div><p class="lbl">${label}</p><p class="delta${d > 0 ? ' up' : d < 0 ? ' down' : ''}">${esc(sub)}</p></div>`;
   };
   const shown = weekly.slice(-10);
-  return `<section class="stage hero-stats"><div><p class="eyebrow">Trung vị ngày 7 · ${total.n} bài · ${s.week ? `tuần ${shortWeek(s.week)}` : 'mọi tuần'}</p>
+  return `<section class="stage hero-stats"><div><p class="eyebrow">Trung vị ngày 3 · ${total.n} bài · ${s.week ? `tuần ${shortWeek(s.week)}` : 'mọi tuần'}</p>
       <div class="kpis">${kpi('views', 'Lượt xem')}${kpi('other_replies', 'Trả lời của người khác')}${kpi('reposts', 'Đăng lại')}</div>
-      <p class="summary-foot"><span>${total.n} bài có lần đọc ngày 7 / ${total.posts} bài đã đăng. Số chưa đọc không tính thành 0.</span><span>${total.installs} lượt cài được báo cáo</span></p></div>
-    ${shown.length ? `<figure class="hero-weeks"><figcaption>Trung vị lượt xem theo tuần<span>${shown.length} tuần · cột rỗng: chưa có bài đủ ngày 7</span></figcaption>${weekColumns({ weeks: shown, key: 'views', highlight: s.week || wow.current?.week, format: int })}</figure>` : ''}</section>`;
+      <p class="summary-foot"><span>${total.n} bài có lần đọc ngày 3 / ${total.posts} bài đã đăng. Số chưa đọc không tính thành 0.</span><span>${total.installs} lượt cài được báo cáo</span></p></div>
+    ${shown.length ? `<figure class="hero-weeks"><figcaption>Trung vị lượt xem theo tuần<span>${shown.length} tuần · cột rỗng: chưa có bài đủ ngày 3</span></figcaption>${weekColumns({ weeks: shown, key: 'views', highlight: s.week || wow.current?.week, format: int })}</figure>` : ''}</section>`;
 }
 
 // Every post's view curve over the band of usual posts: is the young one on track?
 function lifecycle({ s, rows, index, band, scale, handle, series, lcWidth, lcHeight }) {
-  const young = rows.filter((p) => p.age < 7 && p.latest);
+  const young = rows.filter((p) => p.age < RESULT_DAY && p.latest);
   const ahead = young.filter((p) => { const last = (index.get(p.id) ?? []).at(-1); const m = last ? bandAt(band, last.age) : null; return m != null && last.views > m; }).length;
   const take = band.days.length
-    ? `<b>${young.length} bài đang tăng</b>${young.length ? `, ${ahead} bài đang ở trên đường trung vị ở cùng tuổi` : ''}. Vùng xám là nửa giữa của ${band.n} bài đã đủ ngày 7 trong lựa chọn này.`
-    : `<b>${young.length} bài đang tăng</b>. Cần ít nhất ${MIN_BAND} bài đủ ngày 7 để vẽ đường trung vị và vùng thường gặp.`;
+    ? `<b>${young.length} bài đang tăng</b>${young.length ? `, ${ahead} bài đang ở trên đường trung vị ở cùng tuổi` : ''}. Vùng xám là nửa giữa của ${band.n} bài đã đủ ngày 3 trong lựa chọn này.`
+    : `<b>${young.length} bài đang tăng</b>. Cần ít nhất ${MIN_BAND} bài đủ ngày 3 để vẽ đường trung vị và vùng thường gặp.`;
   const legend = s.compare.length >= 2
     ? s.compare.map((id, i) => `<span style="--key:var(--s${i + 1})"><i class="thick"></i>@${esc(handle(id))}</span>`).join('')
-    : `<span style="--key:var(--s1)"><i class="thick"></i>Đang tăng, dưới 7 ngày</span><span style="--key:var(--recede)"><i></i>Đã đủ 7 ngày</span>`;
-  const table = [...rows].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at)).map((p) => `<tr><th scope="row">${esc(title(p))} <span class="muted">@${esc(handle(p.account_id))}</span></th><td>${p.age < 7 ? `ngày ${Math.floor(p.age)}` : 'đủ 7'}</td><td>${dash(p.latest?.views)}</td><td>${dash(p.d7?.views)}</td></tr>`).join('');
+    : `<span style="--key:var(--s1)"><i class="thick"></i>Đang tăng, dưới 3 ngày</span><span style="--key:var(--recede)"><i></i>Đã đủ 3 ngày</span>`;
+  const table = [...rows].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at)).map((p) => `<tr><th scope="row">${esc(title(p))} <span class="muted">@${esc(handle(p.account_id))}</span></th><td>${p.age < RESULT_DAY ? `ngày ${Math.floor(p.age)}` : 'đủ 3'}</td><td>${dash(p.latest?.views)}</td><td>${dash(p.d3?.views)}</td></tr>`).join('');
   return `<section class="section"><div class="section-head"><div><p class="eyebrow">Đường đời</p><h2 class="section-title">Mỗi bài lớn lên thế nào?</h2>
       <p class="sub">Trục ngang là số ngày sau khi đăng, trục đứng là lượt xem trên thang log. Chạm hoặc rê vào một đường để đọc bài đó, bấm để mở chi tiết.</p></div></div>
     <figure class="panel lc-fig"><p class="take">${take}</p>${lifecycleChart({ series, band, scale, width: lcWidth, height: lcHeight, format: int })}
       <div class="legend">${legend}${band.days.length ? `<span style="--key:var(--ink)"><i class="thick"></i>Trung vị</span><span><i class="wash"></i>Nửa giữa (25–75%)</span>` : ''}</div>
       <div class="tip" hidden></div>
-      <details class="lc-table"><summary>Xem dạng bảng</summary><table class="compact"><thead><tr><th>Bài</th><th style="text-align:right">Tuổi</th><th style="text-align:right">Xem mới nhất</th><th style="text-align:right">Ngày 7</th></tr></thead><tbody>${table}</tbody></table></details></figure></section>`;
+      <details class="lc-table"><summary>Xem dạng bảng</summary><table class="compact"><thead><tr><th>Bài</th><th style="text-align:right">Tuổi</th><th style="text-align:right">Xem mới nhất</th><th style="text-align:right">Ngày 3</th></tr></thead><tbody>${table}</tbody></table></details></figure></section>`;
 }
 
 // One strip of dots per account on a shared log axis, the medians and points beside.
@@ -151,16 +151,16 @@ function accountsTable({ s, groups, rows, scale }) {
   const axis = stripAxis({ scale, format: int });
   const row = (g) => {
     const mine = rows.filter((p) => p.account_id === g.id);
-    const values = mine.map((p) => ({ id: p.id, views: p.d7 ? p.d7.views : p.latest?.views, young: !p.d7,
-      title: `${title(p)} · ${p.d7 ? `ngày 7: ${dash(p.d7.views)}` : `đang tăng: ${dash(p.latest?.views)}`} lượt xem` })).filter((x) => x.views != null);
-    return `<div class="strip-row${mine.length ? '' : ' is-empty'}"><div class="strip-who"><i class="av sm light">${esc(mark(g.handle))}</i><span><b>@${esc(g.handle)}</b><small>${mine.length ? `${g.n} bài đủ ngày 7 / ${g.posts} · đọc ${esc(date(g.lastRead))}` : 'Chưa có bài trong lựa chọn này'}</small></span></div>
+    const values = mine.map((p) => ({ id: p.id, views: p.d3 ? p.d3.views : p.latest?.views, young: !p.d3,
+      title: `${title(p)} · ${p.d3 ? `ngày 3: ${dash(p.d3.views)}` : `đang tăng: ${dash(p.latest?.views)}`} lượt xem` })).filter((x) => x.views != null);
+    return `<div class="strip-row${mine.length ? '' : ' is-empty'}"><div class="strip-who"><i class="av sm light">${esc(mark(g.handle))}</i><span><b>@${esc(g.handle)}</b><small>${mine.length ? `${g.n} bài đủ ngày 3 / ${g.posts} · đọc ${esc(date(g.lastRead))}` : 'Chưa có bài trong lựa chọn này'}</small></span></div>
       ${stripRow({ values, median: g.views, scale, label: `Lượt xem từng bài của @${g.handle}`, format: int })}
       <dl class="strip-nums"><div><dt>Xem</dt><dd>${dash(g.views)}</dd></div><div><dt>Thích</dt><dd>${dash(g.likes)}</dd></div><div><dt>Trả lời</dt><dd>${dash(g.other_replies)}</dd></div><div><dt>Đăng lại</dt><dd>${dash(g.reposts)}</dd></div><div class="pts"><dt>Điểm</dt><dd>${g.points ? number(g.points) : '0'}${g.provisional ? '<small>tạm</small>' : ''}</dd></div></dl></div>`;
   };
   return `<section class="section"><div class="section-head"><div><p class="eyebrow">Tài khoản</p><h2 class="section-title">Từng tài khoản</h2>
-      <p class="sub">Mỗi chấm là một bài, đặt theo lượt xem ngày 7 trên thang log; chấm rỗng là bài đang tăng với số mới nhất. Vạch đậm là trung vị của tài khoản.</p></div>
+      <p class="sub">Mỗi chấm là một bài, đặt theo lượt xem ngày 3 trên thang log; chấm rỗng là bài đang tăng với số mới nhất. Vạch đậm là trung vị của tài khoản.</p></div>
       <label><span class="sr-only">Sắp xếp theo</span><select id="sort">${SORTS.map(([v, l]) => option(v, `Sắp xếp: ${l}`, s.sort)).join('')}</select></label></div>
-    <div class="strip-table"><div class="strip-head"><span>Tài khoản</span>${axis}<span>Trung vị ngày 7</span></div><div class="strip-axis-m">${axis}</div>${groups.map(row).join('')}</div></section>`;
+    <div class="strip-table"><div class="strip-head"><span>Tài khoản</span>${axis}<span>Trung vị ngày 3</span></div><div class="strip-axis-m">${axis}</div>${groups.map(row).join('')}</div></section>`;
 }
 
 // One row per account, one cell per day of the last four weeks, shaded by that post's score.
@@ -173,7 +173,7 @@ function rhythm({ accounts, allRows, now, lcWidth }) {
     const cells = {};
     for (const p of allRows.filter((p) => p.account_id === a.id)) {
       const day = vnDate(new Date(p.published_at));
-      if (!cells[day] || (p.latest?.views ?? 0) > (cells[day].views ?? 0)) cells[day] = { id: p.id, score: p.scoring.score, young: p.age < 7, views: p.latest?.views ?? null };
+      if (!cells[day] || (p.latest?.views ?? 0) > (cells[day].views ?? 0)) cells[day] = { id: p.id, score: p.scoring.score, young: p.age < RESULT_DAY, views: p.latest?.views ?? null };
     }
     return { id: a.id, label: `@${a.handle}`, cells };
   });
@@ -200,7 +200,7 @@ function boards({ s, total, memberGroups, byPoints, memberMove, accountMove, pre
   return `<section class="section"><div class="section-head"><div><p class="eyebrow">Xếp hạng</p><h2 class="section-title">${s.week ? `Tuần ${esc(shortWeek(s.week))}` : 'Mọi tuần'}</h2>
       <p class="sub">${total.scored} bài có điểm tương tác${total.provisional ? `, ${total.provisional} bài điểm tạm` : ''}. ${total.installs} lượt cài được báo cáo.${prevWeek ? ` Mũi tên là thay đổi thứ hạng so với tuần ${shortWeek(prevWeek)}.` : ''}</p></div></div>
     <div class="team-total"><b>${number(total.points)}</b><span>điểm cả lựa chọn</span><span>${number(total.engagement)} điểm tương tác</span><span>${int(total.installs * 3)} điểm cài</span></div>
-    ${noPoints ? '<p class="board-note">Chưa có bài đủ ngày 7 và chưa có lượt cài được báo cáo, nên chưa có điểm. Bảng xếp hạng có sau lần đọc ngày 7 đầu tiên.</p>' : ''}
+    ${noPoints ? '<p class="board-note">Chưa có bài đủ ngày 3 và chưa có lượt cài được báo cáo, nên chưa có điểm. Bảng xếp hạng có sau lần đọc ngày 3 đầu tiên.</p>' : ''}
     <div class="legend" style="margin:0 0 12px"><span style="--key:var(--ink)"><i class="sq"></i>Điểm tương tác</span><span style="--key:var(--gold)"><i class="sq"></i>Điểm cài, 3 mỗi lượt</span></div>
     <div class="boards">${board('Thành viên', items(memberGroups), memberMove)}${board('Tài khoản', items(byPoints), accountMove)}</div>
     <div class="folds"><details class="fold"><summary>Cách tính điểm<span class="plus"></span></summary><div class="fold-body explain">${explain}</div></details></div></section>`;
@@ -210,7 +210,7 @@ function boards({ s, total, memberGroups, byPoints, memberMove, accountMove, pre
 function learning({ s, rows, laneRows, ctx, keywords, handle }) {
   const m = s.measure, label = MEASURE_LABEL[m].toLowerCase();
   const toRows = (groups) => groups.map((g) => ({ label: g.label, n: g.n, value: g[m] })).sort((a, b) => (b.value ?? -1) - (a.value ?? -1) || b.n - a.n);
-  const panel = (h, groups, note = '') => `<div class="panel bl-panel"><h3>${h}</h3><p class="tiny muted">Trung vị ${label} ngày 7 · nhóm dưới 3 bài gạch chéo, chưa đáng tin${note}</p>${groups.length ? barList({ rows: toRows(groups), format: int }) : '<p class="small muted">Chưa có bài đủ ngày 7 trong nhóm này.</p>'}</div>`;
+  const panel = (h, groups, note = '') => `<div class="panel bl-panel"><h3>${h}</h3><p class="tiny muted">Trung vị ${label} ngày 3 · nhóm dưới 3 bài gạch chéo, chưa đáng tin${note}</p>${groups.length ? barList({ rows: toRows(groups), format: int }) : '<p class="small muted">Chưa có bài đủ ngày 3 trong nhóm này.</p>'}</div>`;
   const lane = ['card', 'creative'].map((kind) => ({ label: kind === 'card' ? 'Bài có sẵn' : 'Bài sáng tạo', ...summarize(laneRows.filter((p) => ctx.team.accounts.some((a) => a.id === p.account_id && a.kind === kind))) }));
   const panels = [panel('Bài có sẵn và bài sáng tạo', lane.filter((g) => g.posts), ' · cùng thành viên, cùng tuần')];
   let perAccount = '';
@@ -223,7 +223,7 @@ function learning({ s, rows, laneRows, ctx, keywords, handle }) {
     if (byAccount.length) perAccount = `<details class="fold"><summary>Có sửa và giữ nguyên trong từng tài khoản<span class="plus"></span></summary><div class="fold-body"><table class="compact"><thead><tr><th>Nhóm</th><th style="text-align:right">Số bài</th><th style="text-align:right">Trung vị ${label}</th></tr></thead><tbody>${byAccount.map((g) => `<tr><th scope="row">${esc(g.label)}</th><td>${g.n}</td><td>${dash(g[m])}</td></tr>`).join('')}</tbody></table></div></details>`;
   }
   return `<section class="section"><div class="section-head"><div><p class="eyebrow">So sánh</p><h2 class="section-title">Bài nào đang hiệu quả?</h2>
-      <p class="sub">So trung vị ngày 7, luôn kèm số bài. Đây là mô tả mẫu đã đọc, chưa đủ để kết luận nguyên nhân.</p></div>
+      <p class="sub">So trung vị ngày 3, luôn kèm số bài. Đây là mô tả mẫu đã đọc, chưa đủ để kết luận nguyên nhân.</p></div>
       <div class="seg" role="group" aria-label="Đo bằng">${MEASURES.map(([v, l]) => `<button type="button" data-measure="${v}" aria-pressed="${m === v}">${l}</button>`).join('')}</div></div>
     <div class="learn-grid">${panels.join('')}</div>${perAccount}</section>`;
 }
@@ -243,18 +243,18 @@ function themes({ rows, handle }) {
 function postRow(p, { ctx, data, s, index, enriched }) {
   const account = ctx.team.accounts.find((a) => a.id === p.account_id);
   const readings = index.get(p.id) ?? [];
-  const young = p.age < 7;
-  const status = young ? `Đang tăng · ngày ${Math.floor(p.age)}` : p.d7 ? 'Đã có lần đọc ngày 7' : 'Thiếu lần đọc ngày 7';
+  const young = p.age < RESULT_DAY;
+  const status = young ? `Đang tăng · ngày ${Math.floor(p.age)}` : p.d3 ? 'Đã có lần đọc ngày 3' : 'Thiếu lần đọc ngày 3';
   const current = p.latest;
   const themeList = current?.reply_themes ?? [];
   const versions = data.versions.filter((v) => v.post_id === p.id).sort((a, b) => Date.parse(b.captured_at) - Date.parse(a.captured_at));
   const metric = (label, v) => `<div><dt>${label}</dt><dd>${v == null ? '–' : int(v)}</dd></div>`;
   const rank = young ? rankAtAge(p, enriched, index) : null;
   const b = p.scoring.baseline;
-  const ratio = (k) => p.d7[k] / Math.max(1, b[k]);
-  const ratios = b && p.d7 ? `<div class="ratios">${[['views', 'Xem'], ['likes', 'Thích'], ['other_replies', 'Trả lời']].map(([k, l]) => `<div><span class="k">${l}</span>${meter({ ratio: ratio(k) })}<span class="v">×${number(Math.min(5, ratio(k)))}</span></div>`).join('')}</div>
+  const ratio = (k) => p.d3[k] / Math.max(1, b[k]);
+  const ratios = b && p.d3 ? `<div class="ratios">${[['views', 'Xem'], ['likes', 'Thích'], ['other_replies', 'Trả lời']].map(([k, l]) => `<div><span class="k">${l}</span>${meter({ ratio: ratio(k) })}<span class="v">×${number(Math.min(5, ratio(k)))}</span></div>`).join('')}</div>
       <p class="ratios-note">Vạch đen là bài thường của tài khoản (×1), thanh chạy tới ×5. Điểm tương tác <b style="font-weight:500">${number(p.scoring.score)}</b> là trung bình ba tỷ lệ, so với ${p.scoring.n} bài trước${p.scoring.n < 14 ? ', điểm tạm' : ''}.</p>`
-    : `<p class="small muted" style="margin-top:10px">${young ? 'Điểm tương tác có sau lần đọc ngày 7.' : p.d7 ? 'Chưa có lịch sử ngày 7 của tài khoản để so, nên chưa có điểm tương tác.' : 'Thiếu lần đọc ngày 7 nên bài này không có điểm.'}</p>`;
+    : `<p class="small muted" style="margin-top:10px">${young ? 'Điểm tương tác có sau lần đọc ngày 3.' : p.d3 ? 'Chưa có lịch sử ngày 3 của tài khoản để so, nên chưa có điểm tương tác.' : 'Thiếu lần đọc ngày 3 nên bài này không có điểm.'}</p>`;
   return `<details class="fold${young ? '' : ' is-mature'}" data-post="${esc(p.id)}"><summary><span class="post-sum"><span class="t">${esc(title(p))}</span>
       <span class="m">@${esc(account?.handle)} · ${esc(status)} · ${dash(current?.views)} xem</span>${sparkline({ points: readings.map((o) => ({ age: o.age, views: o.views })) })}</span><span class="plus"></span></summary>
     <div class="fold-body">
