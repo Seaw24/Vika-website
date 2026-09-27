@@ -47,9 +47,10 @@ function model(s) {
   const enriched = enrichPosts(data, now);
   const index = indexReadings(data.posts, data.observations);
   const weeks = [...new Set(enriched.map((p) => p.week))].sort().reverse();
-  // A slot still holding its setup name (like thaiha.2) is not an account on Threads yet, so it stays off the page.
+  // A slot still holding its setup name (like thaiha.2) is not an account on Threads yet, and a retired account
+  // with no posts never was one in use, so both stay off the page until they have a post.
   const laneAccounts = ctx.team.accounts.filter((a) => a.kind === s.lane && (!s.member || a.member_id === s.member)
-    && (!/^[a-z]+\.(1|2|creative)$/.test(a.handle) || enriched.some((p) => p.account_id === a.id)));
+    && ((!/^[a-z]+\.(1|2|creative)$/.test(a.handle) && a.active !== false) || enriched.some((p) => p.account_id === a.id)));
   const accounts = laneAccounts.filter((a) => !s.compare.length || s.compare.includes(a.id));
   const allRows = enriched.filter((p) => accounts.some((a) => a.id === p.account_id));
   const rows = allRows.filter((p) => !s.week || p.week === s.week);

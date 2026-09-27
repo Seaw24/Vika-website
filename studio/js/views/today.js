@@ -3,7 +3,7 @@ import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, week
 import { pendingQuestions, reviewable } from '../lib/feedback.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
 import { esc, copyText, toast, icon, cardTags } from '../ui.js';
-import { settingsFor } from './shared.js';
+import { settingsFor, isActive } from './shared.js';
 import { renderQuestions } from './feedback.js';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
@@ -143,8 +143,9 @@ function wireCreative(main, ctx, account) {
 export async function renderToday(main, ctx) {
   const today = vnDate();
   const mine = ctx.team.accounts.filter((a) => a.member_id === ctx.me.id);
+  // A retired account still names its old posts, but holds no slot and no creative tile.
   const cardAccounts = mine.filter((a) => a.kind === 'card');
-  const creative = mine.find((a) => a.kind === 'creative') ?? null;
+  const creative = mine.find((a) => a.kind === 'creative' && isActive(a)) ?? null;
   const weeks = await loadWeeksFor(ctx.me.id);
   const current = mondayOf(today);
   const weekId = weeks.includes(ctx.activeWeek) ? ctx.activeWeek : weeks.includes(current) ? current
@@ -159,7 +160,7 @@ export async function renderToday(main, ctx) {
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
 
   // One slot per card account is the daily target; which account each post goes on is hers to pick.
-  const slots = Math.max(1, cardAccounts.length);
+  const slots = Math.max(1, cardAccounts.filter(isActive).length);
   const plan = todayPlan({ assignments: available, slots, states });
   const strip = weekId ? weekStrip({ weekId, today, slots, states }) : null;
   const shown = new Set(plan.filter((p) => p.status === 'open').map((p) => p.assignment.id));

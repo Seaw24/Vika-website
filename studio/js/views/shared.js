@@ -15,11 +15,15 @@ export function settingsFor(ctx, account) {
 
 // A member's first card account carries the Bình luận 2 template and the link code for all her card posts
 // (Nam, 2026-09-27): she no longer picks an account, so one template serves both. A slot still named by
-// setup (like thaiha.2) is never the first while a real handle exists.
-const SETUP_NAME = /^[a-z]+\.(1|2|creative)$/;
+// setup (like thaiha.2) is never the first while a real handle exists. First means oldest, so an account she
+// adds later never takes over the link code; a retired one hands over to the next while any is in use.
+export const SETUP_NAME = /^[a-z]+\.(1|2|creative)$/;
+export const isActive = (account) => account.active !== false;
+const byAge = (a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')) || a.handle.localeCompare(b.handle);
 export function homeAccount(ctx, memberId) {
-  const cards = ctx.team.accounts.filter((a) => a.member_id === memberId && a.kind === 'card');
-  return cards.find((a) => !SETUP_NAME.test(a.handle)) ?? cards[0] ?? null;
+  const cards = ctx.team.accounts.filter((a) => a.member_id === memberId && a.kind === 'card').sort(byAge);
+  const pick = (list) => list.find((a) => !SETUP_NAME.test(a.handle)) ?? list[0] ?? null;
+  return pick(cards.filter(isActive)) ?? pick(cards);
 }
 
 // One block that shows the change in place: removed words struck in rust, added words lit in gold.

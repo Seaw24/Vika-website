@@ -59,10 +59,12 @@ export async function signIn(email, password) {
 
 export const signOut = () => supabase.auth.signOut();
 
+const ACCOUNT = 'id,handle,member_id,kind,active,created_at';
+
 export async function loadTeam() {
   const [members, accounts, settings] = await Promise.all([
     supabase.from('members').select('id,name,email,is_demo,is_fixture').order('name'),
-    supabase.from('accounts').select('id,handle,member_id,kind').order('handle'),
+    supabase.from('accounts').select(ACCOUNT).order('handle'),
     supabase.from('account_settings_current').select('account_id,r2_template,account_code,created_at'),
   ]);
   return { members: must(members), accounts: must(accounts), settings: must(settings) };
@@ -180,6 +182,11 @@ async function updateOwn(table, id, values) {
 }
 export const saveMemberName = (id, name) => updateOwn('members', id, { name });
 export const saveHandle = (id, handle) => updateOwn('accounts', id, { handle });
+// Members add their own accounts and retire them; an account is never deleted (migration member_add_account).
+export const setAccountActive = (id, active) => updateOwn('accounts', id, { active });
+export async function addAccount({ member_id, handle, kind }) {
+  return must(await supabase.from('accounts').insert({ member_id, handle, kind }).select(ACCOUNT))[0];
+}
 
 /* ---------- The owner's team view (every member already reads every row under RLS) ---------- */
 
