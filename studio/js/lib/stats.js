@@ -30,20 +30,24 @@ export function scorePost(post, posts, observations, asOf = Date.now()) {
   if (!reading) return none;
   const at = Date.parse(reading.captured_at);
   const age = (at - Date.parse(post.published_at)) / DAY;
-  const previous = posts.filter((p) => p.account_id === post.account_id && Date.parse(p.published_at) < Date.parse(post.published_at))
-    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at)).slice(0, 14)
-    // Only readings already taken when this post's reading was taken can set its baseline.
-    .map((p) => {
-      if (locked) return day3(p, seen, at);
-      const r = readingsByAge(p, seen.filter((o) => Date.parse(o.captured_at) <= at));
-      const values = Object.fromEntries(METRICS.map((m) => [m, metricAt(r, m, age)]));
-      return values;
-    })
-    .filter((o) => o && METRICS.every((m) => o[m] != null));
+  const byNewest = (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at);
+  // Only readings taken by the same morning read as this post's reading can set its baseline: a later
+  // reading never moves a score that has locked.
+  const cutoff = at + 6 * 3600000;
+  const comparable = (list) => list.sort(byNewest).map((p) => {
+    if (locked) return day3(p, seen, cutoff);
+    const r = readingsByAge(p, seen.filter((o) => Date.parse(o.captured_at) <= cutoff));
+    return Object.fromEntries(METRICS.map((m) => [m, metricAt(r, m, age)]));
+  }).filter((o) => o && METRICS.every((m) => o[m] != null)).slice(0, 14);
+  let previous = comparable(posts.filter((p) => p.account_id === post.account_id && Date.parse(p.published_at) < Date.parse(post.published_at)));
+  // An account with no earlier post is compared with the team's other posts in its lane at the same age
+  // (Nam, 2026-09-27), so a new account scores from its first post.
+  const team = !previous.length;
+  if (team) previous = comparable(posts.filter((p) => p.id !== post.id && p.account_id !== post.account_id && !p.assignment_id === !post.assignment_id));
   if (!previous.length) return { ...none, reading, growing: !locked };
   const baseline = Object.fromEntries(METRICS.map((m) => [m, median(previous.map((o) => o[m]))]));
   const score = METRICS.reduce((sum, m) => sum + Math.min(5, reading[m] / Math.max(1, baseline[m])), 0) / 3;
-  return { score, n: previous.length, baseline, reading, growing: !locked };
+  return { score, n: previous.length, baseline, reading, growing: !locked, team };
 }
 
 export function enrichPosts({ posts = [], observations = [], installs = [], versions = [], cards = [] }, now = Date.now()) {
@@ -124,10 +128,11 @@ export const readingsByAge = (post, observations) => observations.filter((o) => 
 export const indexReadings = (posts, observations) => new Map(posts.map((p) => [p.id, readingsByAge(p, observations)]));
 const readingsOf = (post, source) => source instanceof Map ? (source.get(post.id) ?? []) : readingsByAge(post, source);
 
-// A count at an age, interpolated between readings and from zero at publish; nothing after the last reading.
+// A count at an age, interpolated between readings and from zero at publish. Up to 6 hours past the last
+// reading it holds that reading, so posts read the same morning compare; nothing further out.
 export function metricAt(readings, metric, age) {
   const r = readings.filter((o) => o[metric] != null);
-  if (!r.length || age > r.at(-1).age) return null;
+  if (!r.length || age > r.at(-1).age + 0.25) return null;
   let prev = { age: 0, [metric]: 0 };
   for (const o of r) {
     if (o.age >= age) return o.age === prev.age ? o[metric] : prev[metric] + (o[metric] - prev[metric]) * (age - prev.age) / (o.age - prev.age);
