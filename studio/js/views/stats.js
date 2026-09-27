@@ -106,7 +106,7 @@ function head({ s, ctx, weeks, laneAccounts, readLine, rows }) {
 function emptyStage({ s }) {
   return `<section class="stage empty-stage"><p class="eyebrow">Chưa có bài trong lựa chọn này</p>
       <h2>Số liệu hiện ở đây sau lần đọc Threads đầu tiên.</h2>
-      <p class="muted">Chọn tài khoản, sao chép bài ở Hôm nay rồi đăng trên Threads. Lần đọc hằng ngày trên máy Nam ghi nhận bài và số liệu.</p>
+      <p class="muted">Sao chép bài ở Hôm nay rồi đăng trên Threads. Lần đọc hằng ngày trên máy Nam ghi nhận bài và số liệu.</p>
       <div class="actions"><a class="btn btn-gold" href="#/">Mở Hôm nay${icon('right')}</a>${s.sample ? '' : `<button class="btn btn-ghost" data-sample>${icon('eye')}Xem số liệu mẫu</button>`}</div></section>`;
 }
 

@@ -5,9 +5,9 @@ const POSTED = ['claimed', 'confirmed'];
 
 // The owner's view: every member's posts as dated items, in Vietnam time.
 // A card post counts on the day the member tapped "Đã đăng xong" (or the read's publish time
-// when there was no tap); a card chosen but never marked posted sits on the day it was chosen.
+// when there was no tap). Only a confirmed post names its account; a claim has none until the read finds it.
 // Creative posts have no assignment and come straight from the read.
-//   item { kind: 'card'|'creative', status: chosen|claimed|missing|confirmed, at, day, member, account, assignment, post }
+//   item { kind: 'card'|'creative', status: claimed|missing|confirmed, at, day, member, account, assignment, post }
 export function teamItems({ members, accounts, assignments, events, posts }) {
   const accountById = new Map(accounts.map((a) => [a.id, a]));
   const memberById = new Map(members.map((m) => [m.id, m]));
@@ -16,7 +16,7 @@ export function teamItems({ members, accounts, assignments, events, posts }) {
   for (const a of assignments) {
     const s = states.get(a.id);
     if (!s) continue;
-    const at = s.status === 'chosen' ? s.at : s.posted_at ?? s.published_at;
+    const at = s.posted_at ?? s.published_at;
     const account = accountById.get(s.account_id) ?? null;
     const member = memberById.get(account?.member_id ?? a.member_id);
     if (member) items.push({ kind: 'card', status: s.status, at, day: dayOf(at), member, account, assignment: a, post: s.post ?? null });

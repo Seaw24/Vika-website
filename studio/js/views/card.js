@@ -1,9 +1,9 @@
 import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js';
-import { choiceState, postingState, vnDate } from '../lib/week.js';
+import { issuedCt, postingState, vnDate } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { REASONS, NEXT_TIME, ENGINE_LABEL, PULL_LABEL, isEdited, buildAnswer } from '../lib/edits.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow, initial } from '../ui.js';
-import { settingsFor, diffHtml } from './shared.js';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js';
+import { settingsFor, diffHtml, homeAccount } from './shared.js';
 import { feedbackForm, wireFeedback } from './feedback.js';
 
 const THREADS_LIMIT = 500;
@@ -37,11 +37,15 @@ export async function renderCard(main, ctx, assignmentId) {
     dismissed: new Set(),
     answered: new Set(events.filter((e) => e.type === 'answered' && e.payload?.kind === 'edit').map((e) => e.payload.part)),
   };
+  // Her link code and Bình luận 2 template come from her first card account (Nam, 2026-09-27: one template
+  // per member, no account to pick). She posts on any of her accounts; the daily read finds it.
+  view.home = homeAccount(ctx, a.member_id);
   paint(view);
 }
 
-const chosen = (view) => view.post ? { account_id: view.post.account_id, at: view.post.published_at, ct: view.post.ct }
-  : choiceState(view.events).get(view.a.id) ?? null;
+const ctOf = (view) => view.post?.ct ?? issuedCt(view.events, view.a.id)
+  ?? (view.home ? buildCt(settingsFor(view.ctx, view.home).account_code, view.card.card_code) : null);
+const postedOn = (view) => view.post ? view.ctx.team.accounts.find((x) => x.id === view.post.account_id) ?? null : null;
 // The member's own word: "posted" (claimed) until the daily read confirms it, or "missing" when that read found nothing.
 const claim = (view) => postingState(view.events, view.post ? [view.post] : []).get(view.a.id) ?? null;
 const isClaimed = (view) => claim(view)?.status === 'claimed';
@@ -51,9 +55,9 @@ const nextRead = () => (Number(new Intl.DateTimeFormat('en-US', { timeZone: VN, 
 const whenPosted = (at) => `${vnTime(at)}${vnDate(new Date(at)) === vnDate() ? ' hôm nay' : ` ngày ${vnDate(new Date(at)).split('-').reverse().slice(0, 2).map(Number).join('/')}`}`;
 
 function originals(view) {
-  const c = chosen(view);
-  const account = c ? view.cardAccounts.find((x) => x.id === c.account_id) ?? null : null;
-  const r2 = account && c.ct ? fillTemplate(settingsFor(view.ctx, account).r2_template, appLink(c.ct)) : null;
+  const account = view.home;
+  const ct = ctOf(view);
+  const r2 = account && ct ? fillTemplate(settingsFor(view.ctx, account).r2_template, appLink(ct)) : null;
   return { op: view.card.op, r1: view.card.r1, r2, account };
 }
 
@@ -61,15 +65,15 @@ const draftKey = (view, part, account) => `${view.a.id}.${part}${part === 'r2' &
 const copiedParts = (view) => new Set(view.events.filter((e) => e.type === 'copied').map((e) => e.payload?.part));
 const textOf = (view, part, o) => draftStore.get(draftKey(view, part, o.account)) ?? o[part];
 const lastEdit = (view, part) => view.events.filter((e) => e.type === 'edited' && e.payload?.part === part).at(-1) ?? null;
-const base = (view) => ({ assignment_id: view.a.id, card_id: view.card.id, account_id: chosen(view)?.account_id ?? null });
+const base = (view) => ({ assignment_id: view.a.id, card_id: view.card.id, account_id: view.post?.account_id ?? view.home?.id ?? null });
 const q = (view, sel) => view.root.querySelector(sel);
 
-// The next thing to do: the first part not yet copied. Bình luận 2 needs an account first.
+// The next thing to do: the first part not yet copied.
 function nextStep(view, o, copied) {
   if (isClaimed(view)) return null;
   for (const [part] of PARTS) {
     if (copied.has(part)) continue;
-    if (part === 'r2' && o.r2 === null) return view.post || !view.mine ? null : 'pick';
+    if (part === 'r2' && o.r2 === null) return null;
     return part;
   }
   return null;
@@ -92,7 +96,7 @@ function partBlock(view, [part, label, where], i, o) {
   const head = `<div class="part-head"><span class="label"><b>${esc(label)}</b><span class="where">${esc(where)}</span></span>`;
   if (part === 'r2' && o.r2 === null) {
     return `<li class="part" id="part-r2" data-i="${i}"><span class="step">${i + 1}</span><div class="part-card">${head}</div>
-      <p class="part-empty">${view.mine && !view.post ? 'Chọn tài khoản ở trên để hiện bình luận 2 kèm link tải app riêng.' : 'Bình luận 2 hiện khi bài có tài khoản.'}</p></div></li>`;
+      <p class="part-empty">Bình luận 2 hiện khi thành viên có tài khoản đăng bài trong Cài đặt.</p></div></li>`;
   }
   const text = textOf(view, part, o);
   return `<li class="part" id="part-${part}" data-i="${i}">
@@ -123,36 +127,30 @@ function reasonForm(view, part, text) {
   </form>`;
 }
 
-function pickBlock(view, o) {
-  const c = chosen(view);
+// Where the card stands. There is no account to pick: the daily read finds the post on any of her accounts.
+function pickBlock(view) {
   const k = claim(view);
   if (view.post) {
-    return `<section class="pick" id="pick"><div class="posted-banner">${icon('check')}<span>Đã đăng trên <b>@${esc(o.account?.handle ?? '')}</b>. Lần đọc Threads đã xác nhận bài này.</span></div></section>`;
+    return `<section class="pick" id="pick"><div class="posted-banner">${icon('check')}<span>Đã đăng trên <b>@${esc(postedOn(view)?.handle ?? '')}</b>. Lần đọc Threads đã xác nhận bài này.</span></div></section>`;
   }
   if (!view.mine) {
-    return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài của thành viên khác. Bạn xem và sao chép được, nhưng không chọn tài khoản.</span></p></section>`;
+    return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài của thành viên khác. Bạn xem và sao chép được, nhưng không đánh dấu đã đăng.</span></p></section>`;
   }
   if (k?.status === 'claimed') {
-    return `<section class="pick" id="pick"><div class="claim-banner">${icon('check')}<span class="grow"><b>Đã đăng trên @${esc(o.account?.handle ?? '')}</b> lúc ${esc(whenPosted(k.posted_at))}.
-      <small>Máy đọc Threads xác nhận lúc ${nextRead()}. Bài kế tiếp đã lên Hôm nay. Bạn vẫn sửa được bên dưới cho đến lúc đó.</small></span>
+    return `<section class="pick" id="pick"><div class="claim-banner">${icon('check')}<span class="grow"><b>Đã đăng</b> lúc ${esc(whenPosted(k.posted_at))}.
+      <small>Máy đọc Threads tìm bài trên các tài khoản của bạn lúc ${nextRead()}. Bài kế tiếp đã lên Hôm nay. Bạn vẫn sửa được bên dưới cho đến lúc đó.</small></span>
       <button class="linkish" data-unpost>${icon('undo')}Chưa đăng, bỏ đánh dấu</button></div></section>`;
   }
-  const missing = k?.status === 'missing' && view.cardAccounts.find((x) => x.id === k.account_id);
-  return `<section class="pick" id="pick">${missing ? `<p class="notice warn">${icon('info')}<span>Lần đọc Threads không thấy bài này trên <b>@${esc(missing.handle)}</b> sau khi bạn đánh dấu đã đăng. Kiểm tra link ở bình luận 2, rồi chọn tài khoản để đăng lại.</span></p>` : ''}
-    <p class="eyebrow">Đăng trên tài khoản</p>
-    <div class="pick-list" role="group" aria-label="Chọn tài khoản">${view.cardAccounts.map((acc) => {
-      const on = c?.account_id === acc.id;
-      return `<button class="pick-btn" data-choose="${esc(acc.id)}" aria-pressed="${on}"><i class="av light">${esc(initial(acc.handle.split('.').at(-1)))}</i>
-        <span class="who"><b>@${esc(acc.handle)}</b><small>${on ? 'Đang đăng trên tài khoản này' : 'Chạm để chọn'}</small></span><span class="check">${icon('check')}</span></button>`;
-    }).join('')}</div>
-    ${c ? `<div class="pick-foot"><span class="tiny muted">Link trong bình luận 2 là của tài khoản này.</span><span class="pick-acts"><button class="linkish" data-undo>${icon('undo')}Bỏ chọn</button><button class="linkish strong" data-posted>${icon('check')}Đã đăng xong</button></span></div>` : ''}</section>`;
+  const missing = k?.status === 'missing';
+  return `<section class="pick" id="pick">${missing ? `<p class="notice warn">${icon('info')}<span>Lần đọc Threads chưa thấy bài này trên tài khoản nào của bạn sau khi bạn đánh dấu đã đăng. Kiểm tra link ở bình luận 2, rồi bấm Đã đăng xong khi bài đã lên.</span></p>` : ''}
+    <div class="pick-foot"><span class="tiny muted">Đăng trên tài khoản nào của bạn cũng được. Máy đọc Threads tự tìm bài.</span><span class="pick-acts"><button class="linkish strong" data-posted>${icon('check')}Đã đăng xong</button></span></div></section>`;
 }
 
 function introHtml(view) {
   const k = claim(view);
   const [h, p] = view.post ? ['Bài đã đăng.', 'Nội dung bên dưới là bản viết sẵn.']
-    : k?.status === 'claimed' ? ['Đã đăng, chờ xác nhận.', 'Máy đọc Threads sẽ tìm bài này trên tài khoản bạn chọn và bắt đầu đếm số liệu.']
-    : ['Đăng bài này', 'Chọn tài khoản, rồi sao chép từng phần theo thứ tự vào Threads. Sửa thẳng trong khung nếu cần.'];
+    : k?.status === 'claimed' ? ['Đã đăng, chờ xác nhận.', 'Máy đọc Threads sẽ tìm bài này trên các tài khoản của bạn và bắt đầu đếm số liệu.']
+    : ['Đăng bài này', 'Sao chép từng phần theo thứ tự rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Sửa thẳng trong khung nếu cần.'];
   return `<h1>${h}</h1><p class="muted" style="margin-top:8px">${p}</p>`;
 }
 
@@ -161,8 +159,6 @@ function dockInner(view, next) {
   const act = view.post ? `<span class="done-msg">${icon('check')}<span>Bài đã đăng</span></span>`
     : isClaimed(view) ? `<span class="done-msg">${icon('check')}<span>Đã đăng · chờ xác nhận</span></span>`
     : !view.mine ? '<span class="done-msg"><span>Bài của thành viên khác</span></span>'
-    : next === 'pick'
-    ? '<button class="btn btn-gold main-act" data-dock="pick"><span>Chọn tài khoản để hiện bình luận 2</span></button>'
     : next
     ? `<button class="btn btn-gold main-act" data-dock="${next}">${icon('copy')}<span>Sao chép ${esc(label.toLowerCase())}</span></button>`
     : `<button class="btn btn-gold main-act" data-dock="posted">${icon('check')}<span>Đã đăng xong</span></button>`;
@@ -207,7 +203,7 @@ function paint(view) {
   view.main.innerHTML = `<div class="post-layout"><div class="post-main">
       <div class="post-top"><a class="linkish" href="#/">${icon('left')}Hôm nay</a><span class="tags">${cardTags(view.card)}</span></div>
       <div class="post-intro">${introHtml(view)}</div>
-      ${pickBlock(view, o)}
+      ${pickBlock(view)}
       <ol class="thread">${PARTS.map((p, i) => partBlock(view, p, i, o)).join('')}</ol>
       <div class="dock" role="region" aria-label="Bước tiếp theo"></div></div>
     <aside class="post-aside"><section class="backstage"><p class="eyebrow">Hậu trường</p>
@@ -237,7 +233,7 @@ function sync(view) {
     if (!li) continue;
     const done = copied.has(part);
     li.classList.toggle('done', done);
-    li.classList.toggle('next', next === part || (part === 'r2' && next === 'pick'));
+    li.classList.toggle('next', next === part);
     li.querySelector('.step').innerHTML = done ? icon('check') : String(Number(li.dataset.i) + 1);
     const btn = li.querySelector('[data-copy]');
     if (btn) {
@@ -295,32 +291,11 @@ function restore(view, part) {
   toast('Đã về bản viết sẵn.');
 }
 
-async function choose(view, accountId) {
-  if (view.post || isClaimed(view)) return;
-  const current = chosen(view);
-  if (current?.account_id === accountId) return;
-  const account = view.cardAccounts.find((x) => x.id === accountId);
-  const s = settingsFor(view.ctx, account);
-  const ct = buildCt(s.account_code, view.card.card_code);
-  if (current) view.events.push(await recordEvent({ ...base(view), type: 'undo_choice' }));
-  view.events.push(await recordEvent({ assignment_id: view.a.id, card_id: view.card.id, account_id: account.id, type: 'chose_account', payload: { ct, account_code: s.account_code, settings_at: s.created_at } }));
-  toast(`Đăng trên @${account.handle}. Bình luận 2 đã có link.`);
-  afterChoice(view);
-}
-
-async function undo(view) {
-  if (view.post || isClaimed(view) || !chosen(view)) return;
-  view.events.push(await recordEvent({ ...base(view), type: 'undo_choice' }));
-  afterChoice(view);
-}
-
-// The member's word that the post is up. The account frees on Hôm nay at once; the daily read confirms later.
+// The member's word that the post is up. The next card comes up on Hôm nay at once; the daily read confirms later.
 async function markPosted(view) {
-  const c = chosen(view);
-  if (view.post || isClaimed(view) || !c || !view.mine) return;
-  const account = view.cardAccounts.find((x) => x.id === c.account_id);
-  view.events.push(await recordEvent({ ...base(view), type: 'posted', payload: { ct: c.ct, from: 'card' } }));
-  toast(`Đã ghi: đăng trên @${account?.handle ?? ''}. Bài kế tiếp đã lên Hôm nay.`);
+  if (view.post || isClaimed(view) || !view.mine || !view.home) return;
+  view.events.push(await recordEvent({ ...base(view), type: 'posted', payload: { ct: ctOf(view), from: 'card' } }));
+  toast('Đã ghi: đã đăng. Bài kế tiếp đã lên Hôm nay.');
   afterChoice(view);
   q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -332,11 +307,11 @@ async function unpost(view) {
   afterChoice(view);
 }
 
-// A choice changes only the picker, the intro line and Bình luận 2.
+// A posted tap changes only the status block, the intro line and Bình luận 2.
 function afterChoice(view) {
   const o = originals(view);
   q(view, '.post-intro').innerHTML = introHtml(view);
-  q(view, '#pick').outerHTML = pickBlock(view, o);
+  q(view, '#pick').outerHTML = pickBlock(view);
   const li = q(view, '#part-r2');
   const tpl = document.createElement('template');
   tpl.innerHTML = partBlock(view, PARTS[2], 2, o).trim();
@@ -359,12 +334,13 @@ async function copyPart(view, part) {
   if (isEdited(original, text) && lastEdit(view, part)?.payload?.after !== text) {
     view.events.push(await recordEvent({ ...base(view), type: 'edited', payload: { part, before: original, after: text, where: 'portal' } }));
   }
-  view.events.push(await recordEvent({ ...base(view), type: 'copied', payload: { part, text } }));
+  // Copying Bình luận 2 is the moment the link leaves the portal, so the copy carries its code.
+  view.events.push(await recordEvent({ ...base(view), type: 'copied', payload: { part, text, ...(part === 'r2' ? { ct: ctOf(view) } : {}) } }));
   sync(view);
   // Bring the next part up, unless this part still has an open question.
   if (q(view, `[data-reason-slot="${part}"] form`)) return;
   const next = nextStep(view, originals(view), copiedParts(view));
-  const el = next === 'pick' ? q(view, '#pick') : next ? q(view, `#part-${next}`) : null;
+  const el = next ? q(view, `#part-${next}`) : null;
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -440,13 +416,10 @@ function wire(view) {
     const b = e.target.closest('button');
     if (!b || !root.contains(b)) return;
     const d = b.dataset;
-    if (d.choose) choose(view, d.choose);
-    else if ('undo' in d) undo(view);
-    else if ('posted' in d || d.dock === 'posted') markPosted(view);
+    if ('posted' in d || d.dock === 'posted') markPosted(view);
     else if ('unpost' in d) unpost(view);
     else if (d.copy) copyPart(view, d.copy);
     else if ('copyAlt' in d) copyAlt(view);
-    else if (d.dock === 'pick') q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     else if (d.dock) copyPart(view, d.dock);
     else if (d.restore) restore(view, d.restore);
     else if (d.dismiss) {

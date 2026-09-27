@@ -1,7 +1,7 @@
 import { saveSettings, saveMemberName, saveHandle, loadTeam, signOut } from '../data.js';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
 import { esc, toast, icon, initial, autoGrow } from '../ui.js';
-import { settingsFor } from './shared.js';
+import { settingsFor, homeAccount } from './shared.js';
 
 const HANDLE = /^[a-z0-9._]{1,30}$/;
 // Accepts "@name", "name" or a pasted profile link like threads.com/@name.
@@ -29,17 +29,23 @@ function profile(ctx) {
 
 function form(ctx, account) {
   const s = settingsFor(ctx, account);
+  // Card accounts share the first one's Bình luận 2 and link code; the others keep only their handle here.
+  const home = account.kind === 'card' ? homeAccount(ctx, account.member_id) : null;
+  const shared = home && home.id !== account.id;
   return `<form class="panel acct-form" data-account="${esc(account.id)}">
     <div class="top-row"><h2 data-title>@${esc(account.handle)}</h2><span class="tag ${account.kind === 'card' ? '' : 'gold'}">${account.kind === 'card' ? 'Đăng bài' : 'Sáng tạo'}</span></div>
     <label class="field"><span>Tên tài khoản Threads</span>
       <span class="at-input"><i>@</i><input name="handle" value="${esc(account.handle)}" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="80" placeholder="ten.tai.khoan"></span></label>
     <p class="warn" data-handle-warn hidden>${icon('info')}Chỉ chữ thường, số, dấu chấm và gạch dưới, tối đa 30 ký tự.</p>
-    <div class="field"><div class="label-row"><span>Bình luận 2 của tài khoản này</span><button type="button" class="insert" data-insert>${icon('link')}Chèn {link}</button></div>
+    ${shared ? `<p class="tiny muted" style="margin-top:10px">Bình luận 2 và mã link dùng chung với @${esc(home.handle)}. Đăng bài trên tài khoản nào cũng được.</p>` : ''}
+    <div${shared ? ' hidden' : ''}>
+    <div class="field"><div class="label-row"><span>${home ? 'Bình luận 2 cho mọi tài khoản đăng bài' : 'Bình luận 2 của tài khoản này'}</span><button type="button" class="insert" data-insert>${icon('link')}Chèn {link}</button></div>
       <textarea name="template" aria-label="Bình luận 2 của @${esc(account.handle)}" rows="3">${esc(s.r2_template)}</textarea></div>
     <p class="warn" data-warn${hasLinkSlot(s.r2_template) ? ' hidden' : ''}>${icon('info')}Chưa có {link}: bình luận 2 sẽ không có link tải app.</p>
     <label class="field"><span>Mã tài khoản trong link · chữ thường và số, tối đa 20 ký tự</span>
       <input name="code" value="${esc(s.account_code)}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
     <div><p class="eyebrow" style="margin:18px 0 0">Xem trước</p><div class="bubble" data-preview></div></div>
+    </div>
     <div class="save"><button class="btn btn-ink" type="submit">Lưu</button><span class="tiny muted" data-status></span></div></form>`;
 }
 

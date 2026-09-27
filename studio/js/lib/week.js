@@ -28,22 +28,22 @@ export function choiceState(events) {
   return state;
 }
 
-// Where each card stands after its choice. The member's own "posted" tap makes a claim; only a posts
-// row, written by the daily read, confirms it. An expiry that lands on a claim is kept as "missing"
-// so the page can say the read did not find the post, until a new choice replaces it.
-//   chosen    { account_id, at, ct }
-//   claimed   + posted_at
-//   missing   + posted_at, expired_at            (the card itself is back in the library)
-//   confirmed + published_at, post               (posted_at and at when the events exist)
+// Where each card stands. The member only says she posted it (Nam, 2026-09-27): she no longer picks an
+// account, because the daily read finds the post on whichever of her accounts it went out. Her tap makes a
+// claim; only a posts row, written by the daily read, confirms it and names the account. An expiry that
+// lands on a claim is kept as "missing" so the page can say the read did not find the post.
+// Older chose_account events only lend their link code, so a card copied under the old flow keeps its link.
+//   claimed   { at, posted_at, ct }
+//   missing   + expired_at                       (the card itself is back in the library)
+//   confirmed + account_id, published_at, post   (posted_at when the member tapped)
 export function postingState(events, posts = []) {
   const state = new Map();
   for (const e of events.filter((e) => CHOICE_EVENTS.includes(e.type)).sort(byTime)) {
     const cur = state.get(e.assignment_id);
-    if (e.type === 'chose_account') state.set(e.assignment_id, { status: 'chosen', account_id: e.account_id, at: e.at, ct: e.payload?.ct ?? null });
-    else if (e.type === 'posted') { if (cur?.status === 'chosen') state.set(e.assignment_id, { ...cur, status: 'claimed', posted_at: e.at, ct: e.payload?.ct ?? cur.ct }); }
-    else if (e.type === 'posted_undo') { if (cur?.status === 'claimed') { const { posted_at, ...rest } = cur; state.set(e.assignment_id, { ...rest, status: 'chosen' }); } }
-    else if (e.type === 'choice_expired' && cur?.status === 'claimed') state.set(e.assignment_id, { ...cur, status: 'missing', expired_at: e.at });
-    else state.delete(e.assignment_id);
+    if (e.type === 'posted') { if (!cur || cur.status === 'missing') state.set(e.assignment_id, { status: 'claimed', at: e.at, posted_at: e.at, ct: e.payload?.ct ?? null }); }
+    else if (e.type === 'posted_undo') { if (cur?.status === 'claimed') state.delete(e.assignment_id); }
+    else if (e.type === 'choice_expired') { if (cur?.status === 'claimed') state.set(e.assignment_id, { ...cur, status: 'missing', expired_at: e.at }); }
+    else if (e.type === 'skipped' && cur?.status !== 'claimed') state.delete(e.assignment_id);
   }
   for (const post of posts) {
     if (!post.assignment_id) continue;
@@ -54,6 +54,13 @@ export function postingState(events, posts = []) {
   return state;
 }
 
+// The link code a card already carries: the latest one the member copied or tapped under, if any.
+export function issuedCt(events, assignmentId) {
+  return events.filter((e) => e.assignment_id === assignmentId && e.payload?.ct
+    && (['chose_account', 'posted'].includes(e.type) || (e.type === 'copied' && e.payload.part === 'r2')))
+    .sort(byTime).at(-1)?.payload.ct ?? null;
+}
+
 // Cards with no standing choice, in the picker's order. A missing card is free again.
 export const remaining = (assignments, states) =>
   assignments.filter((a) => !states.has(a.id) || states.get(a.id).status === 'missing').sort((a, b) => a.suggested_order - b.suggested_order);
@@ -62,39 +69,31 @@ const dayOf = (iso) => (iso ? vnDate(new Date(iso)) : null);
 // The day a post counts for: the member's own tap, or the read's publish time when there was no tap.
 const postedDay = (s) => dayOf(s.posted_at ?? s.published_at);
 
-// One ticket per card account.
-//   chosen  the card in progress (stale when the choice is from another day)
-//   done    a post went out today on this account; the next card is up for tomorrow (assignment may be null)
-//   open    the next card
-//   empty   the set ran out
-export function todayPlan({ assignments, cardAccounts, states, today }) {
+const postedAt = (s) => Date.parse(s.posted_at ?? s.published_at);
+
+// The day's posts, one ticket per slot (a slot per card account: the daily target), not tied to an account.
+//   done   a card that went out today (claimed or confirmed)
+//   open   the next card
+//   next   every slot is done; the next card is up for tomorrow
+//   empty  the set ran out and nothing went out today
+export function todayPlan({ assignments, slots, states, today }) {
   const open = remaining(assignments, states);
-  let next = 0;
-  const entry = (a) => ({ ...states.get(a.id), assignment: a });
-  return cardAccounts.map((account) => {
-    const mine = assignments.filter((a) => states.has(a.id)).map(entry).filter((s) => s.account_id === account.id);
-    const chosen = mine.find((s) => s.status === 'chosen');
-    if (chosen) return { account, assignment: chosen.assignment, status: 'chosen', stale: dayOf(chosen.at) !== today, since: chosen.at };
-    const doneToday = mine.filter((s) => ['claimed', 'confirmed'].includes(s.status) && postedDay(s) === today)
-      .sort((a, b) => Date.parse(b.posted_at ?? b.published_at) - Date.parse(a.posted_at ?? a.published_at))[0] ?? null;
-    const suggestion = open[next] ?? null;
-    if (suggestion) next += 1;
-    if (doneToday) return { account, assignment: suggestion, status: 'done', done: doneToday.assignment, doneState: doneToday };
-    return { account, assignment: suggestion, status: suggestion ? 'open' : 'empty' };
-  });
+  const done = assignments.filter((a) => ['claimed', 'confirmed'].includes(states.get(a.id)?.status) && postedDay(states.get(a.id)) === today)
+    .map((a) => ({ assignment: a, status: 'done', doneState: states.get(a.id) }))
+    .sort((x, y) => postedAt(x.doneState) - postedAt(y.doneState));
+  const plan = [...done, ...open.slice(0, Math.max(0, slots - done.length)).map((a) => ({ assignment: a, status: 'open' }))];
+  if (done.length >= slots && open[0]) plan.push({ assignment: open[0], status: 'next' });
+  return plan.length ? plan : [{ assignment: null, status: 'empty' }];
 }
 
-// The week as seven columns with one dot per card account: confirmed, claimed or none.
-export function weekStrip({ weekId, today, cardAccounts, states }) {
+// The week as seven columns with one dot per slot: that day's first, second … post, confirmed or claimed.
+export function weekStrip({ weekId, today, slots, states }) {
   const posted = [...states.values()].filter((s) => ['claimed', 'confirmed'].includes(s.status));
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(weekId, i);
-    const dots = cardAccounts.map((account) => {
-      const here = posted.filter((s) => s.account_id === account.id && postedDay(s) === date);
-      const status = here.some((s) => s.status === 'confirmed') ? 'confirmed' : here.length ? 'claimed' : 'none';
-      return { account, status, count: here.length };
-    });
-    return { date, dots, when: date < today ? 'past' : date === today ? 'today' : 'future' };
+    const here = posted.filter((s) => postedDay(s) === date).sort((a, b) => postedAt(a) - postedAt(b));
+    const dots = Array.from({ length: slots }, (_, r) => ({ status: here[r]?.status ?? 'none' }));
+    return { date, dots, count: here.length, when: date < today ? 'past' : date === today ? 'today' : 'future' };
   });
   return { days, posted: posted.length, waiting: posted.filter((s) => s.status === 'claimed').length };
 }

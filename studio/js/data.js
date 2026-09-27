@@ -30,7 +30,8 @@ function queueFor(owner) {
         return true;
       }
       if (error && error.code !== '23505') return false;
-      if (row.type === 'chose_account' || row.type === 'creative_link') {
+      // The link row exists before its code can bring an install: on a posted tap or a copied Bình luận 2 (and the older choice).
+      if (row.payload?.ct && (['chose_account', 'creative_link', 'posted'].includes(row.type) || (row.type === 'copied' && row.payload.part === 'r2'))) {
         await ensureLink({ ct: row.payload.ct, account_id: row.account_id, card_id: row.card_id,
           kind: row.type === 'creative_link' ? 'creative' : 'card' });
       }

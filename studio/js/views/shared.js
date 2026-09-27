@@ -13,6 +13,15 @@ export function settingsFor(ctx, account) {
   };
 }
 
+// A member's first card account carries the Bình luận 2 template and the link code for all her card posts
+// (Nam, 2026-09-27): she no longer picks an account, so one template serves both. A slot still named by
+// setup (like thaiha.2) is never the first while a real handle exists.
+const SETUP_NAME = /^[a-z]+\.(1|2|creative)$/;
+export function homeAccount(ctx, memberId) {
+  const cards = ctx.team.accounts.filter((a) => a.member_id === memberId && a.kind === 'card');
+  return cards.find((a) => !SETUP_NAME.test(a.handle)) ?? cards[0] ?? null;
+}
+
 // One block that shows the change in place: removed words struck in rust, added words lit in gold.
 export function diffHtml(before, after, { from = 'Trước', to = 'Sau' } = {}) {
   const parts = wordDiff(before, after).map((p) => p.type === 'same' ? esc(p.text)

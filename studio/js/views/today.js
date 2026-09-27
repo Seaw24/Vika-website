@@ -38,38 +38,36 @@ const nextRead = () => (vnHour() < 6 ? '06:00 sáng nay' : '06:00 sáng mai');
 
 /* ---------- Hero: the week strip and the tickets ---------- */
 
-function stripHtml(strip, cardAccounts) {
+// One row per daily slot: that day's first post, second post …
+function stripHtml(strip, slots) {
   const head = strip.days.map((d, i) => `<span class="d${d.when === 'today' ? ' today' : ''}">${DAY_SHORT[i]}</span>`).join('');
-  const rows = cardAccounts.map((account, r) => `<span class="who" title="@${esc(account.handle)}">${esc(mark(account.handle))}</span>${strip.days.map((d) => {
+  const rows = Array.from({ length: slots }, (_, r) => `<span class="who" title="Bài ${r + 1} mỗi ngày">${r + 1}</span>${strip.days.map((d) => {
     const dot = d.dots[r];
     return `<span class="cell ${d.when} ${dot.status}"><i></i></span>`;
   }).join('')}`).join('');
   const label = `Tuần này: ${strip.posted} bài đã đăng${strip.waiting ? `, ${strip.waiting} chờ xác nhận` : ''}`;
   return `<div class="strip" role="img" aria-label="${esc(label)}">
-    <div class="strip-grid" style="--rows:${cardAccounts.length}"><span></span>${head}${rows}</div>
+    <div class="strip-grid" style="--rows:${slots}"><span></span>${head}${rows}</div>
     <p class="strip-sum"><b>${strip.posted}</b> bài tuần này${strip.waiting ? ` · <b>${strip.waiting}</b> chờ xác nhận` : ''}<span class="strip-key"><i class="k on"></i>đã xác nhận<i class="k ring"></i>chờ</span></p>
   </div>`;
 }
 
-function ticket(p, today) {
-  const handle = handleHtml(p.account);
-  const status = p.status === 'chosen' ? `<span class="tag gold">Đang đăng${p.stale ? ` · từ ${whenLabel(p.since, today).split(' · ')[1]}` : ''}</span>`
-    : p.status === 'done' ? `<span class="tag ok">${icon('check')}Đã đăng hôm nay</span>`
+// A ticket is a slot of the day, not an account: she posts it on whichever of her accounts she likes.
+function ticket(p, i) {
+  const label = `<span class="handle"><span>${p.status === 'next' ? 'Ngày mai' : `Bài ${i + 1} hôm nay`}</span></span>`;
+  const at = p.doneState?.posted_at ?? p.doneState?.published_at;
+  const status = p.status === 'done' ? `<span class="tag ok">${icon('check')}Đã đăng${at ? ` · ${esc(vnTime(at))}` : ''}</span>`
     : p.status === 'open' ? '<span class="tag line">Chưa đăng</span>' : '';
   if (!p.assignment) {
-    return `<article class="ticket is-empty"><div class="ticket-top">${handle}${status}</div>
-      <p class="ticket-op">${p.status === 'done' ? 'Hôm nay xong rồi. Hết bài tuần này cho tài khoản này.' : 'Hết bài tuần này cho tài khoản này.'}</p></article>`;
+    return `<article class="ticket is-empty"><div class="ticket-top">${label}${status}</div>
+      <p class="ticket-op">Hết bài tuần này.</p></article>`;
   }
   const c = p.assignment.card;
   const href = `#/bai/${esc(p.assignment.id)}`;
-  const kicker = p.status === 'done' ? `<p class="ticket-kicker">${icon('right')}Bài kế tiếp · sẵn cho ngày mai</p>`
-    : p.status === 'chosen' && p.stale ? `<p class="ticket-kicker">Đăng xong chưa? Bấm <b>Đã đăng xong</b> để nhận bài mới.</p>` : '';
-  const act = p.status === 'chosen'
-    ? `<button class="btn sm btn-ink" data-posted="${esc(p.assignment.id)}" data-card="${esc(c.id)}" data-account="${esc(p.account.id)}">${icon('check')}Đã đăng xong</button><a class="go" href="${href}">Tiếp tục${icon('right')}</a>`
-    : p.status === 'done' ? `<a class="go" href="${href}">Xem trước${icon('right')}</a>`
-    : `<a class="go" href="${href}">Mở bài${icon('right')}</a>`;
-  return `<article class="ticket is-${p.status}">
-    <div class="ticket-top">${handle}${status}</div>
+  const kicker = p.status === 'next' ? `<p class="ticket-kicker">${icon('right')}Xong hết hôm nay · bài kế tiếp sẵn cho ngày mai</p>` : '';
+  const act = p.status === 'open' ? `<a class="go" href="${href}">Mở bài${icon('right')}</a>` : `<a class="go" href="${href}">Xem${icon('right')}</a>`;
+  return `<article class="ticket is-${p.status === 'next' ? 'done' : p.status}">
+    <div class="ticket-top">${label}${status}</div>
     ${kicker}
     <a class="ticket-link" href="${href}"><span class="ticket-op">${esc(c.op)}</span></a>
     <div class="ticket-foot"><span class="tags">${cardTags(c)}</span><span class="acts">${act}</span></div></article>`;
@@ -162,32 +160,32 @@ export async function renderToday(main, ctx) {
   const available = assignments.filter((a) => !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
 
-  const plan = todayPlan({ assignments: available, cardAccounts, states, today });
-  const strip = weekId ? weekStrip({ weekId, today, cardAccounts, states }) : null;
-  const shown = new Set(plan.map((p) => p.assignment?.id).filter(Boolean));
+  // One slot per card account is the daily target; which account each post goes on is hers to pick.
+  const slots = Math.max(1, cardAccounts.length);
+  const plan = todayPlan({ assignments: available, slots, states, today });
+  const strip = weekId ? weekStrip({ weekId, today, slots, states }) : null;
+  const shown = new Set(plan.filter((p) => p.status === 'open').map((p) => p.assignment.id));
   const left = remaining(available, states).filter((a) => !shown.has(a.id));
-  const ledger = assignments.map((a) => ({ a, s: states.get(a.id) })).filter(({ s }) => s && s.status !== 'chosen')
-    .map((it) => ({ ...it, account: accountOf(it.s.account_id) }));
+  // Only the daily read knows the account, so a claim shows none until it is confirmed.
+  const ledger = assignments.map((a) => ({ a, s: states.get(a.id) })).filter(({ s }) => s)
+    .map((it) => ({ ...it, account: it.s.status === 'confirmed' ? accountOf(it.s.account_id) : null }));
   const rank = { claimed: 0, missing: 1, confirmed: 2 };
   const stamp = (s) => Date.parse(s.posted_at ?? s.published_at ?? s.at ?? 0);
   ledger.sort((x, y) => rank[x.s.status] - rank[y.s.status] || stamp(y.s) - stamp(x.s));
   const observations = await loadLatestObservations(ledger.filter(({ s }) => s.status === 'confirmed').map(({ s }) => s.post.id));
-  const elsewhere = [
-    ...assignments.filter((a) => states.get(a.id)?.status === 'chosen' && !shown.has(a.id)).map((a) => ({ a, note: ['Đang đăng', 'gold'] })),
-    ...assignments.filter((a) => skipped.has(a.id) && !states.has(a.id)).map((a) => ({ a, note: ['Đã bỏ qua', 'line'] })),
-  ];
+  const elsewhere = assignments.filter((a) => skipped.has(a.id) && !states.has(a.id)).map((a) => ({ a, note: ['Đã bỏ qua', 'line'] }));
   const toReview = weekId ? reviewable(assignments, events, posts).length : 0;
 
-  const due = plan.filter((p) => p.assignment && p.status !== 'done').length;
+  const due = plan.filter((p) => p.status === 'open').length;
   const doneToday = plan.filter((p) => p.status === 'done').length;
   const waiting = ledger.filter(({ s }) => s.status === 'claimed').length;
   const confirmed = ledger.filter(({ s }) => s.status === 'confirmed').length;
   const headline = !weekId ? 'Tuần này chưa có bài.'
-    : !plan.some((p) => p.assignment) && !doneToday ? 'Hết bài cho tuần này.'
+    : plan[0].status === 'empty' ? 'Hết bài cho tuần này.'
     : due === 0 ? 'Xong hết hôm nay. <span class="gold">Nghỉ thôi.</span>'
     : `Hôm nay có <span class="gold">${due}&nbsp;bài</span> cho bạn.`;
   const lede = !weekId ? 'Bài mới có trước 22:00 Chủ nhật.'
-    : due ? 'Mở bài, chọn tài khoản, sao chép ba phần rồi dán vào Threads. Đăng xong thì bấm Đã đăng xong để nhận bài kế tiếp.'
+    : due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong để nhận bài kế tiếp.'
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
     : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';
   const weekNote = weekId > current ? ' · xem trước' : weekId && weekId < current ? ' · tuần trước' : '';
@@ -200,9 +198,9 @@ export async function renderToday(main, ctx) {
           <h1>${headline}</h1>
           <p class="lede">${esc(lede)}</p>
         </div>
-        ${strip && cardAccounts.length ? stripHtml(strip, cardAccounts) : ''}
+        ${strip ? stripHtml(strip, slots) : ''}
       </div>
-      ${plan.length && weekId ? `<div class="tickets">${plan.map((p) => ticket(p, today)).join('')}</div>` : ''}
+      ${plan.length && weekId ? `<div class="tickets">${plan.map((p, i) => ticket(p, i)).join('')}</div>` : ''}
     </section>
     <div id="questions"></div>
     ${weekId ? `<div class="today-board">
@@ -218,7 +216,7 @@ export async function renderToday(main, ctx) {
         <div class="library-tools"><div class="seg" role="group" aria-label="Lọc bài">${FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${filter === v}">${l}</button>`).join('')}</div>
           ${weeks.length > 1 ? `<label><span class="sr-only">Tuần bài</span><select id="active-week">${weeks.map((w) => `<option value="${w}"${w === weekId ? ' selected' : ''}>Tuần ${shortWeek(w)}${w > current ? ' · xem trước' : ''}</option>`).join('')}</select></label>` : ''}</div>
         <ol class="library" id="library"></ol>
-        ${elsewhere.length ? `<details class="fold"><summary>Đang đăng hoặc đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note })).join('')}</ol></div></details>` : ''}
+        ${elsewhere.length ? `<details class="fold"><summary>Đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note })).join('')}</ol></div></details>` : ''}
       </section>
     </div>` : ''}
     <div class="duo">
@@ -239,16 +237,6 @@ export async function renderToday(main, ctx) {
     filter = b.dataset.filter;
     main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     paintLibrary();
-  }; });
-  // "Đã đăng xong" straight from the ticket: the account frees at once and the next card comes up.
-  main.querySelectorAll('[data-posted]').forEach((b) => { b.onclick = async () => {
-    const s = states.get(b.dataset.posted);
-    const account = accountOf(b.dataset.account);
-    if (!s || !account) return;
-    b.disabled = true;
-    await recordEvent({ type: 'posted', assignment_id: b.dataset.posted, card_id: b.dataset.card, account_id: account.id, payload: { ct: s.ct, from: 'today' } });
-    toast(`Đã ghi: đăng trên @${account.handle}. Bài kế tiếp đã lên.`);
-    renderToday(main, ctx);
   }; });
   main.querySelector('#a2hs-ok')?.addEventListener('click', () => {
     try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
