@@ -1,5 +1,5 @@
 import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent } from '../data.js';
-import { vnDate, mondayOf, postingState, remaining, todayPlan, weekStrip } from '../lib/week.js';
+import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip } from '../lib/week.js';
 import { pendingQuestions, reviewable } from '../lib/feedback.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
 import { esc, copyText, toast, icon, cardTags } from '../ui.js';
@@ -52,21 +52,19 @@ function stripHtml(strip, slots) {
   </div>`;
 }
 
-// A ticket is a slot of the day, not an account: she posts it on whichever of her accounts she likes.
+// A ticket is the next card to post, not an account: she posts it on whichever of her accounts she likes.
 function ticket(p, i) {
-  const label = `<span class="handle"><span>${p.status === 'next' ? 'Ngày mai' : `Bài ${i + 1} hôm nay`}</span></span>`;
-  const at = p.doneState?.posted_at ?? p.doneState?.published_at;
-  const status = p.status === 'done' ? `<span class="tag ok">${icon('check')}Đã đăng${at ? ` · ${esc(vnTime(at))}` : ''}</span>`
-    : p.status === 'open' ? '<span class="tag line">Chưa đăng</span>' : '';
+  const label = `<span class="handle"><span>Bài ${i + 1}</span></span>`;
+  const status = p.status === 'open' ? '<span class="tag line">Chưa đăng</span>' : '';
   if (!p.assignment) {
     return `<article class="ticket is-empty"><div class="ticket-top">${label}${status}</div>
       <p class="ticket-op">Hết bài tuần này.</p></article>`;
   }
   const c = p.assignment.card;
   const href = `#/bai/${esc(p.assignment.id)}`;
-  const kicker = p.status === 'next' ? `<p class="ticket-kicker">${icon('right')}Xong hết hôm nay · bài kế tiếp sẵn cho ngày mai</p>` : '';
-  const act = p.status === 'open' ? `<a class="go" href="${href}">Mở bài${icon('right')}</a>` : `<a class="go" href="${href}">Xem${icon('right')}</a>`;
-  return `<article class="ticket is-${p.status === 'next' ? 'done' : p.status}">
+  const kicker = '';
+  const act = `<a class="go" href="${href}">Mở bài${icon('right')}</a>`;
+  return `<article class="ticket is-${p.status}">
     <div class="ticket-top">${label}${status}</div>
     ${kicker}
     <a class="ticket-link" href="${href}"><span class="ticket-op">${esc(c.op)}</span></a>
@@ -162,7 +160,7 @@ export async function renderToday(main, ctx) {
 
   // One slot per card account is the daily target; which account each post goes on is hers to pick.
   const slots = Math.max(1, cardAccounts.length);
-  const plan = todayPlan({ assignments: available, slots, states, today });
+  const plan = todayPlan({ assignments: available, slots, states });
   const strip = weekId ? weekStrip({ weekId, today, slots, states }) : null;
   const shown = new Set(plan.filter((p) => p.status === 'open').map((p) => p.assignment.id));
   const left = remaining(available, states).filter((a) => !shown.has(a.id));
@@ -177,15 +175,16 @@ export async function renderToday(main, ctx) {
   const toReview = weekId ? reviewable(assignments, events, posts).length : 0;
 
   const due = plan.filter((p) => p.status === 'open').length;
-  const doneToday = plan.filter((p) => p.status === 'done').length;
+  const doneToday = postedToday(assignments, states, today);
   const waiting = ledger.filter(({ s }) => s.status === 'claimed').length;
   const confirmed = ledger.filter(({ s }) => s.status === 'confirmed').length;
   const headline = !weekId ? 'Tuần này chưa có bài.'
     : plan[0].status === 'empty' ? 'Hết bài cho tuần này.'
-    : due === 0 ? 'Xong hết hôm nay. <span class="gold">Nghỉ thôi.</span>'
-    : `Hôm nay có <span class="gold">${due}&nbsp;bài</span> cho bạn.`;
+    : doneToday >= slots ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>. Nghỉ thôi.`
+    : doneToday ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>.`
+    : `Hôm nay có <span class="gold">${slots}&nbsp;bài</span> cho bạn.`;
   const lede = !weekId ? 'Bài mới có trước 22:00 Chủ nhật.'
-    : due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong để nhận bài kế tiếp.'
+    : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài kế tiếp lên thay.'
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
     : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';
   const weekNote = weekId > current ? ' · xem trước' : weekId && weekId < current ? ' · tuần trước' : '';

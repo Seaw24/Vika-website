@@ -21,7 +21,7 @@ const MEASURE_LABEL = Object.fromEntries(MEASURES);
 // Accounts of one member differ by their last part (…1, …2), so that character marks them.
 const mark = (handle) => String(handle).split(/[._]/).filter(Boolean).at(-1)?.charAt(0) ?? '@';
 const title = (p) => firstLine(p.version?.op || p.card?.op || 'Bài sáng tạo');
-const explain = `<p>Điểm tương tác là trung bình của lượt xem, lượt thích và trả lời của người khác, mỗi số chia cho trung vị ngày 3 của 14 bài trước trên cùng tài khoản. Mỗi tỷ lệ tối đa 5. Mẫu số bằng 0 được tính là 1.</p><p>Chưa có lịch sử thì chưa có điểm tương tác. Có dưới 14 bài đủ số liệu thì điểm được ghi là tạm. Mỗi lượt cài có báo cáo theo ct được 3 điểm. Chưa thấy báo cáo thì 0 điểm cài, không có nghĩa là 0 lượt cài thật.</p><p>Bài dưới 3 ngày vẫn hiển thị số mới nhất với nhãn "đang tăng". Lần đọc đầu tiên từ 72 giờ trở đi là kết quả ngày 3 của bài, dùng cho trung vị và điểm. Sau ngày 3 lượt xem gần như không tăng nữa.</p>`;
+const explain = `<p>Điểm tương tác là trung bình của lượt xem, lượt thích và trả lời của người khác, mỗi số chia cho trung vị ngày 3 của 14 bài trước trên cùng tài khoản. Mỗi tỷ lệ tối đa 5. Mẫu số bằng 0 được tính là 1.</p><p>Chưa có lịch sử thì chưa có điểm tương tác. Có dưới 14 bài đủ số liệu thì điểm được ghi là tạm. Mỗi lượt cài có báo cáo theo ct được 3 điểm. Chưa thấy báo cáo thì 0 điểm cài, không có nghĩa là 0 lượt cài thật.</p><p>Điểm cập nhật mỗi ngày. Bài dưới 3 ngày được so với các bài trước của tài khoản ở cùng tuổi, và điểm ghi "đang tăng". Lần đọc đầu tiên từ 72 giờ trở đi là kết quả ngày 3 của bài: từ đó điểm so với kết quả ngày 3 của các bài trước và giữ nguyên, vì sau ngày 3 lượt xem gần như không tăng nữa.</p>`;
 
 export async function renderStats(main, ctx) {
   const data = await loadAnalytics();
@@ -251,10 +251,10 @@ function postRow(p, { ctx, data, s, index, enriched }) {
   const metric = (label, v) => `<div><dt>${label}</dt><dd>${v == null ? '–' : int(v)}</dd></div>`;
   const rank = young ? rankAtAge(p, enriched, index) : null;
   const b = p.scoring.baseline;
-  const ratio = (k) => p.d3[k] / Math.max(1, b[k]);
-  const ratios = b && p.d3 ? `<div class="ratios">${[['views', 'Xem'], ['likes', 'Thích'], ['other_replies', 'Trả lời']].map(([k, l]) => `<div><span class="k">${l}</span>${meter({ ratio: ratio(k) })}<span class="v">×${number(Math.min(5, ratio(k)))}</span></div>`).join('')}</div>
-      <p class="ratios-note">Vạch đen là bài thường của tài khoản (×1), thanh chạy tới ×5. Điểm tương tác <b style="font-weight:500">${number(p.scoring.score)}</b> là trung bình ba tỷ lệ, so với ${p.scoring.n} bài trước${p.scoring.n < 14 ? ', điểm tạm' : ''}.</p>`
-    : `<p class="small muted" style="margin-top:10px">${young ? 'Điểm tương tác có sau lần đọc ngày 3.' : p.d3 ? 'Chưa có lịch sử ngày 3 của tài khoản để so, nên chưa có điểm tương tác.' : 'Thiếu lần đọc ngày 3 nên bài này không có điểm.'}</p>`;
+  const ratio = (k) => p.scoring.reading[k] / Math.max(1, b[k]);
+  const ratios = b && p.scoring.reading ? `<div class="ratios">${[['views', 'Xem'], ['likes', 'Thích'], ['other_replies', 'Trả lời']].map(([k, l]) => `<div><span class="k">${l}</span>${meter({ ratio: ratio(k) })}<span class="v">×${number(Math.min(5, ratio(k)))}</span></div>`).join('')}</div>
+      <p class="ratios-note">Vạch đen là bài thường của tài khoản (×1), thanh chạy tới ×5. Điểm tương tác <b style="font-weight:500">${number(p.scoring.score)}</b> là trung bình ba tỷ lệ, so với ${p.scoring.n} bài trước${p.scoring.growing ? ` ở cùng tuổi (ngày ${Math.floor(p.age)}), đang tăng, chốt ở ngày 3` : ''}${p.scoring.n < 14 ? ', điểm tạm' : ''}.</p>`
+    : `<p class="small muted" style="margin-top:10px">${young ? 'Chưa có bài trước của tài khoản ở cùng tuổi để so, nên chưa có điểm tương tác.' : p.d3 ? 'Chưa có lịch sử ngày 3 của tài khoản để so, nên chưa có điểm tương tác.' : 'Thiếu lần đọc ngày 3 nên bài này không có điểm.'}</p>`;
   return `<details class="fold${young ? '' : ' is-mature'}" data-post="${esc(p.id)}"><summary><span class="post-sum"><span class="t">${esc(title(p))}</span>
       <span class="m">@${esc(account?.handle)} · ${esc(status)} · ${dash(current?.views)} xem</span>${sparkline({ points: readings.map((o) => ({ age: o.age, views: o.views })) })}</span><span class="plus"></span></summary>
     <div class="fold-body">

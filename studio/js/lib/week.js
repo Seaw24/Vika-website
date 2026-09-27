@@ -71,20 +71,18 @@ const postedDay = (s) => dayOf(s.posted_at ?? s.published_at);
 
 const postedAt = (s) => Date.parse(s.posted_at ?? s.published_at);
 
-// The day's posts, one ticket per slot (a slot per card account: the daily target), not tied to an account.
-//   done   a card that went out today (claimed or confirmed)
-//   open   the next card
-//   next   every slot is done; the next card is up for tomorrow
-//   empty  the set ran out and nothing went out today
-export function todayPlan({ assignments, slots, states, today }) {
-  const open = remaining(assignments, states);
-  const done = assignments.filter((a) => ['claimed', 'confirmed'].includes(states.get(a.id)?.status) && postedDay(states.get(a.id)) === today)
-    .map((a) => ({ assignment: a, status: 'done', doneState: states.get(a.id) }))
-    .sort((x, y) => postedAt(x.doneState) - postedAt(y.doneState));
-  const plan = [...done, ...open.slice(0, Math.max(0, slots - done.length)).map((a) => ({ assignment: a, status: 'open' }))];
-  if (done.length >= slots && open[0]) plan.push({ assignment: open[0], status: 'next' });
-  return plan.length ? plan : [{ assignment: null, status: 'empty' }];
+// The panel always holds the next cards nobody has marked posted, one per slot (a slot per card account).
+// A card leaves it the moment she taps Đã đăng xong and waits on the ledger for the read (Nam, 2026-09-27).
+//   open   a card to post
+//   empty  the set ran out
+export function todayPlan({ assignments, slots, states }) {
+  const open = remaining(assignments, states).slice(0, slots).map((a) => ({ assignment: a, status: 'open' }));
+  return open.length ? open : [{ assignment: null, status: 'empty' }];
 }
+
+// Cards that went out today, claimed or confirmed.
+export const postedToday = (assignments, states, today) => assignments.filter((a) => ['claimed', 'confirmed'].includes(states.get(a.id)?.status)
+  && postedDay(states.get(a.id)) === today).length;
 
 // The week as seven columns with one dot per slot: that day's first, second … post, confirmed or claimed.
 export function weekStrip({ weekId, today, slots, states }) {

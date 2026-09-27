@@ -18,18 +18,32 @@ export function day3(post, observations, asOf = Date.now()) {
     .sort((a, b) => Date.parse(a.captured_at) - Date.parse(b.captured_at))[0] ?? null;
 }
 
+// A post scores every day (Nam, 2026-09-27). Before day 3 its latest reading is compared with the same
+// account's previous posts at the same age, so a young post is not measured against older posts' totals;
+// the score is marked growing. From its day-3 reading on it is compared with their day-3 readings and stays.
 export function scorePost(post, posts, observations, asOf = Date.now()) {
-  const reading = day3(post, observations, asOf);
-  if (!reading || METRICS.some((m) => reading[m] == null)) return { score: null, n: 0, baseline: null };
+  const none = { score: null, n: 0, baseline: null, reading: null, growing: false };
+  const seen = observations.filter((o) => Date.parse(o.captured_at) <= asOf);
+  const locked = day3(post, seen, asOf);
+  const reading = locked && METRICS.every((m) => locked[m] != null) ? locked
+    : locked ? null : readingsByAge(post, seen).filter((o) => METRICS.every((m) => o[m] != null)).at(-1) ?? null;
+  if (!reading) return none;
+  const at = Date.parse(reading.captured_at);
+  const age = (at - Date.parse(post.published_at)) / DAY;
   const previous = posts.filter((p) => p.account_id === post.account_id && Date.parse(p.published_at) < Date.parse(post.published_at))
     .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at)).slice(0, 14)
-    // Only results already observable at this post's day-3 reading can set its baseline.
-    .map((p) => day3(p, observations, Date.parse(reading.captured_at)))
+    // Only readings already taken when this post's reading was taken can set its baseline.
+    .map((p) => {
+      if (locked) return day3(p, seen, at);
+      const r = readingsByAge(p, seen.filter((o) => Date.parse(o.captured_at) <= at));
+      const values = Object.fromEntries(METRICS.map((m) => [m, metricAt(r, m, age)]));
+      return values;
+    })
     .filter((o) => o && METRICS.every((m) => o[m] != null));
-  if (!previous.length) return { score: null, n: 0, baseline: null };
+  if (!previous.length) return { ...none, reading, growing: !locked };
   const baseline = Object.fromEntries(METRICS.map((m) => [m, median(previous.map((o) => o[m]))]));
   const score = METRICS.reduce((sum, m) => sum + Math.min(5, reading[m] / Math.max(1, baseline[m])), 0) / 3;
-  return { score, n: previous.length, baseline };
+  return { score, n: previous.length, baseline, reading, growing: !locked };
 }
 
 export function enrichPosts({ posts = [], observations = [], installs = [], versions = [], cards = [] }, now = Date.now()) {
@@ -110,17 +124,18 @@ export const readingsByAge = (post, observations) => observations.filter((o) => 
 export const indexReadings = (posts, observations) => new Map(posts.map((p) => [p.id, readingsByAge(p, observations)]));
 const readingsOf = (post, source) => source instanceof Map ? (source.get(post.id) ?? []) : readingsByAge(post, source);
 
-// Views at an age, interpolated between readings and from zero at publish; nothing after the last reading.
-export function viewsAt(readings, age) {
-  const r = readings.filter((o) => o.views != null);
+// A count at an age, interpolated between readings and from zero at publish; nothing after the last reading.
+export function metricAt(readings, metric, age) {
+  const r = readings.filter((o) => o[metric] != null);
   if (!r.length || age > r.at(-1).age) return null;
-  let prev = { age: 0, views: 0 };
+  let prev = { age: 0, [metric]: 0 };
   for (const o of r) {
-    if (o.age >= age) return o.age === prev.age ? o.views : prev.views + (o.views - prev.views) * (age - prev.age) / (o.age - prev.age);
+    if (o.age >= age) return o.age === prev.age ? o[metric] : prev[metric] + (o[metric] - prev[metric]) * (age - prev.age) / (o.age - prev.age);
     prev = o;
   }
-  return r.at(-1).views;
+  return r.at(-1)[metric];
 }
+export const viewsAt = (readings, age) => metricAt(readings, 'views', age);
 
 // The middle half of the mature posts' view curves, day by day: what a usual post looks like on its way to day 3.
 export function lifecycleBand(rows, source, days = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5]) {
