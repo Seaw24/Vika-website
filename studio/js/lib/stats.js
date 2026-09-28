@@ -33,8 +33,8 @@ export function scorePost(post, posts, observations, asOf = Date.now()) {
   const byNewest = (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at);
   // Only readings taken by the same morning read as this post's reading can set its baseline: a later
   // reading never moves a score that has locked.
-  const cutoff = at + 6 * 3600000;
-  const comparable = (list) => list.sort(byNewest).map((p) => {
+  const morning = 6 * 3600000;
+  const comparable = (list, cutoff = at + morning) => list.sort(byNewest).map((p) => {
     if (locked) return day3(p, seen, cutoff);
     const r = readingsByAge(p, seen.filter((o) => Date.parse(o.captured_at) <= cutoff));
     return Object.fromEntries(METRICS.map((m) => [m, metricAt(r, m, age)]));
@@ -43,7 +43,15 @@ export function scorePost(post, posts, observations, asOf = Date.now()) {
   // An account with no earlier post is compared with the team's other posts in its lane at the same age
   // (Nam, 2026-09-27), so a new account scores from its first post.
   const team = !previous.length;
-  if (team) previous = comparable(posts.filter((p) => p.id !== post.id && p.account_id !== post.account_id && !p.assignment_id === !post.assignment_id));
+  const lane = posts.filter((p) => p.id !== post.id && p.account_id !== post.account_id && !p.assignment_id === !post.assignment_id);
+  if (team) previous = comparable(lane);
+  // The team's oldest post has no one at day 3 on its locking morning (peng.uin241002 goipt, 2026-09-28).
+  // It takes the first morning on which the lane's day-3 readings arrive, then stays like any locked score.
+  if (team && locked && !previous.length) {
+    const first = lane.map((p) => day3(p, seen, asOf)).filter((o) => o && METRICS.every((m) => o[m] != null))
+      .map((o) => Date.parse(o.captured_at)).sort((a, b) => a - b)[0];
+    if (first != null) previous = comparable(lane, first + morning);
+  }
   if (!previous.length) return { ...none, reading, growing: !locked };
   const baseline = Object.fromEntries(METRICS.map((m) => [m, median(previous.map((o) => o[m]))]));
   const score = METRICS.reduce((sum, m) => sum + Math.min(5, reading[m] / Math.max(1, baseline[m])), 0) / 3;
