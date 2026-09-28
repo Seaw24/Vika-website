@@ -54,6 +54,16 @@ export function postingState(events, posts = []) {
   return state;
 }
 
+// Cards she set aside, with Không dùng bài này or the Sunday review, until she takes one back with Dùng lại
+// (Nam, 2026-09-28).
+export function skippedIds(events) {
+  const out = new Set();
+  for (const e of events.filter((e) => ['skipped', 'skip_undo'].includes(e.type)).sort(byTime)) {
+    if (e.type === 'skipped') out.add(e.assignment_id); else out.delete(e.assignment_id);
+  }
+  return out;
+}
+
 // The link code a card already carries: the latest one the member copied or tapped under, if any.
 export function issuedCt(events, assignmentId) {
   return events.filter((e) => e.assignment_id === assignmentId && e.payload?.ct

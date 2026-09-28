@@ -26,6 +26,29 @@ export function homeAccount(ctx, memberId) {
   return pick(cards.filter(isActive)) ?? pick(cards);
 }
 
+// A new link code from a name, never one another account already uses. Her own accounts' codes do not count.
+export function freshCode(ctx, name, ownIds = []) {
+  const taken = new Set(ctx.team.settings.filter((s) => !ownIds.includes(s.account_id)).map((s) => s.account_code));
+  const base = cleanAccountCode(name);
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const code = `${base.slice(0, 20 - String(n).length)}${n}`;
+    if (!taken.has(code)) return code;
+  }
+}
+
+// Her Bình luận 2 and link code belong to her, not to one Threads account (Nam, 2026-09-27: "nam_", not
+// "nganneez_"). They are stored on her first seeding account; until she saves them the code comes from her name.
+export function memberR2(ctx, memberId) {
+  const account = homeAccount(ctx, memberId);
+  if (!account) return null;
+  const row = ctx.team.settings.find((x) => x.account_id === account.id);
+  if (row) return { account, r2_template: row.r2_template, account_code: row.account_code, created_at: row.created_at };
+  const own = ctx.team.accounts.filter((a) => a.member_id === memberId).map((a) => a.id);
+  const name = ctx.team.members?.find((m) => m.id === memberId)?.name ?? account.handle;
+  return { account, r2_template: DEFAULT_TEMPLATE, account_code: freshCode(ctx, name, own), created_at: null };
+}
+
 // One block that shows the change in place: removed words struck in rust, added words lit in gold.
 export function diffHtml(before, after, { from = 'Trước', to = 'Sau' } = {}) {
   const parts = wordDiff(before, after).map((p) => p.type === 'same' ? esc(p.text)

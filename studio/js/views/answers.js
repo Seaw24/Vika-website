@@ -5,7 +5,7 @@ import { esc, firstLine, initial } from '../ui.js';
 import { diffHtml } from './shared.js';
 
 const when = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-const KINDS = { skip: ['Bài chưa dùng', 'line'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''] };
+const KINDS = { skip: ['Bài chưa dùng', 'line'], dismiss: ['Không dùng bài này', 'gold'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''] };
 let scope = 'all';
 
 function entry(a, edit) {

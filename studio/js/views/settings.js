@@ -1,7 +1,7 @@
 import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js';
-import { hasLinkSlot, isValidAccountCode, appLink, buildCt, cleanAccountCode } from '../lib/ct.js';
+import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
 import { esc, toast, icon, initial, autoGrow } from '../ui.js';
-import { settingsFor, homeAccount, isActive } from './shared.js';
+import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
 
 // Each active seeding account brings 7 cards a week (Nam, 2026-09-27).
 const CARDS_PER_ACCOUNT = 7;
@@ -15,10 +15,30 @@ const failure = (error, what) => error?.code === '23505' ? `${what} này đã c�
   : error?.code === '23514' ? `${what} chưa đúng dạng.` : 'Chưa lưu được. Thử lại nhé.';
 
 // The preview shows the reply as Threads will, with the link standing out where {link} sits.
-function preview(template, code, handle) {
+function preview(template, code, who) {
   const link = appLink(buildCt(code, 'giapt'));
   const body = String(template).split('{link}').map(esc).join(`<span class="link">${esc(link)}</span>`);
-  return `<i class="av sm">${esc(initial(handle.split('.').at(-1)))}</i><div><b>@${esc(handle)}</b><p class="plain">${body || '<span class="muted">Trống</span>'}</p></div>`;
+  return `<i class="av sm">${esc(initial(who.replace(/^@/, '').split('.').at(-1)))}</i><div><b>${esc(who)}</b><p class="plain">${body || '<span class="muted">Trống</span>'}</p></div>`;
+}
+
+// The Bình luận 2 text, its link code and a preview. Her seeding accounts share one; a creative account has its own.
+const editorHtml = (s, textLabel, codeLabel) => `
+    <div class="field"><div class="label-row"><span>${textLabel}</span><button type="button" class="insert" data-insert>${icon('link')}Chèn {link}</button></div>
+      <textarea name="template" aria-label="${esc(textLabel)}" rows="3">${esc(s.r2_template)}</textarea></div>
+    <p class="warn" data-warn${hasLinkSlot(s.r2_template) ? ' hidden' : ''}>${icon('info')}Chưa có {link}: bình luận 2 sẽ không có link tải app.</p>
+    <label class="field"><span>${codeLabel} · chữ thường và số, tối đa 20 ký tự</span>
+      <input name="code" value="${esc(s.account_code)}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+    <div><p class="eyebrow" style="margin:18px 0 0">Xem trước</p><div class="bubble" data-preview></div></div>`;
+
+// Her one Bình luận 2 and link code, for every seeding account (Nam, 2026-09-27).
+function r2Panel(ctx) {
+  const r2 = memberR2(ctx, ctx.me.id);
+  if (!r2) return '';
+  return `<form class="panel acct-form" id="r2">
+    <div class="top-row"><h2>Bình luận 2 của bạn</h2><span class="tag">Mọi tài khoản seeding</span></div>
+    <p class="tiny muted" style="margin-top:10px">Một bình luận 2 và một mã link cho mọi tài khoản seeding. Đăng bài trên tài khoản nào cũng được.</p>
+    ${editorHtml(r2, 'Bình luận 2', 'Mã link của bạn')}
+    <div class="save"><button class="btn btn-ink" type="submit">Lưu</button><span class="tiny muted" data-status></span></div></form>`;
 }
 
 function profile(ctx) {
@@ -32,41 +52,21 @@ function profile(ctx) {
 }
 
 function form(ctx, account) {
-  const s = settingsFor(ctx, account);
-  // Card accounts share the first one's Bình luận 2 and link code; the others keep only their handle here.
-  const home = account.kind === 'card' ? homeAccount(ctx, account.member_id) : null;
-  const shared = home && home.id !== account.id;
+  // A seeding account keeps only its handle here; her Bình luận 2 and link code sit in their own panel.
+  const card = account.kind === 'card';
   return `<form class="panel acct-form" data-account="${esc(account.id)}">
     <div class="top-row"><h2 data-title>@${esc(account.handle)}</h2><span class="tag ${account.kind === 'card' ? '' : 'gold'}">${KIND_LABEL[account.kind]}</span></div>
     <label class="field"><span>Tên tài khoản Threads</span>
       <span class="at-input"><i>@</i><input name="handle" value="${esc(account.handle)}" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="80" placeholder="ten.tai.khoan"></span></label>
     <p class="warn" data-handle-warn hidden>${icon('info')}Chỉ chữ thường, số, dấu chấm và gạch dưới, tối đa 30 ký tự.</p>
-    ${shared ? `<p class="tiny muted" style="margin-top:10px">Bình luận 2 và mã link dùng chung với @${esc(home.handle)}. Đăng bài trên tài khoản nào cũng được.</p>` : ''}
-    <div${shared ? ' hidden' : ''}>
-    <div class="field"><div class="label-row"><span>${home ? 'Bình luận 2 cho mọi tài khoản đăng bài' : 'Bình luận 2 của tài khoản này'}</span><button type="button" class="insert" data-insert>${icon('link')}Chèn {link}</button></div>
-      <textarea name="template" aria-label="Bình luận 2 của @${esc(account.handle)}" rows="3">${esc(s.r2_template)}</textarea></div>
-    <p class="warn" data-warn${hasLinkSlot(s.r2_template) ? ' hidden' : ''}>${icon('info')}Chưa có {link}: bình luận 2 sẽ không có link tải app.</p>
-    <label class="field"><span>Mã tài khoản trong link · chữ thường và số, tối đa 20 ký tự</span>
-      <input name="code" value="${esc(s.account_code)}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
-    <div><p class="eyebrow" style="margin:18px 0 0">Xem trước</p><div class="bubble" data-preview></div></div>
-    </div>
+    ${card ? '<p class="tiny muted" style="margin-top:10px">Dùng Bình luận 2 và mã link của bạn ở trên.</p>'
+      : editorHtml(settingsFor(ctx, account), 'Bình luận 2 của tài khoản này', 'Mã tài khoản trong link')}
     <div class="save"><button class="btn btn-ink" type="submit">Lưu</button><span class="tiny muted" data-status></span>
       <button type="button" class="retire-btn" data-retire>Ngừng dùng</button></div>
     <div class="retire-box" data-retire-box hidden>
       <p><b>Ngừng dùng @${esc(account.handle)}?</b> Bài đã đăng và số liệu vẫn giữ nguyên. Từ sáng mai hệ thống thôi tìm bài mới trên tài khoản này${account.kind === 'card' ? `, và từ tuần sau bạn nhận ít hơn ${CARDS_PER_ACCOUNT} bài` : ''}. Muốn dùng lại lúc nào cũng được.</p>
       <div class="actions"><button type="button" class="btn btn-ink sm" data-retire-yes>Ngừng dùng</button><button type="button" class="btn btn-line sm" data-retire-no>Thôi</button></div>
     </div></form>`;
-}
-
-// A new account's link code: from its handle, and never one another account already uses.
-function freshCode(ctx, handle) {
-  const taken = new Set(ctx.team.settings.map((s) => s.account_code));
-  const base = cleanAccountCode(handle);
-  if (!taken.has(base)) return base;
-  for (let n = 2; ; n += 1) {
-    const code = `${base.slice(0, 20 - String(n).length)}${n}`;
-    if (!taken.has(code)) return code;
-  }
 }
 
 function addPanel(ctx, open) {
@@ -98,14 +98,15 @@ function retiredList(retired) {
 }
 
 // Adding, retiring or reviving an account can change which seeding account is first. The new first one
-// takes over the Bình luận 2 she uses now, so her text never changes under her.
+// takes over the Bình luận 2 and link code she uses now, so neither changes under her.
 async function keepHome(ctx, memberId, change) {
-  const before = homeAccount(ctx, memberId);
-  const template = before ? settingsFor(ctx, before).r2_template : null;
+  const before = memberR2(ctx, memberId);
   await change();
   const after = homeAccount(ctx, memberId);
-  if (!after || !before || after.id === before.id || settingsFor(ctx, after).r2_template === template) return;
-  await saveSettings({ account_id: after.id, r2_template: template, account_code: settingsFor(ctx, after).account_code });
+  if (!after || !before?.created_at || after.id === before.account.id) return;
+  const row = settingsFor(ctx, after);
+  if (row.r2_template === before.r2_template && row.account_code === before.account_code) return;
+  await saveSettings({ account_id: after.id, r2_template: before.r2_template, account_code: before.account_code });
   ctx.team.settings = (await loadTeam()).settings;
 }
 
@@ -149,7 +150,7 @@ function wireAdd(ctx, panel, main) {
     f.querySelector('[data-handle-warn]').hidden = !handle || HANDLE.test(handle);
     const card = f.elements.kind.value === 'card';
     note.textContent = card
-      ? `${home && isActive(home) ? `Dùng chung Bình luận 2 và mã link với @${home.handle}. ` : ''}Từ tuần sau bạn nhận ${(seeding + 1) * CARDS_PER_ACCOUNT} bài mỗi tuần thay vì ${seeding * CARDS_PER_ACCOUNT}. Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.`
+      ? `${home && isActive(home) ? 'Dùng chung Bình luận 2 và mã link của bạn. ' : ''}Từ tuần sau bạn nhận ${(seeding + 1) * CARDS_PER_ACCOUNT} bài mỗi tuần thay vì ${seeding * CARDS_PER_ACCOUNT}. Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.`
       : 'Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.';
   };
   toggle.onclick = () => setOpen(f.hidden);
@@ -227,37 +228,28 @@ function wire(ctx, f, main) {
   const account = ctx.team.accounts.find((a) => a.id === f.dataset.account);
   wireRetire(ctx, f, account, main);
   const area = f.elements.template;
-  autoGrow(area);
+  const who = () => `@${HANDLE.test(cleanHandle(f.elements.handle.value)) ? cleanHandle(f.elements.handle.value) : account.handle}`;
+  const editor = area ? wireEditor(f, who) : () => {};
   const refresh = () => {
-    const code = f.elements.code.value.trim();
     const handle = cleanHandle(f.elements.handle.value);
     f.querySelector('[data-handle-warn]').hidden = !handle || HANDLE.test(handle);
-    f.querySelector('[data-warn]').hidden = hasLinkSlot(area.value);
-    f.querySelector('[data-preview]').innerHTML = isValidAccountCode(code)
-      ? preview(area.value, code, HANDLE.test(handle) ? handle : account.handle)
-      : '<span></span><p class="warn" style="margin:0">Mã chỉ gồm chữ thường a-z và số, 1 đến 20 ký tự.</p>';
+    editor();
     f.querySelector('[data-status]').textContent = '';
   };
   f.oninput = refresh;
   f.elements.handle.addEventListener('change', () => { f.elements.handle.value = cleanHandle(f.elements.handle.value); refresh(); });
   refresh();
-  f.querySelector('[data-insert]').onclick = () => {
-    const at = area.selectionStart ?? area.value.length;
-    area.setRangeText('{link}', at, area.selectionEnd ?? at, 'end');
-    area.focus();
-    area.dispatchEvent(new Event('input', { bubbles: true }));
-  };
   f.onsubmit = async (e) => {
     e.preventDefault();
     const handle = cleanHandle(f.elements.handle.value);
-    const code = f.elements.code.value.trim();
+    const code = area ? f.elements.code.value.trim() : null;
     if (!HANDLE.test(handle)) { toast('Tên tài khoản chưa đúng dạng.'); return; }
-    if (!isValidAccountCode(code)) { toast('Mã tài khoản chưa đúng.'); return; }
+    if (area && !isValidAccountCode(code)) { toast('Mã tài khoản chưa đúng.'); return; }
     if (ctx.team.accounts.some((a) => a.handle === handle && a.id !== account.id)) { toast('Tên tài khoản này đã có người dùng.'); return; }
-    if (ctx.team.settings.some((s) => s.account_code === code && s.account_id !== account.id)) { toast('Mã này tài khoản khác đang dùng.'); return; }
+    if (area && ctx.team.settings.some((s) => s.account_code === code && s.account_id !== account.id)) { toast('Mã này tài khoản khác đang dùng.'); return; }
     const current = settingsFor(ctx, account);
     const handleChanged = handle !== account.handle;
-    const settingsChanged = area.value !== current.r2_template || code !== current.account_code;
+    const settingsChanged = Boolean(area) && (area.value !== current.r2_template || code !== current.account_code);
     if (!handleChanged && !settingsChanged) { toast('Chưa có gì thay đổi.'); return; }
     const button = f.querySelector('button[type="submit"]');
     button.disabled = true;
@@ -281,6 +273,55 @@ function wire(ctx, f, main) {
   };
 }
 
+// The {link} button, the missing-link warning and the live preview. Returns the preview's refresh.
+function wireEditor(f, who) {
+  const area = f.elements.template;
+  autoGrow(area);
+  f.querySelector('[data-insert]').onclick = () => {
+    const at = area.selectionStart ?? area.value.length;
+    area.setRangeText('{link}', at, area.selectionEnd ?? at, 'end');
+    area.focus();
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  return () => {
+    const code = f.elements.code.value.trim();
+    f.querySelector('[data-warn]').hidden = hasLinkSlot(area.value);
+    f.querySelector('[data-preview]').innerHTML = isValidAccountCode(code)
+      ? preview(area.value, code, who())
+      : '<span></span><p class="warn" style="margin:0">Mã chỉ gồm chữ thường a-z và số, 1 đến 20 ký tự.</p>';
+  };
+}
+
+// Saved on her first seeding account. Her other accounts may hold the same code from an earlier first one.
+function wireR2(ctx, f) {
+  const editor = wireEditor(f, () => ctx.me.name);
+  f.oninput = () => { editor(); f.querySelector('[data-status]').textContent = ''; };
+  f.oninput();
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const r2 = memberR2(ctx, ctx.me.id);
+    const template = f.elements.template.value;
+    const code = f.elements.code.value.trim();
+    const own = ctx.team.accounts.filter((a) => a.member_id === ctx.me.id && a.kind === 'card').map((a) => a.id);
+    if (!isValidAccountCode(code)) { toast('Mã link chưa đúng.'); return; }
+    if (ctx.team.settings.some((s) => s.account_code === code && !own.includes(s.account_id))) { toast('Mã này người khác đang dùng.'); return; }
+    if (r2.created_at && template === r2.r2_template && code === r2.account_code) { toast('Chưa có gì thay đổi.'); return; }
+    const button = f.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await saveSettings({ account_id: r2.account.id, r2_template: template, account_code: code });
+      ctx.team.settings = (await loadTeam()).settings;
+      toast('Đã lưu.');
+      f.querySelector('[data-status]').textContent = 'Đã lưu. Bài chọn từ giờ dùng bản này.';
+    } catch (error) {
+      console.error(error);
+      toast(failure(error, 'Mã link'));
+    } finally {
+      button.disabled = false;
+    }
+  };
+}
+
 export async function renderSettings(main, ctx) {
   // Seeding accounts first, oldest first, then the creative ones; retired ones fold away at the end.
   const order = (a, b) => (a.kind === 'creative') - (b.kind === 'creative')
@@ -288,12 +329,15 @@ export async function renderSettings(main, ctx) {
   const all = ctx.team.accounts.filter((a) => a.member_id === ctx.me.id).sort(order);
   const mine = all.filter(isActive);
   main.innerHTML = `<div class="page-head"><div><p class="eyebrow">Cài đặt</p><h1 class="page-title">Tài khoản của bạn</h1>
-      <p class="sub">Tên của bạn, tên từng tài khoản Threads, bình luận 2 và mã link. Đặt {link} ở chỗ cần link tải app.</p></div></div>
+      <p class="sub">Tên của bạn, bình luận 2 và mã link của bạn, rồi từng tài khoản Threads. Đặt {link} ở chỗ cần link tải app.</p></div></div>
     ${profile(ctx)}
+    ${r2Panel(ctx)}
     ${mine.map((a) => form(ctx, a)).join('')}
     ${addPanel(ctx, !mine.length)}
     ${retiredList(all.filter((a) => !isActive(a)))}`;
   wireProfile(ctx, main.querySelector('#profile'));
+  const r2 = main.querySelector('#r2');
+  if (r2) wireR2(ctx, r2);
   main.querySelectorAll('form[data-account]').forEach((f) => wire(ctx, f, main));
   wireAdd(ctx, main.querySelector('#add'), main);
   main.querySelectorAll('[data-revive]').forEach((b) => {

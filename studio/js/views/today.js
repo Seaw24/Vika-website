@@ -1,5 +1,5 @@
 import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent } from '../data.js';
-import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip } from '../lib/week.js';
+import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip, skippedIds } from '../lib/week.js';
 import { pendingQuestions, reviewable } from '../lib/feedback.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
 import { esc, copyText, toast, icon, cardTags } from '../ui.js';
@@ -92,10 +92,10 @@ function ledgerRow(item, today, observation) {
 
 /* ---------- Library, hint, creative ---------- */
 
-const row = (a, i, { note = null } = {}) => `<li><a class="lib-row${note ? ' is-used' : ''}" href="#/bai/${esc(a.id)}">
+const row = (a, i, { note = null, after = '' } = {}) => `<li${after ? ' class="has-action"' : ''}><a class="lib-row${note ? ' is-used' : ''}" href="#/bai/${esc(a.id)}">
   <span class="n">${note ? '•' : String(i + 1).padStart(2, '0')}</span>
   <span><span class="t">${esc(a.card.op)}</span><span class="tags">${note ? `<span class="tag ${note[1]}">${esc(note[0])}</span>` : ''}${cardTags(a.card)}</span></span>
-  <span class="arrow">${icon('right')}</span></a></li>`;
+  <span class="arrow">${icon('right')}</span></a>${after}</li>`;
 
 const matches = (a) => filter === 'all' || a.card.engine === filter || a.card.pull === filter;
 
@@ -155,7 +155,7 @@ export async function renderToday(main, ctx) {
   const [posts, questions] = await Promise.all([loadPosts(assignments.map((a) => a.id)), loadQuestions(ctx.me.id)]);
   const events = await loadEvents([...new Set([...assignments.map((a) => a.id), ...questions.map((q) => q.assignment_id)])]);
   const states = postingState(events, posts);
-  const skipped = new Set(events.filter((e) => e.type === 'skipped').map((e) => e.assignment_id));
+  const skipped = skippedIds(events);
   const available = assignments.filter((a) => !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
 
@@ -216,7 +216,7 @@ export async function renderToday(main, ctx) {
         <div class="library-tools"><div class="seg" role="group" aria-label="Lọc bài">${FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${filter === v}">${l}</button>`).join('')}</div>
           ${weeks.length > 1 ? `<label><span class="sr-only">Tuần bài</span><select id="active-week">${weeks.map((w) => `<option value="${w}"${w === weekId ? ' selected' : ''}>Tuần ${shortWeek(w)}${w > current ? ' · xem trước' : ''}</option>`).join('')}</select></label>` : ''}</div>
         <ol class="library" id="library"></ol>
-        ${elsewhere.length ? `<details class="fold"><summary>Đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note })).join('')}</ol></div></details>` : ''}
+        ${elsewhere.length ? `<details class="fold"><summary>Đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note, after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
       </section>
     </div>` : ''}
     <div class="duo">
@@ -242,6 +242,16 @@ export async function renderToday(main, ctx) {
     try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
     main.querySelector('#a2hs')?.remove();
   });
+  // Dùng lại puts a card she set aside back in her queue, in its place (Nam, 2026-09-28).
+  main.querySelectorAll('[data-take-back]').forEach((b) => { b.onclick = async () => {
+    const a = assignments.find((x) => x.id === b.dataset.takeBack);
+    b.disabled = true;
+    try {
+      await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
+      toast('Đã đưa bài về kho.');
+      renderToday(main, ctx);
+    } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
+  }; });
   if (creative) wireCreative(main, ctx, creative);
   renderQuestions(main.querySelector('#questions'), pendingQuestions(questions, events, ctx.me.id));
   main.querySelector('#active-week')?.addEventListener('change', (e) => { ctx.activeWeek = e.target.value; renderToday(main, ctx); });

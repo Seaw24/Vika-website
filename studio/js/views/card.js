@@ -1,10 +1,11 @@
 import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js';
-import { issuedCt, postingState, vnDate } from '../lib/week.js';
+import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { REASONS, NEXT_TIME, ENGINE_LABEL, PULL_LABEL, isEdited, buildAnswer } from '../lib/edits.js';
 import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js';
-import { settingsFor, diffHtml, homeAccount } from './shared.js';
+import { diffHtml, memberR2 } from './shared.js';
 import { feedbackForm, wireFeedback } from './feedback.js';
+import { SKIP_REASONS } from '../lib/feedback.js';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';
@@ -37,14 +38,15 @@ export async function renderCard(main, ctx, assignmentId) {
     dismissed: new Set(),
     answered: new Set(events.filter((e) => e.type === 'answered' && e.payload?.kind === 'edit').map((e) => e.payload.part)),
   };
-  // Her link code and Bình luận 2 template come from her first card account (Nam, 2026-09-27: one template
-  // per member, no account to pick). She posts on any of her accounts; the daily read finds it.
-  view.home = homeAccount(ctx, a.member_id);
+  // Her link code and Bình luận 2 are hers, one for every seeding account (Nam, 2026-09-27), stored on her
+  // first seeding account. She posts on any of her accounts; the daily read finds it.
+  view.r2 = memberR2(ctx, a.member_id);
+  view.home = view.r2?.account ?? null;
   paint(view);
 }
 
 const ctOf = (view) => view.post?.ct ?? issuedCt(view.events, view.a.id)
-  ?? (view.home ? buildCt(settingsFor(view.ctx, view.home).account_code, view.card.card_code) : null);
+  ?? (view.r2 ? buildCt(view.r2.account_code, view.card.card_code) : null);
 const postedOn = (view) => view.post ? view.ctx.team.accounts.find((x) => x.id === view.post.account_id) ?? null : null;
 // The member's own word: "posted" (claimed) until the daily read confirms it, or "missing" when that read found nothing.
 const claim = (view) => postingState(view.events, view.post ? [view.post] : []).get(view.a.id) ?? null;
@@ -57,7 +59,7 @@ const whenPosted = (at) => `${vnTime(at)}${vnDate(new Date(at)) === vnDate() ? '
 function originals(view) {
   const account = view.home;
   const ct = ctOf(view);
-  const r2 = account && ct ? fillTemplate(settingsFor(view.ctx, account).r2_template, appLink(ct)) : null;
+  const r2 = account && ct ? fillTemplate(view.r2.r2_template, appLink(ct)) : null;
   return { op: view.card.op, r1: view.card.r1, r2, account };
 }
 
@@ -187,15 +189,25 @@ function tabPanel(view) {
     ${card.engine ? `<dt>Cách kéo tương tác</dt><dd>${esc(ENGINE_LABEL[card.engine])}</dd>` : ''}</dl>`;
 }
 
-const flagged = (view) => view.events.some((e) => e.type === 'flagged' && e.payload?.kind === 'wrong_pick');
+// Không dùng bài này (Nam, 2026-09-28): she says why, the card leaves Hôm nay for Đã bỏ qua and the next
+// card takes its slot. Dùng lại brings it back. Hidden once she has said she posted it.
+const setAside = (view) => skippedIds(view.events).has(view.a.id);
+const reasonLabels = (e) => (e?.payload?.reasons ?? []).map((r) => SKIP_REASONS.find(([code]) => code === r)?.[1]).filter(Boolean);
 
 function flagCard(view) {
+  if (['claimed', 'confirmed'].includes(claim(view)?.status)) return '';
+  if (setAside(view)) {
+    const last = view.events.filter((e) => e.type === 'skipped').at(-1);
+    const why = [...reasonLabels(last), last?.payload?.words].filter(Boolean);
+    return `<section class="flag-card" id="flag">
+      <div class="flag-head"><span class="flag-ic">${icon('check')}</span>
+        <div><h3>Bạn đã bỏ bài này</h3><p>Bài nằm ở mục Đã bỏ qua trên Hôm nay.${why.length ? ` Lý do: ${esc(why.join(' · '))}.` : ''}</p></div></div>
+      <div><button class="btn btn-ink" data-take-back>${icon('undo')}Dùng lại</button></div></section>`;
+  }
   return `<section class="flag-card" id="flag">
     <div class="flag-head"><span class="flag-ic">${icon('flag')}</span>
-      <div><h3>Bài này chọn chưa đúng?</h3><p>Nói cho nhóm biết để lần sau chọn bài tốt hơn. Bạn vẫn dùng bài này được.</p></div></div>
-    <div data-flag-body>${flagged(view)
-      ? `<p class="flag-done">${icon('check')}Bạn đã góp ý về bài này.</p><button class="btn btn-line sm" data-flag-open>Góp ý thêm</button>`
-      : `<button class="btn btn-ink" data-flag-open>${icon('flag')}Góp ý về bài chọn</button>`}</div></section>`;
+      <div><h3>Không muốn dùng bài này?</h3><p>Cho nhóm biết vì sao. Bài rời Hôm nay, bài kế tiếp lên thay. Bạn lấy lại được ở mục Đã bỏ qua.</p></div></div>
+    <div data-flag-body><button class="btn btn-ink" data-flag-open>${icon('flag')}Không dùng bài này</button></div></section>`;
 }
 
 function paint(view) {
@@ -388,15 +400,24 @@ async function submitReason(view, form) {
 function openFlag(view) {
   const body = q(view, '[data-flag-body]');
   const before = body.innerHTML;
-  body.innerHTML = feedbackForm({ submit: 'Gửi góp ý', cancel: 'Thôi' });
+  body.innerHTML = feedbackForm({ submit: 'Bỏ bài này', cancel: 'Thôi' });
   const form = body.querySelector('form');
   wireFeedback(form, async (payload) => {
-    if (!payload.reasons.length && !payload.words) { toast('Chọn một lý do hoặc viết góp ý nhé.'); form.querySelector('[type=submit]').disabled = false; return; }
-    view.events.push(await recordEvent({ ...base(view), type: 'flagged', payload: { kind: 'wrong_pick', ...payload } }));
-    toast('Đã gửi góp ý về bài chọn.');
-    body.innerHTML = `<p class="flag-done">${icon('check')}Đã gửi. Cảm ơn bạn.</p><button class="btn btn-line sm" data-flag-open>Góp ý thêm</button>`;
+    if (!payload.reasons.length && !payload.words) { toast('Chọn một lý do hoặc viết vài chữ nhé.'); form.querySelector('[type=submit]').disabled = false; return; }
+    view.events.push(await recordEvent({ ...base(view), type: 'skipped', payload: { kind: 'dismiss', ...payload } }));
+    toast('Đã bỏ bài. Bài kế tiếp đã lên thay.');
+    location.hash = '#/';
   }, () => { body.innerHTML = before; });
   form.querySelector('button')?.focus({ preventScroll: true });
+}
+
+async function takeBack(view, button) {
+  button.disabled = true;
+  try {
+    view.events.push(await recordEvent({ ...base(view), type: 'skip_undo' }));
+    toast('Đã đưa bài về kho.');
+    q(view, '#flag').outerHTML = flagCard(view);
+  } catch { toast('Chưa lưu được. Thử lại nhé.'); button.disabled = false; }
 }
 
 /* ---------- One set of listeners for the whole page ---------- */
@@ -442,5 +463,6 @@ function wire(view) {
       root.querySelectorAll('[data-tab]').forEach((x) => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-selected', String(x === b)); });
       q(view, '[data-tab-panel]').innerHTML = tabPanel(view);
     } else if ('flagOpen' in d) openFlag(view);
+    else if ('takeBack' in d) takeBack(view, b);
   });
 }

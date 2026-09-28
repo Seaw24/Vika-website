@@ -257,6 +257,9 @@ select{appearance:none;-webkit-appearance:none;min-height:44px;padding:0 40px 0 
 .lib-row .arrow svg{width:18px;height:18px;transition:transform .35s var(--ease)}
 .lib-row:hover .arrow svg{transform:translateX(3px)}
 .lib-row.is-used .t{color:var(--muted)}
+.library li.has-action{display:flex;align-items:center;gap:10px}
+.library li.has-action .lib-row{flex:1;min-width:0}
+.library li.has-action > .btn{flex:none}
 @media (min-width:900px){
   .library{display:grid;grid-template-columns:1fr 1fr;column-gap:32px;border-top:0}
   .library li{border-top:0}
@@ -588,8 +591,9 @@ body.gate main{max-width:none;padding:0}
 body.focus .toast{bottom:calc(100px + env(safe-area-inset-bottom))}
 body.gate .toast{bottom:24px}
 
-/* Entrance: one staggered rise per route */
-.enter > *{animation:rise .45s var(--ease) both}
+/* Entrance: one staggered rise per route. backwards, not both: a transform held after the rise makes each
+   page block the containing block of the fixed dock, which then sat over the end of a card page on phones. */
+.enter > *{animation:rise .45s var(--ease) backwards}
 .enter > *:nth-child(2){animation-delay:.05s}
 .enter > *:nth-child(3){animation-delay:.1s}
 .enter > *:nth-child(4){animation-delay:.15s}
