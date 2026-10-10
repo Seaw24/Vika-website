@@ -1,7 +1,7 @@
-import { recordEvent } from '../data.js?v=20261009a';
+import { recordEvent } from '../data.js?v=20261009x';
 import { SKIP_REASONS } from '../lib/feedback.js';
 import { REASONS, NEXT_TIME, PART_LABEL } from '../lib/edits.js';
-import { esc, toast, icon } from '../ui.js';
+import { esc, toast, icon } from '../ui.js?v=20261009x';
 import { diffHtml } from './shared.js';
 
 export function feedbackForm({ submit = 'Lưu góp ý', reasons = SKIP_REASONS, nextTime = false, cancel = 'Để sau' } = {}) {

@@ -1,7 +1,7 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261009a';
+import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261009x';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
 import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
-import { esc, icon, initial } from '../ui.js';
+import { esc, icon, initial } from '../ui.js?v=20261009x';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];

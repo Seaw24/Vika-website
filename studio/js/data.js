@@ -76,7 +76,7 @@ const ACCOUNT = 'id,handle,member_id,kind,active,created_at';
 
 export async function loadTeam() {
   const [members, accounts, settings] = await Promise.all([
-    supabase.from('members').select('id,name,email,is_demo,is_fixture').order('name'),
+    supabase.from('members').select('id,name,email,is_demo,is_fixture,tiktok').order('name'),
     supabase.from('accounts').select(ACCOUNT).order('handle'),
     supabase.from('account_settings_current').select('account_id,r2_template,account_code,created_at'),
   ]);
@@ -236,4 +236,34 @@ export async function loadLatestOps(postIds) {
     for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r.op);
     return latest;
   });
+}
+
+/* ---------- TikTok (Nam, 2026-10-09): only members with members.tiktok on read these rows and files ---------- */
+
+export async function loadTikTok() {
+  return cached('tiktok', 30000, async () => must(await supabase.from('tiktok_videos').select('*').order('created_at').order('slug')));
+}
+
+// Signed links to the private bucket, kept until a minute before they expire, so a return to the tab
+// reuses them and the browser cache serves the posters again.
+const signed = new Map();
+export async function signedTikTokUrls(paths, ttl = 3600) {
+  const missing = [...new Set(paths.filter(Boolean))].filter((p) => !(signed.get(p)?.until > Date.now() + 60000));
+  if (missing.length) {
+    const data = must(await supabase.storage.from('tiktok').createSignedUrls(missing, ttl));
+    for (const d of data) if (d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: Date.now() + ttl * 1000 });
+  }
+  return new Map(paths.filter((p) => signed.has(p)).map((p) => [p, signed.get(p).url]));
+}
+
+// Only the posted and skipped columns are hers to change (migrations tiktok_queue, tiktok_skip). Posting or
+// skipping filters on a waiting row, so when two members tap at once only the first one lands; the other gets
+// null back. `mine` names the column that must hold her id to take her own mark back.
+export async function updateTikTok(id, patch, { waiting = false, mine = null, by = 'posted_by' } = {}) {
+  let query = supabase.from('tiktok_videos').update(patch).eq('id', id);
+  if (waiting) query = query.is('posted_by', null).is('skipped_by', null);
+  if (mine) query = query.eq(by, mine);
+  const rows = must(await query.select('*'));
+  readCache.delete('tiktok');
+  return rows[0] ?? null;
 }

@@ -1,13 +1,27 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261009a';
-import { renderSignIn } from './views/signin.js?v=20261009a';
-import { esc, toast, icon, initial } from './ui.js';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261009x';
+import { renderSignIn } from './views/signin.js?v=20261009x';
+import { esc, toast, icon, initial } from './ui.js?v=20261009x';
 
+// Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
+// a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
+// TikTok space; a new member starts without it and sees Threads exactly as before.
 // Nhóm: every member sees the whole team's posts, by day (Nam, 2026-09-27).
-const TABS = [['#/', 'Hôm nay', 'today'], ['#/so-lieu', 'Số liệu', 'stats'], ['#/nhom', 'Nhóm', 'team'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']];
+const SPACES = {
+  threads: { label: 'Threads', icon: 'threads', home: '#/',
+    tabs: [['#/', 'Hôm nay', 'today'], ['#/so-lieu', 'Số liệu', 'stats'], ['#/nhom', 'Nhóm', 'team'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']] },
+  tiktok: { label: 'TikTok', icon: 'tiktok', home: '#/tiktok',
+    tabs: [['#/tiktok', 'Chờ đăng', 'tiktok'], ['#/tiktok/da-dang', 'Đã đăng', 'check'], ['#/tiktok/bo-qua', 'Đã bỏ qua', 'flag']] },
+};
+// Each TikTok page and the part of the view it shows.
+const TIKTOK_PAGES = { '#/tiktok': 'queue', '#/tiktok/da-dang': 'posted', '#/tiktok/bo-qua': 'skipped' };
+// The sign-in screen paints with no active tab (null), which belongs to no space's tabs.
+const spaceOf = (hash) => (String(hash ?? '').startsWith('#/tiktok') ? 'tiktok' : 'threads');
 let main = document.getElementById('main');
 const tabs = document.getElementById('tabs');
 const me = document.getElementById('me');
+const rail = document.getElementById('spaces');
+const switcher = document.getElementById('spaces-m');
 if (!location.hash) history.replaceState(null, '', '#/');
 let ctx = null;
 let booting = null;
@@ -15,19 +29,33 @@ let routeId = 0;
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261009a').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261009a').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261009c').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js?v=20261009a').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261009d').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261009a').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261009a').then((m) => m.renderTeam),
+  today: () => import('./views/today.js?v=20261009x').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261009x').then((m) => m.renderCard),
+  answers: () => import('./views/answers.js?v=20261009x').then((m) => m.renderAnswers),
+  settings: () => import('./views/settings.js?v=20261009x').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261009x').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261009x').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261009x').then((m) => m.renderTeam),
+  tiktok: () => import('./views/tiktok.js?v=20261009x').then((m) => m.renderTikTok),
 };
 
+// The space links remember the last page opened in each space, so switching back lands where she left off.
+const lastIn = { threads: '#/', tiktok: '#/tiktok' };
 function paintTabs(active) {
+  const space = spaceOf(active);
+  if (ctx?.me) {
+    lastIn[space] = location.hash || active;
+    storage.set('studio.space', space);
+    if (space === 'tiktok') storage.set('studio.space.tiktok', lastIn.tiktok);
+  }
   tabs.innerHTML = ctx?.me
-    ? TABS.map(([href, label, name]) => `<a href="${href}"${href === active ? ' aria-current="page"' : ''}>${icon(name)}<span>${esc(label)}</span></a>`).join('')
+    ? SPACES[space].tabs.map(([href, label, name]) => `<a href="${href}"${href === active ? ' aria-current="page"' : ''}>${icon(name)}<span>${esc(label)}</span></a>`).join('')
     : '';
+  const both = ctx?.me?.tiktok === true;
+  document.body.classList.toggle('spaces-on', both);
+  const links = (cls) => Object.entries(SPACES).map(([key, s]) => `<a class="${cls}" href="${key === space ? s.home : lastIn[key]}"${key === space ? ' aria-current="true"' : ''}>${icon(s.icon)}<span>${esc(s.label)}</span></a>`).join('');
+  rail.innerHTML = both ? links('space') : '';
+  switcher.innerHTML = both ? links('space-m') : '';
   me.innerHTML = ctx?.me ? `<span class="me-name">${esc(ctx.me.name)}</span><i class="av">${esc(initial(ctx.me.name))}</i>` : '';
   if (ctx?.me) me.setAttribute('aria-label', `${ctx.me.name}, cài đặt`);
 }
@@ -49,6 +77,12 @@ function routeSkeleton(hash) {
   const feedback = hash === '#/gop-y';
   const today = hash === '#/' || hash === '';
   const head = `<div class="sk-head">${skLine(22)}${skLine(60)}${skLine(78)}</div>`;
+  // TikTok's queue: the stage with the large video frame and its steps, the shape the page lands in.
+  if (hash === '#/tiktok') {
+    return `<div class="route-skeleton" role="status"><span class="sr-only">Đang tải trang</span><div aria-hidden="true">
+      <div class="sk-tt"><div class="sk-player"><span class="sk-frame"></span></div>
+        <div class="sk-tt-body">${skLine(24)}${skLine(70)}${skLine(92)}${skLine(64)}<span class="sk-pill wide"></span><span class="sk-pill wide"></span><span class="sk-pill wide"></span></div></div></div></div>`;
+  }
   const cards = Array.from({ length: feedback ? 3 : 2 }, (_, i) => feedback
     ? `<div class="sk-entry" style="--sk-index:${i}"><span class="sk-avatar"></span>${skCard(i)}</div>`
     : skCard(i)).join('');
@@ -88,6 +122,10 @@ async function route() {
       paintTabs('#/nhom');
       mode(nextMain);
       await (await views.team())(nextMain, ctx);
+    } else if (TIKTOK_PAGES[hash] && ctx.me.tiktok === true) {
+      paintTabs(hash);
+      mode(nextMain, { narrow: hash !== '#/tiktok' });
+      await (await views.tiktok())(nextMain, ctx, TIKTOK_PAGES[hash]);
     } else if (hash.startsWith('#/cuoi-tuan/')) {
       paintTabs('#/');
       mode(nextMain, { narrow: true });
@@ -122,18 +160,75 @@ async function route() {
   window.scrollTo(0, 0);
 }
 
+// The team (members, accounts, settings) is kept on the device, so a return visit opens at once from it while a
+// fresh read runs behind; the page repaints only if the fresh read differs. Row-level security still guards every
+// read and write, so a stale copy can show old names for a moment but never opens data.
+const teamKey = (email) => `studio.team.v1.${email}`;
+const storage = {
+  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage blocked */ } },
+};
+function readTeam(email) {
+  try { return JSON.parse(storage.get(teamKey(email)) ?? 'null'); } catch { return null; }
+}
+function applyTeam(email, team) {
+  const me = team.members.find((m) => m.email === email) ?? null;
+  if (me && !me.is_fixture) {
+    team = { ...team, members: team.members.filter((m) => !m.is_fixture) };
+    team.accounts = team.accounts.filter((a) => team.members.some((m) => m.id === a.member_id));
+  }
+  ctx.team = team;
+  ctx.me = me;
+}
+
+// Studio opens in the space she used last (Nam, 2026-10-09): Threads unless she was last in TikTok. Only an
+// address with no page in it (the home screen icon, a bare link) follows the memory; a link to a page wins.
+const bareStart = ['', '#', '#/'].includes(location.hash);
+let firstRoute = true;
+function restoreSpace() {
+  if (!firstRoute) return;
+  firstRoute = false;
+  if (!bareStart || ctx.me?.tiktok !== true || storage.get('studio.space') !== 'tiktok') return;
+  const last = storage.get('studio.space.tiktok');
+  history.replaceState(null, '', TIKTOK_PAGES[last] ? last : '#/tiktok');
+}
+
+// Straight after sign-in, or on a first visit with no saved team, the shell leaves the sign-in screen at once and
+// shows the page's skeleton while the team loads.
+function bootSkeleton() {
+  document.body.classList.remove('gate');
+  document.body.classList.add('loading');
+  main.innerHTML = routeSkeleton(location.hash || '#/');
+}
+
 async function boot() {
   const email = await currentEmail();
   ctx = { email, me: null, team: null, reload: reboot };
-  if (email) {
-    ctx.team = await loadTeam();
-    ctx.me = ctx.team.members.find((m) => m.email === email.toLowerCase()) ?? null;
-    if (ctx.me && !ctx.me.is_fixture) {
-      ctx.team.members = ctx.team.members.filter((m) => !m.is_fixture);
-      ctx.team.accounts = ctx.team.accounts.filter((a) => ctx.team.members.some((m) => m.id === a.member_id));
-    }
+  if (!email) { await route(); return; }
+  const cached = readTeam(email);
+  const fresh = loadTeam();
+  // The page's code downloads while the team loads.
+  const warm = { '#/tiktok': 'tiktok', '#/tiktok/da-dang': 'tiktok', '#/tiktok/bo-qua': 'tiktok', '#/so-lieu': 'stats', '#/nhom': 'team', '#/gop-y': 'answers', '#/cai-dat': 'settings' };
+  views[warm[location.hash] ?? (location.hash.startsWith('#/bai/') ? 'card' : 'today')]().catch(() => {});
+  if (cached) {
+    applyTeam(email, cached);
+    restoreSpace();
+    await route();
+    fresh.then((team) => {
+      const text = JSON.stringify(team);
+      storage.set(teamKey(email), text);
+      if (text === JSON.stringify(cached)) return;
+      applyTeam(email, team);
+      route();
+    }).catch((error) => console.error(error));
+  } else {
+    bootSkeleton();
+    const team = await fresh;
+    storage.set(teamKey(email), JSON.stringify(team));
+    applyTeam(email, team);
+    restoreSpace();
+    await route();
   }
-  await route();
   flushPending();
 }
 

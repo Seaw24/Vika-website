@@ -1,7 +1,7 @@
-import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261009a';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261009x';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { esc, firstLine, initial } from '../ui.js';
+import { esc, firstLine, initial } from '../ui.js?v=20261009x';
 import { diffHtml } from './shared.js';
 
 const when = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

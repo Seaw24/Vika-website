@@ -1,6 +1,6 @@
 import { cleanAccountCode } from '../lib/ct.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc } from '../ui.js';
+import { esc } from '../ui.js?v=20261009x';
 
 export const DEFAULT_TEMPLATE = 'Tải app Vika ở đây nha:\n{link}';
 
