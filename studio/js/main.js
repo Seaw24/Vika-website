@@ -17,7 +17,7 @@ let routeId = 0;
 const views = {
   today: () => import('./views/today.js?v=20261009a').then((m) => m.renderToday),
   card: () => import('./views/card.js?v=20261009a').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261009a').then((m) => m.renderAnswers),
+  answers: () => import('./views/answers.js?v=20261009c').then((m) => m.renderAnswers),
   settings: () => import('./views/settings.js?v=20261009a').then((m) => m.renderSettings),
   stats: () => import('./views/stats.js?v=20261009a').then((m) => m.renderStats),
   review: () => import('./views/review.js?v=20261009a').then((m) => m.renderReview),
@@ -42,6 +42,22 @@ function mode(target, { gate = false, focus = false, narrow = false } = {}) {
 const failed = () => `<div class="empty" style="margin-top:24px"><h2>Chưa tải được</h2><p>Kiểm tra mạng rồi thử lại.</p>
   <p style="margin-top:16px"><button class="btn btn-ink" id="retry">Thử lại</button></p></div>`;
 
+const skLine = (width) => `<span class="sk-line" style="--sk-width:${width}%"></span>`;
+const skCard = (index) => `<div class="sk-card" style="--sk-index:${index}">
+  ${skLine(36)}${skLine(84)}${skLine(62)}<span class="sk-pill"></span></div>`;
+function routeSkeleton(hash) {
+  const feedback = hash === '#/gop-y';
+  const today = hash === '#/' || hash === '';
+  const head = `<div class="sk-head">${skLine(22)}${skLine(60)}${skLine(78)}</div>`;
+  const cards = Array.from({ length: feedback ? 3 : 2 }, (_, i) => feedback
+    ? `<div class="sk-entry" style="--sk-index:${i}"><span class="sk-avatar"></span>${skCard(i)}</div>`
+    : skCard(i)).join('');
+  return `<div class="route-skeleton${feedback ? ' sk-narrow' : ''}" role="status">
+    <span class="sr-only">Đang tải trang</span><div aria-hidden="true">
+    ${today ? `<div class="sk-stage">${head}<div class="sk-tickets">${cards}</div></div>`
+      : `${head}<div class="sk-list">${cards}</div>`}</div></div>`;
+}
+
 async function route() {
   const started = performance.now();
   const id = ++routeId;
@@ -53,7 +69,7 @@ async function route() {
   const wait = setTimeout(() => {
     if (id !== routeId) return;
     main.setAttribute('aria-busy', 'true');
-    main.innerHTML = '<div class="route-wait" role="status">Đang tải trang…</div>';
+    main.innerHTML = routeSkeleton(hash);
   }, 120);
   try {
     if (!ctx?.me) {
