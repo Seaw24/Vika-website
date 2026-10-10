@@ -43,6 +43,7 @@ const failed = () => `<div class="empty" style="margin-top:24px"><h2>Chưa tải
   <p style="margin-top:16px"><button class="btn btn-ink" id="retry">Thử lại</button></p></div>`;
 
 async function route() {
+  const started = performance.now();
   const id = ++routeId;
   const hash = location.hash || '#/';
   const nextMain = document.createElement('main');
@@ -98,6 +99,7 @@ async function route() {
   document.body.classList.remove('loading');
   main.replaceWith(nextMain);
   main = nextMain;
+  main.dataset.routeMs = String(Math.round(performance.now() - started));
   main.querySelectorAll('textarea').forEach((area) => area.dispatchEvent(new Event('input')));
   main.classList.add('enter');
   main.focus({ preventScroll: true });
