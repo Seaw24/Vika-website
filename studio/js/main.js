@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js';
-import { renderSignIn } from './views/signin.js';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261009a';
+import { renderSignIn } from './views/signin.js?v=20261009a';
 import { esc, toast, icon, initial } from './ui.js';
 
 // Nhóm: every member sees the whole team's posts, by day (Nam, 2026-09-27).
@@ -15,13 +15,13 @@ let routeId = 0;
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js').then((m) => m.renderToday),
-  card: () => import('./views/card.js').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js').then((m) => m.renderStats),
-  review: () => import('./views/review.js').then((m) => m.renderReview),
-  team: () => import('./views/team.js').then((m) => m.renderTeam),
+  today: () => import('./views/today.js?v=20261009a').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261009a').then((m) => m.renderCard),
+  answers: () => import('./views/answers.js?v=20261009a').then((m) => m.renderAnswers),
+  settings: () => import('./views/settings.js?v=20261009a').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261009a').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261009a').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261009a').then((m) => m.renderTeam),
 };
 
 function paintTabs(active) {

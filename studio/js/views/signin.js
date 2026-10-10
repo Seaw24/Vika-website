@@ -1,4 +1,4 @@
-import { signIn, signOut } from '../data.js';
+import { signIn, signOut } from '../data.js?v=20261009a';
 import { esc } from '../ui.js';
 
 const stage = (inner) => `<div class="gate-wrap"><section class="stage gate-stage">

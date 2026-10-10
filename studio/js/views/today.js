@@ -1,10 +1,10 @@
-import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent } from '../data.js';
+import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent } from '../data.js?v=20261009a';
 import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip, skippedIds } from '../lib/week.js';
 import { pendingQuestions, reviewable } from '../lib/feedback.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
 import { esc, copyText, toast, icon, cardTags } from '../ui.js';
 import { settingsFor, isActive } from './shared.js';
-import { renderQuestions } from './feedback.js';
+import { renderQuestions } from './feedback.js?v=20261009a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];

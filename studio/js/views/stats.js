@@ -1,4 +1,4 @@
-import { loadAnalytics } from '../data.js';
+import { loadAnalytics } from '../data.js?v=20261009a';
 import { DAY, enrichPosts, summarize, breakdown, weeklySeries, weekOverWeek, indexReadings, lifecycleBand, rankAtAge, themeCounts, logScale, movement, viewsAt, MIN_BAND, MIN_COMPARE, RESULT_DAY } from '../lib/stats.js';
 import { mondayOf, vnDate } from '../lib/week.js';
 import { LC, lifecycleChart, weekColumns, stripAxis, stripRow, barList, sparkline, meter, heatGrid, shortWeek } from '../lib/charts.js';

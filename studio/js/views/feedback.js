@@ -1,4 +1,4 @@
-import { recordEvent } from '../data.js';
+import { recordEvent } from '../data.js?v=20261009a';
 import { SKIP_REASONS } from '../lib/feedback.js';
 import { REASONS, NEXT_TIME, PART_LABEL } from '../lib/edits.js';
 import { esc, toast, icon } from '../ui.js';

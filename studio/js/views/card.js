@@ -1,10 +1,10 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js';
+import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261009a';
 import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { REASONS, NEXT_TIME, ENGINE_LABEL, PULL_LABEL, isEdited, buildAnswer } from '../lib/edits.js';
 import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js';
 import { diffHtml, memberR2 } from './shared.js';
-import { feedbackForm, wireFeedback } from './feedback.js';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261009a';
 import { SKIP_REASONS } from '../lib/feedback.js';
 
 const THREADS_LIMIT = 500;

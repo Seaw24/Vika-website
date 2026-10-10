@@ -1,4 +1,4 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js';
+import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261009a';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
 import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
 import { esc, icon, initial } from '../ui.js';

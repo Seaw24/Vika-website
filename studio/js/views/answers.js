@@ -1,4 +1,4 @@
-import { loadAnswers, loadAnswerQuestions } from '../data.js';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261009a';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
 import { esc, firstLine, initial } from '../ui.js';

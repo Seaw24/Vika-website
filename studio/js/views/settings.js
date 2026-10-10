@@ -1,4 +1,4 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js';
+import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261009a';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
 import { esc, toast, icon, initial, autoGrow } from '../ui.js';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
