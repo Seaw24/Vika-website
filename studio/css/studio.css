@@ -591,13 +591,10 @@ body.gate main{max-width:none;padding:0}
 body.focus .toast{bottom:calc(100px + env(safe-area-inset-bottom))}
 body.gate .toast{bottom:24px}
 
-/* Entrance: one staggered rise per route. backwards, not both: a transform held after the rise makes each
-   page block the containing block of the fixed dock, which then sat over the end of a card page on phones. */
-.enter > *{animation:rise .45s var(--ease) backwards}
-.enter > *:nth-child(2){animation-delay:.05s}
-.enter > *:nth-child(3){animation-delay:.1s}
-.enter > *:nth-child(4){animation-delay:.15s}
-.enter > *:nth-child(n+5){animation-delay:.2s}
+.route-wait{min-height:55vh;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px}
+.enter{animation:route-in .16s ease-out}
+@keyframes route-in{from{opacity:.72}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.enter{animation:none}}
 
 /* ---------- Desktop: the nav floats as one dark pill, like the website's ---------- */
 @media (min-width:900px){

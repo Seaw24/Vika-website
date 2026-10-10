@@ -4,6 +4,17 @@ import { createPendingQueue, createPendingStore } from './lib/pending.js';
 let email = null;
 const queues = new Map();
 const stores = new Map();
+const readCache = new Map();
+function cached(key, ttl, read) {
+  const hit = readCache.get(key);
+  if (hit && hit.until > Date.now()) return hit.value;
+  const value = Promise.resolve().then(read);
+  readCache.set(key, { value, until: Date.now() + ttl });
+  value.catch(() => { if (readCache.get(key)?.value === value) readCache.delete(key); });
+  return value;
+}
+export function clearReadCache() { readCache.clear(); }
+const idsKey = (ids) => [...new Set(ids)].sort().join(',');
 function storeFor(owner) {
   if (!stores.has(owner)) stores.set(owner, createPendingStore({
     readText: () => localStorage.getItem(`studio.pending.${owner}`),
@@ -48,7 +59,9 @@ function must({ data, error }) {
 
 export async function currentEmail() {
   const { data } = await supabase.auth.getSession();
-  email = data.session?.user?.email?.toLowerCase() ?? null;
+  const next = data.session?.user?.email?.toLowerCase() ?? null;
+  if (next !== email) clearReadCache();
+  email = next;
   return email;
 }
 
@@ -86,27 +99,33 @@ async function allRows(query) {
 }
 
 export async function loadWeeksFor(memberId) {
-  const rows = await allRows(() => supabase.from('assignments').select('week_id').eq('member_id', memberId).order('week_id', { ascending: false }).order('id'));
-  return [...new Set(rows.map((a) => a.week_id))];
+  return cached(`weeks:${memberId}`, 30000, async () => {
+    const rows = await allRows(() => supabase.from('assignments').select('week_id').eq('member_id', memberId).order('week_id', { ascending: false }).order('id'));
+    return [...new Set(rows.map((a) => a.week_id))];
+  });
 }
 
 export async function loadPosts(assignmentIds) {
   if (!assignmentIds.length) return [];
-  return allRows(() => supabase.from('posts').select('*').in('assignment_id', assignmentIds).order('id'));
+  return cached(`posts:${idsKey(assignmentIds)}`, 15000,
+    () => allRows(() => supabase.from('posts').select('*').in('assignment_id', assignmentIds).order('id')));
 }
 
 // The newest reading of each post, for the Hôm nay ledger.
 export async function loadLatestObservations(postIds) {
   if (!postIds.length) return new Map();
-  const rows = await allRows(() => supabase.from('observations').select('post_id,captured_at,views,likes,replies,other_replies,reposts')
-    .in('post_id', postIds).order('captured_at', { ascending: false }).order('id', { ascending: false }));
-  const latest = new Map();
-  for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r);
-  return latest;
+  return cached(`observations:${idsKey(postIds)}`, 30000, async () => {
+    const rows = await allRows(() => supabase.from('observations').select('post_id,captured_at,views,likes,replies,other_replies,reposts')
+      .in('post_id', postIds).order('captured_at', { ascending: false }).order('id', { ascending: false }));
+    const latest = new Map();
+    for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r);
+    return latest;
+  });
 }
 
 export async function loadQuestions(memberId) {
-  return allRows(() => supabase.from('questions').select('*,assignment:assignments(card_id)').eq('member_id', memberId).order('created_at').order('id'));
+  return cached(`questions:${memberId}`, 30000,
+    () => allRows(() => supabase.from('questions').select('*,assignment:assignments(card_id)').eq('member_id', memberId).order('created_at').order('id')));
 }
 
 export async function loadAnswerQuestions(ids) {
@@ -114,16 +133,19 @@ export async function loadAnswerQuestions(ids) {
 }
 
 export async function loadAnalytics() {
-  const tables = { posts: 'posts', observations: 'observations', installs: 'install_observations',
-    versions: 'post_versions', cards: 'cards', runs: 'collection_runs', keywords: 'card_keywords' };
-  return Object.fromEntries(await Promise.all(Object.entries(tables).map(async ([key, table]) =>
-    [key, await allRows(() => supabase.from(table).select('*').order(table === 'card_keywords' ? 'card_id' : 'id'))])));
+  return cached('analytics', 60000, async () => {
+    const tables = { posts: 'posts', observations: 'observations', installs: 'install_observations',
+      versions: 'post_versions', cards: 'cards', runs: 'collection_runs', keywords: 'card_keywords' };
+    return Object.fromEntries(await Promise.all(Object.entries(tables).map(async ([key, table]) =>
+      [key, await allRows(() => supabase.from(table).select('*').order(table === 'card_keywords' ? 'card_id' : 'id'))])));
+  });
 }
 
 const ASSIGNMENT = 'id,week_id,member_id,suggested_order,card:cards(*)';
 
 export async function loadAssignments(weekId, memberId) {
-  return must(await supabase.from('assignments').select(ASSIGNMENT).eq('week_id', weekId).eq('member_id', memberId).order('suggested_order'));
+  return cached(`assignments:${weekId}:${memberId}`, 30000,
+    async () => must(await supabase.from('assignments').select(ASSIGNMENT).eq('week_id', weekId).eq('member_id', memberId).order('suggested_order')));
 }
 
 export async function loadAssignment(id) {
@@ -132,9 +154,8 @@ export async function loadAssignment(id) {
 }
 
 export async function loadEvents(assignmentIds) {
-  const rows = assignmentIds.length
-    ? await allRows(() => supabase.from('events').select('id,client_id,at,member_id,type,assignment_id,card_id,account_id,payload').in('assignment_id', assignmentIds).order('id'))
-    : [];
+  const rows = assignmentIds.length ? await cached(`events:${idsKey(assignmentIds)}`, 15000,
+    () => allRows(() => supabase.from('events').select('id,client_id,at,member_id,type,assignment_id,card_id,account_id,payload').in('assignment_id', assignmentIds).order('id'))) : [];
   const seen = new Set(rows.map((r) => r.client_id));
   const pending = readPending()
     .filter((p) => !seen.has(p.client_id) && assignmentIds.includes(p.assignment_id))
@@ -158,6 +179,7 @@ export async function recordEvent({ type, assignment_id = null, card_id = null, 
   if (!email) throw new Error('Chưa đăng nhập được.');
   const row = { client_id: crypto.randomUUID(), at: new Date().toISOString(), type, assignment_id, card_id, account_id, payload };
   queueFor(email).add(row);
+  clearReadCache();
   void flushPending();
   return { ...row, id: Number.MAX_SAFE_INTEGER };
 }
@@ -193,21 +215,25 @@ export async function addAccount({ member_id, handle, kind }) {
 // Everything that places a post on a day, across all card weeks: members post a card week's
 // cards before and after its Monday, so the page groups by the day posted, not by card week.
 export async function loadTeamActivity() {
-  const [assignments, events, posts] = await Promise.all([
-    allRows(() => supabase.from('assignments').select(ASSIGNMENT).order('id')),
-    allRows(() => supabase.from('events').select('id,at,member_id,type,assignment_id,card_id,account_id,payload')
-      .in('type', ['chose_account', 'undo_choice', 'choice_expired', 'skipped', 'posted', 'posted_undo']).order('id')),
-    allRows(() => supabase.from('posts').select('*').order('id')),
-  ]);
-  return { assignments, events, posts };
+  return cached('teamActivity', 30000, async () => {
+    const [assignments, events, posts] = await Promise.all([
+      allRows(() => supabase.from('assignments').select(ASSIGNMENT).order('id')),
+      allRows(() => supabase.from('events').select('id,at,member_id,type,assignment_id,card_id,account_id,payload')
+        .in('type', ['chose_account', 'undo_choice', 'choice_expired', 'skipped', 'posted', 'posted_undo']).order('id')),
+      allRows(() => supabase.from('posts').select('*').order('id')),
+    ]);
+    return { assignments, events, posts };
+  });
 }
 
 // The newest captured OP of each post, for posts that have no card text.
 export async function loadLatestOps(postIds) {
   if (!postIds.length) return new Map();
-  const rows = await allRows(() => supabase.from('post_versions').select('post_id,op,captured_at,id')
-    .in('post_id', postIds).order('captured_at', { ascending: false }).order('id', { ascending: false }));
-  const latest = new Map();
-  for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r.op);
-  return latest;
+  return cached(`ops:${idsKey(postIds)}`, 30000, async () => {
+    const rows = await allRows(() => supabase.from('post_versions').select('post_id,op,captured_at,id')
+      .in('post_id', postIds).order('captured_at', { ascending: false }).order('id', { ascending: false }));
+    const latest = new Map();
+    for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r.op);
+    return latest;
+  });
 }

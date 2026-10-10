@@ -24,7 +24,7 @@ export async function renderCard(main, ctx, assignmentId) {
     main.innerHTML = `<a class="linkish" href="#/">${icon('left')}Hôm nay</a><div class="empty" style="margin-top:16px"><h2>Không tìm thấy bài này</h2><p>Bài có thể đã được đổi tuần.</p></div>`;
     return;
   }
-  const events = await loadEvents([a.id]);
+  const [events, posts] = await Promise.all([loadEvents([a.id]), loadPosts([a.id])]);
   const view = {
     main,
     ctx,
@@ -33,7 +33,7 @@ export async function renderCard(main, ctx, assignmentId) {
     mine: a.member_id === ctx.me.id,
     cardAccounts: ctx.team.accounts.filter((x) => x.member_id === a.member_id && x.kind === 'card'),
     events,
-    post: (await loadPosts([a.id]))[0] ?? null,
+    post: posts[0] ?? null,
     tab: 'why',
     dismissed: new Set(),
     answered: new Set(events.filter((e) => e.type === 'answered' && e.payload?.kind === 'edit').map((e) => e.payload.part)),

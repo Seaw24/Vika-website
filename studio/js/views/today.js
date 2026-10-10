@@ -146,14 +146,17 @@ export async function renderToday(main, ctx) {
   // A retired account still names its old posts, but holds no slot and no creative tile.
   const cardAccounts = mine.filter((a) => a.kind === 'card');
   const creative = mine.find((a) => a.kind === 'creative' && isActive(a)) ?? null;
-  const weeks = await loadWeeksFor(ctx.me.id);
+  const [weeks, questions] = await Promise.all([loadWeeksFor(ctx.me.id), loadQuestions(ctx.me.id)]);
   const current = mondayOf(today);
   const weekId = weeks.includes(ctx.activeWeek) ? ctx.activeWeek : weeks.includes(current) ? current
     : [...weeks].filter((w) => w > current).sort()[0] ?? weeks[0] ?? null;
   ctx.activeWeek = weekId;
   const assignments = weekId ? await loadAssignments(weekId, ctx.me.id) : [];
-  const [posts, questions] = await Promise.all([loadPosts(assignments.map((a) => a.id)), loadQuestions(ctx.me.id)]);
-  const events = await loadEvents([...new Set([...assignments.map((a) => a.id), ...questions.map((q) => q.assignment_id)])]);
+  const ids = assignments.map((a) => a.id);
+  const [posts, events] = await Promise.all([
+    loadPosts(ids),
+    loadEvents([...new Set([...ids, ...questions.map((q) => q.assignment_id).filter(Boolean)])]),
+  ]);
   const states = postingState(events, posts);
   const skipped = skippedIds(events);
   const available = assignments.filter((a) => !skipped.has(a.id));
