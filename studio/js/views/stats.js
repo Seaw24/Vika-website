@@ -89,7 +89,8 @@ function model(s) {
   const newest = [...rows].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
   // The lifecycle chart keeps its text at reading size: the viewBox follows the panel width instead of scaling down.
   const gutter = Math.min(40, Math.max(16, window.innerWidth * 0.04)), pad = Math.min(26, Math.max(18, window.innerWidth * 0.03));
-  const lcWidth = Math.max(300, Math.min(LC.width, s.main.clientWidth - 2 * gutter - 2 * pad - 2));
+  const mainWidth = s.main.isConnected ? s.main.clientWidth : Math.min(1120, document.documentElement.clientWidth);
+  const lcWidth = Math.max(300, Math.min(LC.width, mainWidth - 2 * gutter - 2 * pad - 2));
   const lcHeight = lcWidth < 480 ? 250 : LC.height;
   return { s, ctx, data, now, enriched, index, weeks, laneAccounts, accounts, allRows, rows, newest, handle, total, weekly, wow, groups, byPoints, memberGroups, memberMove, accountMove, prevWeek, readLine, keywords, laneRows, scale, band, series, lcWidth, lcHeight };
 }

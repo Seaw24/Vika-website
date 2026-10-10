@@ -19,7 +19,7 @@ const views = {
   card: () => import('./views/card.js?v=20261009a').then((m) => m.renderCard),
   answers: () => import('./views/answers.js?v=20261009c').then((m) => m.renderAnswers),
   settings: () => import('./views/settings.js?v=20261009a').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261009a').then((m) => m.renderStats),
+  stats: () => import('./views/stats.js?v=20261009d').then((m) => m.renderStats),
   review: () => import('./views/review.js?v=20261009a').then((m) => m.renderReview),
   team: () => import('./views/team.js?v=20261009a').then((m) => m.renderTeam),
 };
