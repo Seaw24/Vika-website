@@ -229,9 +229,17 @@ export async function loadCardsBrief(ids) {
 }
 
 // One bot turn. Returns { reply, model }, or throws so the sheet can fall back to the reason form.
+// The thrown message carries the function's own error and detail, which the fallback shows.
 export async function askFeedbackChat(body) {
   const { data, error } = await supabase.functions.invoke('feedback-chat', { body });
-  if (error) throw error;
+  if (error) {
+    let message = error.message;
+    try {
+      const j = await error.context?.json();
+      if (j?.error) message = [j.error, j.detail].filter(Boolean).join(': ');
+    } catch { /* the body was not JSON */ }
+    throw new Error(message);
+  }
   return data;
 }
 

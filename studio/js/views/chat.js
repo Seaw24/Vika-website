@@ -72,10 +72,11 @@ export function openChat({ host, entry, card, onSaved = () => {} }) {
     send.disabled = true;
     thinking();
     let res;
+    let why = '';
     try { res = await askFeedbackChat({ card, changes: entry.changes.map(({ id, part, whole, before, after }) => ({ id, part, whole, before, after })), turns }); }
-    catch { res = null; }
+    catch (e) { res = null; why = e?.message ?? ''; }
     stopThinking();
-    if (!res?.reply) { fallback(); return; }
+    if (!res?.reply) { fallback(why || 'no reply'); return; }
     const { reply, model } = res;
     if (reply.done) { await finish(reply, model); return; }
     current = reply;
@@ -117,11 +118,12 @@ export function openChat({ host, entry, card, onSaved = () => {} }) {
     sheet.querySelector('[data-done]').onclick = close;
   }
 
-  // The old reason chips, one answer for the whole card, when the bot is not reachable.
-  function fallback() {
+  // The old reason chips, one answer for the whole card, when the bot is not reachable. The grey line says why.
+  function fallback(why) {
     send.remove();
     later.remove();
     log.innerHTML = `<p class="small muted">Chưa nói chuyện được với máy. Chọn nhanh lý do cho các chỗ bạn sửa:</p>
+      <p class="tiny muted chat-why">Mã lỗi: ${esc(String(why).slice(0, 240))}</p>
       ${entry.changes.map(changeHtml).join('')}<div data-form>${feedbackForm({ reasons: REASONS, nextTime: true, submit: 'Gửi lý do' })}</div>`;
     wireFeedback(log.querySelector('form'), async ({ reasons, words, next_time: nextTime }) => {
       if (!reasons.length && !words && !nextTime) { toast('Chọn một lý do hoặc viết vài chữ nhé.'); log.querySelector('[type=submit]').disabled = false; return; }
