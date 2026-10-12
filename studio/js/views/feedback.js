@@ -1,8 +1,8 @@
-import { recordEvent } from '../data.js?v=20261009x';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { REASONS, NEXT_TIME, PART_LABEL } from '../lib/edits.js';
-import { esc, toast, icon } from '../ui.js?v=20261009x';
-import { diffHtml } from './shared.js';
+import { NEXT_TIME } from '../lib/edits.js';
+import { esc, toast } from '../ui.js?v=20261011x';
+
+// The reason chips used to set a card aside, in the Sunday review, and as the feedback chat's fallback.
 
 export function feedbackForm({ submit = 'Lưu góp ý', reasons = SKIP_REASONS, nextTime = false, cancel = 'Để sau' } = {}) {
   return `<form class="feedback-form"><div class="chips">${reasons.map(([code, label]) => `<button type="button" data-feedback-reason="${code}" aria-pressed="false">${esc(label)}</button>`).join('')}</div>
@@ -31,37 +31,4 @@ export function wireFeedback(form, save, cancel) {
     try { await save({ reasons: [...reasons], words: form.elements.words.value.trim(), next_time: next }); }
     catch { toast('Chưa lưu được. Thử lại nhé.'); button.disabled = false; }
   };
-}
-
-// The day after a post, the daily read asks about each change the member made in Threads. One at a time, all optional.
-export function renderQuestions(host, questions) {
-  let index = 0;
-  function paint() {
-    const q = questions[index];
-    if (!q) { host.innerHTML = ''; return; }
-    const base = { assignment_id: q.assignment_id, card_id: q.assignment?.card_id, account_id: q.account_id };
-    async function answer(payload, type = 'answered') {
-      await recordEvent({ ...base, type, payload: { kind: 'posted_edit', question_id: q.id, part: q.part,
-        before: q.before_text, after: q.after_text, guess: q.guess, model: q.model, ...payload } });
-      if (type === 'answered') toast('Đã lưu. Cảm ơn bạn.');
-      index++; paint();
-    }
-    const left = questions.length - index;
-    host.innerHTML = `<section class="panel sand question" aria-live="polite">
-      <p class="eyebrow">Câu hỏi từ lần đọc Threads · còn ${left}</p>
-      <h2>Bạn đã sửa ${esc((PART_LABEL[q.part] ?? q.part).toLowerCase())} khi đăng</h2>
-      <p class="small muted">So với bản bạn sao chép. Trả lời lúc nào cũng được.</p>
-      ${diffHtml(q.before_text, q.after_text, { from: 'Bản sao chép', to: 'Bản đã đăng' })}
-      ${q.guess ? `<p class="guess">Mình đoán vì ${esc(q.guess)}. Đúng không?</p><p class="tiny muted">Suy đoán của máy · ${esc(q.model)}</p>` : '<p class="guess">Vì sao bạn sửa chỗ này?</p>'}
-      <div class="actions">${q.guess ? `<button class="btn btn-ink" data-agree>${icon('check')}Đúng</button>` : ''}<button class="btn btn-line" data-explain>${q.guess ? 'Không, vì…' : 'Trả lời'}</button><button class="linkish" data-dismiss style="padding:0 10px">Bỏ qua</button></div>
-      <div data-form></div></section>`;
-    host.querySelector('[data-agree]')?.addEventListener('click', () => answer({ agree: true }));
-    host.querySelector('[data-dismiss]').onclick = () => answer({}, 'question_dismissed');
-    host.querySelector('[data-explain]').onclick = () => {
-      const box = host.querySelector('[data-form]');
-      box.innerHTML = `<div style="margin-top:16px">${feedbackForm({ reasons: REASONS, nextTime: true })}</div>`;
-      wireFeedback(box.querySelector('form'), (payload) => answer({ ...payload, agree: q.guess ? false : null }), () => { box.innerHTML = ''; });
-    };
-  }
-  paint();
 }

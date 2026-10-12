@@ -1,10 +1,11 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261009x';
+import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261011x';
 import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
-import { REASONS, NEXT_TIME, ENGINE_LABEL, PULL_LABEL, isEdited, buildAnswer } from '../lib/edits.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261009x';
-import { diffHtml, memberR2 } from './shared.js';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261009x';
+import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
+import { pendingCards } from '../lib/chat.js';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261011x';
+import { memberR2 } from './shared.js';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261011x';
 import { SKIP_REASONS } from '../lib/feedback.js';
 
 const THREADS_LIMIT = 500;
@@ -35,8 +36,7 @@ export async function renderCard(main, ctx, assignmentId) {
     events,
     post: posts[0] ?? null,
     tab: 'why',
-    dismissed: new Set(),
-    answered: new Set(events.filter((e) => e.type === 'answered' && e.payload?.kind === 'edit').map((e) => e.payload.part)),
+    answered: new Set(events.filter((e) => e.type === 'answered' && ['edit', 'chat'].includes(e.payload?.kind)).map((e) => e.payload.part)),
   };
   // Her link code and Bình luận 2 are hers, one for every seeding account (Nam, 2026-09-27), stored on her
   // first seeding account. She posts on any of her accounts; the daily read finds it.
@@ -88,10 +88,8 @@ const copyLabel = (done) => done ? `${icon('check')}Đã sao chép` : `${icon('c
 
 function stateHtml(view, part, edited) {
   if (!edited) return '';
-  const ask = view.mine && !view.answered.has(part) && view.dismissed.has(part)
-    ? `<button type="button" data-why="${part}">Nói lý do sửa</button>` : '';
   const said = view.answered.has(part) ? '<span class="said">· đã gửi lý do</span>' : '';
-  return `<span class="edited">Đã sửa<button type="button" data-restore="${part}">Về bản gốc</button>${ask}${said}</span>`;
+  return `<span class="edited">Đã sửa<button type="button" data-restore="${part}">Về bản gốc</button>${said}</span>`;
 }
 
 function partBlock(view, [part, label, where], i, o) {
@@ -108,25 +106,10 @@ function partBlock(view, [part, label, where], i, o) {
       <textarea rows="1" aria-label="${esc(label)}" data-edit="${part}" spellcheck="false"${view.mine ? '' : ' readonly'}>${esc(text)}</textarea>
       <div class="part-foot"><span class="state" data-state="${part}">${stateHtml(view, part, isEdited(o[part], text))}</span>
         <button class="btn copy btn-line" data-copy="${part}">${copyLabel(false)}</button></div>
-      <div data-reason-slot="${part}"></div>
       ${part === 'op' && view.card.runner_up_op ? `<details class="alt"><summary>Có bản thay thế cho bài đăng<span class="plus"></span></summary>
         <p class="plain">${esc(view.card.runner_up_op)}</p>
         <button class="btn sm btn-line" data-copy-alt style="margin-bottom:12px">${icon('copy')}Sao chép bản thay thế</button></details>` : ''}
     </div></li>`;
-}
-
-// Opens the moment a part stops matching the prepared text. Every answer is optional.
-function reasonForm(view, part, text) {
-  return `<form class="reason" data-reason-form="${part}">
-    <div class="reason-head"><div><h3>Bạn vừa sửa phần này. Vì sao?</h3><p class="tiny muted">Không bắt buộc. Chọn nhanh một lý do là đủ, giúp bài sau viết đúng hơn.</p></div>
-      <button type="button" class="linkish" data-dismiss="${part}">Để sau</button></div>
-    <div data-diff style="margin-top:12px">${diffHtml(originals(view)[part], text, { from: 'Bản viết sẵn', to: 'Bản của bạn' })}</div>
-    <div class="chips" style="margin-top:14px">${REASONS.map(([code, label]) => `<button type="button" data-reason-code="${code}" aria-pressed="false">${esc(label)}</button>`).join('')}</div>
-    <label class="field"><span>Nói thêm (không bắt buộc)</span><textarea name="words" maxlength="4000" rows="2"></textarea></label>
-    <p class="q">Bài sau có nên viết như vậy không?</p>
-    <div class="chips">${NEXT_TIME.map(([code, label]) => `<button type="button" data-next="${code}" aria-pressed="false">${esc(label)}</button>`).join('')}</div>
-    <div class="row-actions"><button class="btn btn-ink" type="submit">${icon('check')}Gửi lý do</button></div>
-  </form>`;
 }
 
 // Where the card stands. There is no account to pick: the daily read finds the post on any of her accounts.
@@ -226,11 +209,6 @@ function paint(view) {
   view.root.querySelectorAll('[data-edit]').forEach(autoGrow);
   wire(view);
   sync(view);
-  // A saved draft that differs from the prepared text asks its question right away.
-  for (const [part] of PARTS) {
-    const area = q(view, `[data-edit="${part}"]`);
-    if (area) openReason(view, part, area.value);
-  }
 }
 
 /* ---------- In-place updates ---------- */
@@ -264,14 +242,6 @@ function setState(view, part, text) {
   return edited;
 }
 
-function openReason(view, part, text) {
-  const slot = q(view, `[data-reason-slot="${part}"]`);
-  if (!slot || !view.mine || view.post || view.answered.has(part) || view.dismissed.has(part)) return;
-  if (!isEdited(originals(view)[part], text)) return;
-  if (!slot.firstElementChild) slot.innerHTML = reasonForm(view, part, text);
-}
-
-let diffTimer;
 function onEdit(view, area) {
   const part = area.dataset.edit;
   const o = originals(view);
@@ -279,19 +249,7 @@ function onEdit(view, area) {
   const count = q(view, `[data-count="${part}"]`);
   count.textContent = countText(area.value);
   count.classList.toggle('over', [...area.value].length > THREADS_LIMIT);
-  const edited = setState(view, part, area.value);
-  const slot = q(view, `[data-reason-slot="${part}"]`);
-  const form = slot?.querySelector('form');
-  if (!edited) {
-    // Back to the prepared text: an untouched question goes away with the edit.
-    if (form && !form.querySelector('[aria-pressed="true"]') && !form.elements.words.value.trim()) slot.innerHTML = '';
-    return;
-  }
-  if (!form) { openReason(view, part, area.value); return; }
-  clearTimeout(diffTimer);
-  diffTimer = setTimeout(() => {
-    form.querySelector('[data-diff]').innerHTML = diffHtml(o[part], area.value, { from: 'Bản viết sẵn', to: 'Bản của bạn' });
-  }, 150);
+  setState(view, part, area.value);
 }
 
 function restore(view, part) {
@@ -304,9 +262,17 @@ function restore(view, part) {
 }
 
 // The member's word that the post is up. The next card comes up on Hôm nay at once; the daily read confirms later.
+// A card she edited sends her to Hôm nay, where the feedback chat opens for it (Nam, 2026-10-12).
 async function markPosted(view) {
   if (view.post || isClaimed(view) || !view.mine || !view.home) return;
   view.events.push(await recordEvent({ ...base(view), type: 'posted', payload: { ct: ctOf(view), from: 'card' } }));
+  const own = view.events.map((e) => ({ ...e, member_id: e.member_id ?? view.ctx.me.id }));
+  if (pendingCards({ events: own, questions: [], memberId: view.ctx.me.id }).length) {
+    try { sessionStorage.setItem('studio.chatFor', view.a.id); } catch { /* storage blocked: the card still waits on Hôm nay */ }
+    toast('Đã ghi: đã đăng. Kể nhanh vì sao bạn sửa nhé.');
+    location.hash = '#/';
+    return;
+  }
   toast('Đã ghi: đã đăng. Bài kế tiếp đã lên Hôm nay.');
   afterChoice(view);
   q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -349,8 +315,7 @@ async function copyPart(view, part) {
   // Copying Bình luận 2 is the moment the link leaves the portal, so the copy carries its code.
   view.events.push(await recordEvent({ ...base(view), type: 'copied', payload: { part, text, ...(part === 'r2' ? { ct: ctOf(view) } : {}) } }));
   sync(view);
-  // Bring the next part up, unless this part still has an open question.
-  if (q(view, `[data-reason-slot="${part}"] form`)) return;
+  // Bring the next part up.
   const next = nextStep(view, originals(view), copiedParts(view));
   const el = next ? q(view, `#part-${next}`) : null;
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -367,34 +332,6 @@ async function copyAlt(view) {
   view.events.push(await recordEvent({ ...base(view), type: 'used_runner_up', payload: { text } }));
   view.events.push(await recordEvent({ ...base(view), type: 'copied', payload: { part: 'runner_up', text } }));
   sync(view);
-}
-
-async function submitReason(view, form) {
-  const part = form.dataset.reasonForm;
-  const text = q(view, `[data-edit="${part}"]`).value;
-  const original = originals(view)[part];
-  const reasons = [...form.querySelectorAll('[data-reason-code][aria-pressed="true"]')].map((b) => b.dataset.reasonCode);
-  const next = form.querySelector('[data-next][aria-pressed="true"]')?.dataset.next ?? null;
-  const words = form.elements.words.value;
-  if (!reasons.length && !words.trim() && !next) { toast('Chọn một lý do hoặc viết vài chữ nhé.'); return; }
-  const button = form.querySelector('[type=submit]');
-  button.disabled = true;
-  try {
-    // The edit is saved with its answer, so the answer always points at the exact text it explains.
-    let edit = lastEdit(view, part);
-    if (isEdited(original, text) && edit?.payload?.after !== text) {
-      edit = await recordEvent({ ...base(view), type: 'edited', payload: { part, before: original, after: text, where: 'portal' } });
-      view.events.push(edit);
-    }
-    const answer = buildAnswer({ editClientId: edit?.client_id ?? null, part, reasons, words, nextTime: next });
-    view.events.push(await recordEvent({ ...base(view), type: 'answered', payload: answer }));
-    view.answered.add(part);
-    form.parentElement.innerHTML = `<p class="reason-done">${icon('check')}Đã gửi lý do. Cảm ơn bạn.</p>`;
-    setState(view, part, text);
-  } catch {
-    toast('Chưa lưu được. Thử lại nhé.');
-    button.disabled = false;
-  }
 }
 
 function openFlag(view) {
@@ -427,12 +364,6 @@ function wire(view) {
   root.addEventListener('input', (e) => {
     if (e.target.matches('[data-edit]')) onEdit(view, e.target);
   });
-  root.addEventListener('submit', (e) => {
-    const form = e.target.closest('[data-reason-form]');
-    if (!form) return;
-    e.preventDefault();
-    submitReason(view, form);
-  });
   root.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b || !root.contains(b)) return;
@@ -443,22 +374,7 @@ function wire(view) {
     else if ('copyAlt' in d) copyAlt(view);
     else if (d.dock) copyPart(view, d.dock);
     else if (d.restore) restore(view, d.restore);
-    else if (d.dismiss) {
-      view.dismissed.add(d.dismiss);
-      q(view, `[data-reason-slot="${d.dismiss}"]`).innerHTML = '';
-      setState(view, d.dismiss, q(view, `[data-edit="${d.dismiss}"]`).value);
-    } else if (d.why) {
-      view.dismissed.delete(d.why);
-      openReason(view, d.why, q(view, `[data-edit="${d.why}"]`).value);
-      setState(view, d.why, q(view, `[data-edit="${d.why}"]`).value);
-      q(view, `[data-reason-slot="${d.why}"]`).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } else if (d.reasonCode) {
-      b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
-    } else if (d.next) {
-      const on = b.getAttribute('aria-pressed') !== 'true';
-      b.closest('.chips').querySelectorAll('[data-next]').forEach((x) => x.setAttribute('aria-pressed', 'false'));
-      b.setAttribute('aria-pressed', String(on));
-    } else if (d.tab) {
+    else if (d.tab) {
       view.tab = d.tab;
       root.querySelectorAll('[data-tab]').forEach((x) => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-selected', String(x === b)); });
       q(view, '[data-tab-panel]').innerHTML = tabPanel(view);

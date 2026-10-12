@@ -1,5 +1,5 @@
-import { signIn, signOut } from '../data.js?v=20261009x';
-import { esc } from '../ui.js?v=20261009x';
+import { signIn, signOut } from '../data.js?v=20261011x';
+import { esc } from '../ui.js?v=20261011x';
 
 const stage = (inner) => `<div class="gate-wrap"><section class="stage gate-stage">
   <div><img class="mark" src="img/wordmark-gold.png" width="486" height="164" alt="Vika">

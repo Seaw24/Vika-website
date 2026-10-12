@@ -1,10 +1,10 @@
-import { loadAnalytics } from '../data.js?v=20261009x';
+import { loadAnalytics } from '../data.js?v=20261011x';
 import { DAY, enrichPosts, summarize, breakdown, weeklySeries, weekOverWeek, indexReadings, lifecycleBand, rankAtAge, themeCounts, logScale, movement, viewsAt, MIN_BAND, MIN_COMPARE, RESULT_DAY } from '../lib/stats.js';
 import { mondayOf, vnDate } from '../lib/week.js';
 import { LC, lifecycleChart, weekColumns, stripAxis, stripRow, barList, sparkline, meter, heatGrid, shortWeek } from '../lib/charts.js';
 import { demoAnalytics } from '../lib/demo.js';
 import { ENGINE_LABEL, PULL_LABEL } from '../lib/edits.js';
-import { esc, firstLine, toast, icon } from '../ui.js?v=20261009x';
+import { esc, firstLine, toast, icon } from '../ui.js?v=20261011x';
 
 const number = (v) => v == null ? 'Chưa có' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(v);
 const int = (v) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(v);

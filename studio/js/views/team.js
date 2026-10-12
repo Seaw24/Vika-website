@@ -1,7 +1,8 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261009x';
+import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261011x';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
 import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
-import { esc, icon, initial } from '../ui.js?v=20261009x';
+import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
+import { esc, icon, initial } from '../ui.js?v=20261011x';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -72,6 +73,16 @@ function dayHtml(day, today, observations, ops) {
   </section>`;
 }
 
+/* ---------- Kể lý do sửa: each member's edits with a reason (docs/plans/2026-10-12-feedback-chat.md) ---------- */
+
+function ratioHtml(rows) {
+  return `<section class="section fb-ratio" aria-labelledby="fb-ratio-title">
+    <div class="section-head"><div><p class="eyebrow">${RATIO_DAYS} ngày qua</p><h2 class="section-title" id="fb-ratio-title">Kể lý do sửa</h2></div></div>
+    <ul class="fb-ratio-list">${rows.map((r) => `<li><i class="av sm">${esc(initial(r.member.name))}</i><b>${esc(firstName(r.member.name))}</b>
+      <span>${r.changed ? `<b>${r.explained}</b>/${r.changed} chỗ sửa có lý do` : 'Chưa sửa bài nào'}</span></li>`).join('')}</ul>
+    <p class="tiny muted">Mỗi phần bài đã sửa tính một lần: sửa trong Studio, hoặc sửa khi đăng mà máy đọc Threads thấy.</p></section>`;
+}
+
 /* ---------- The page ---------- */
 
 export async function renderTeam(main, ctx) {
@@ -80,7 +91,7 @@ export async function renderTeam(main, ctx) {
   // The sample member only shows to itself; real members never see its fake posts here.
   const members = ctx.team.members.filter((m) => ctx.me.is_demo || !m.is_demo);
   const accounts = ctx.team.accounts.filter((a) => members.some((m) => m.id === a.member_id));
-  const { assignments, events, posts } = await loadTeamActivity();
+  const { assignments, events, posts, questions } = await loadTeamActivity();
   const items = teamItems({ members, accounts, assignments, events, posts });
   const weeks = teamWeekIds(items, today);
   const weekId = weeks.includes(ctx.teamWeek) ? ctx.teamWeek : current;
@@ -106,6 +117,7 @@ export async function renderTeam(main, ctx) {
         <div class="strip">${gridHtml(week, members)}</div>
       </div>
     </section>
+    ${ratioHtml(feedbackRatio({ events, questions, members }))}
     <div class="tm-days">${shown.length ? shown.map((d) => dayHtml(d, today, observations, ops)).join('')
     : '<div class="ledger-empty" style="margin-top:32px"><p>Tuần này chưa bắt đầu.</p></div>'}</div>`;
 

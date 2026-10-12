@@ -1,8 +1,8 @@
-import { loadTikTok, signedTikTokUrls, updateTikTok, clearReadCache } from '../data.js?v=20261009x';
-import { splitQueue, nextVideo, canTakeBack, tiktokUrl, durationLabel, sizeLabel, deliveryMode, fileName, skipLabels, SKIP_REASONS, KEEP_DAYS } from '../lib/tiktok.js?v=20261009x';
+import { loadTikTok, signedTikTokUrls, updateTikTok, clearReadCache } from '../data.js?v=20261011x';
+import { splitQueue, nextVideo, canTakeBack, tiktokUrl, durationLabel, sizeLabel, deliveryMode, fileName, skipLabels, SKIP_REASONS, KEEP_DAYS } from '../lib/tiktok.js?v=20261011x';
 import { vnDate } from '../lib/week.js';
-import { esc, toast, icon, copyText } from '../ui.js?v=20261009x';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261009x';
+import { esc, toast, icon, copyText } from '../ui.js?v=20261011x';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261011x';
 
 // TikTok space (Nam, 2026-10-09): finished read-Threads videos wait here until a member in Vietnam posts them.
 // The page paints from one read; posters fade in when their signed links arrive, and the next video's file

@@ -210,19 +210,46 @@ export async function addAccount({ member_id, handle, kind }) {
   return must(await supabase.from('accounts').insert({ member_id, handle, kind }).select(ACCOUNT))[0];
 }
 
+/* ---------- The feedback chat (docs/plans/2026-10-12-feedback-chat.md) ---------- */
+
+// Her edits and answers of the last weeks, from any card week, for the Kể lý do sửa list on Hôm nay.
+export async function loadMyFeedback(memberId, sinceIso) {
+  return cached(`feedback:${memberId}:${sinceIso.slice(0, 10)}`, 15000, async () => {
+    const rows = await allRows(() => supabase.from('events').select('id,client_id,at,member_id,type,assignment_id,card_id,account_id,payload')
+      .eq('member_id', memberId).in('type', ['edited', 'answered', 'question_dismissed']).gte('at', sinceIso).order('id'));
+    const seen = new Set(rows.map((r) => r.client_id));
+    const pending = readPending().filter((p) => !seen.has(p.client_id) && ['edited', 'answered', 'question_dismissed'].includes(p.type))
+      .map((p) => ({ ...p, member_id: memberId, id: Number.MAX_SAFE_INTEGER }));
+    return [...rows, ...pending];
+  });
+}
+
+export async function loadCardsBrief(ids) {
+  return ids.length ? must(await supabase.from('cards').select('id,op,r1,point_vi').in('id', [...new Set(ids)])) : [];
+}
+
+// One bot turn. Returns { reply, model }, or throws so the sheet can fall back to the reason form.
+export async function askFeedbackChat(body) {
+  const { data, error } = await supabase.functions.invoke('feedback-chat', { body });
+  if (error) throw error;
+  return data;
+}
+
 /* ---------- The owner's team view (every member already reads every row under RLS) ---------- */
 
 // Everything that places a post on a day, across all card weeks: members post a card week's
 // cards before and after its Monday, so the page groups by the day posted, not by card week.
+// Edits, answers and the daily read's questions feed each member's reason ratio.
 export async function loadTeamActivity() {
   return cached('teamActivity', 30000, async () => {
-    const [assignments, events, posts] = await Promise.all([
+    const [assignments, events, posts, questions] = await Promise.all([
       allRows(() => supabase.from('assignments').select(ASSIGNMENT).order('id')),
-      allRows(() => supabase.from('events').select('id,at,member_id,type,assignment_id,card_id,account_id,payload')
-        .in('type', ['chose_account', 'undo_choice', 'choice_expired', 'skipped', 'posted', 'posted_undo']).order('id')),
+      allRows(() => supabase.from('events').select('id,client_id,at,member_id,type,assignment_id,card_id,account_id,payload')
+        .in('type', ['chose_account', 'undo_choice', 'choice_expired', 'skipped', 'posted', 'posted_undo', 'edited', 'answered', 'question_dismissed']).order('id')),
       allRows(() => supabase.from('posts').select('*').order('id')),
+      allRows(() => supabase.from('questions').select('id,member_id,assignment_id,part,created_at').order('id')),
     ]);
-    return { assignments, events, posts };
+    return { assignments, events, posts, questions };
   });
 }
 

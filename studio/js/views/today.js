@@ -1,10 +1,12 @@
-import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent } from '../data.js?v=20261009x';
+import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief } from '../data.js?v=20261011x';
 import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip, skippedIds } from '../lib/week.js';
-import { pendingQuestions, reviewable } from '../lib/feedback.js';
+import { reviewable } from '../lib/feedback.js';
+import { pendingCards, LIST_DAYS } from '../lib/chat.js';
+import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags } from '../ui.js?v=20261009x';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261011x';
 import { settingsFor, isActive } from './shared.js';
-import { renderQuestions } from './feedback.js?v=20261009x';
+import { openChat } from './chat.js?v=20261011x';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -138,6 +140,33 @@ function wireCreative(main, ctx, account) {
   };
 }
 
+/* ---------- Kể lý do sửa: cards she changed and has not explained (docs/plans/2026-10-12-feedback-chat.md) ---------- */
+
+const changedWhat = (entry) => [...new Set(entry.changes.map((c) => `${(PART_LABEL[c.part] ?? c.part).toLowerCase()}${c.source === 'posted' ? ' khi đăng' : ''}`))].join(', ');
+
+// The list stays until each card is explained; closing the chat keeps the card here. A card she just
+// posted after editing opens its chat at once (card.js sets studio.chatFor).
+async function paintFeedback(main, ctx, questions) {
+  const host = main.querySelector('#questions');
+  let want = null;
+  try { want = sessionStorage.getItem('studio.chatFor'); sessionStorage.removeItem('studio.chatFor'); } catch { /* storage blocked */ }
+  const since = new Date(Date.now() - LIST_DAYS * 86400000).toISOString();
+  const list = pendingCards({ events: await loadMyFeedback(ctx.me.id, since), questions, memberId: ctx.me.id });
+  if (!list.length) { host.innerHTML = ''; return; }
+  const cards = new Map((await loadCardsBrief(list.map((e) => e.card_id).filter(Boolean))).map((c) => [c.id, c]));
+  const op = (e) => cards.get(e.card_id)?.op ?? e.changes[0].before;
+  host.innerHTML = `<section class="panel sand fb-list" aria-labelledby="fb-title">
+    <p class="eyebrow">Kể lý do sửa · còn ${list.length}</p>
+    <h2 id="fb-title">${list.length === 1 ? 'Bạn đã sửa một bài' : `Bạn đã sửa ${list.length} bài`}</h2>
+    <p class="small muted">Nói nhanh vì sao bạn sửa, để bài sau viết đúng hơn. Mỗi bài chừng một phút.</p>
+    <ol class="fb-rows">${list.map((e) => `<li><span class="fb-t"><span class="t">${esc(firstLine(op(e), 90))}</span><span class="tiny muted">Đã sửa ${esc(changedWhat(e))}</span></span>
+      <button type="button" class="btn sm btn-ink" data-talk="${esc(e.assignment_id)}">Nói về bài này</button></li>`).join('')}</ol></section>`;
+  const talk = (entry) => openChat({ host: main, entry, card: cards.get(entry.card_id) ?? null, onSaved: () => paintFeedback(main, ctx, questions) });
+  host.querySelectorAll('[data-talk]').forEach((b) => { b.onclick = () => talk(list.find((e) => e.assignment_id === b.dataset.talk)); });
+  const asked = want && list.find((e) => e.assignment_id === want);
+  if (asked) talk(asked);
+}
+
 /* ---------- The page ---------- */
 
 export async function renderToday(main, ctx) {
@@ -256,6 +285,6 @@ export async function renderToday(main, ctx) {
     } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
   }; });
   if (creative) wireCreative(main, ctx, creative);
-  renderQuestions(main.querySelector('#questions'), pendingQuestions(questions, events, ctx.me.id));
+  paintFeedback(main, ctx, questions).catch(() => { /* the list returns on the next visit */ });
   main.querySelector('#active-week')?.addEventListener('change', (e) => { ctx.activeWeek = e.target.value; renderToday(main, ctx); });
 }
