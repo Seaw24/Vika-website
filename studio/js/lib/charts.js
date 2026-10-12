@@ -1,4 +1,4 @@
-import { esc } from '../ui.js?v=20261011x';
+import { esc } from '../ui.js?v=20261012t';
 
 // Pure builders for the statistics page: they return SVG or HTML strings and never touch the DOM,
 // so they run in node for tests. Colours live in the stylesheet; every mark carries a class.

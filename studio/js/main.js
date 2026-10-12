@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261011x';
-import { renderSignIn } from './views/signin.js?v=20261011x';
-import { esc, toast, icon, initial } from './ui.js?v=20261011x';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261012t';
+import { renderSignIn } from './views/signin.js?v=20261012t';
+import { esc, toast, icon, initial } from './ui.js?v=20261012t';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
@@ -22,6 +22,7 @@ const tabs = document.getElementById('tabs');
 const me = document.getElementById('me');
 const rail = document.getElementById('spaces');
 const switcher = document.getElementById('spaces-m');
+const theme = document.querySelector('meta[name="theme-color"]');
 if (!location.hash) history.replaceState(null, '', '#/');
 let ctx = null;
 let booting = null;
@@ -29,20 +30,23 @@ let routeId = 0;
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261012c').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261011x').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261012c').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js?v=20261011x').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261011x').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261011x').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261011x').then((m) => m.renderTeam),
-  tiktok: () => import('./views/tiktok.js?v=20261011x').then((m) => m.renderTikTok),
+  today: () => import('./views/today.js?v=20261012t').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261012t').then((m) => m.renderCard),
+  answers: () => import('./views/answers.js?v=20261012t').then((m) => m.renderAnswers),
+  settings: () => import('./views/settings.js?v=20261012t').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261012t').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261012t').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261012t').then((m) => m.renderTeam),
+  tiktok: () => import('./views/tiktok.js?v=20261012t').then((m) => m.renderTikTok),
 };
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
 const lastIn = { threads: '#/', tiktok: '#/tiktok' };
+// The tab bar's active hash for the route being painted; its shell goes on when the page replaces the old one.
+let shellFor = null;
 function paintTabs(active) {
   const space = spaceOf(active);
+  shellFor = active;
   if (ctx?.me) {
     lastIn[space] = location.hash || active;
     storage.set('studio.space', space);
@@ -58,6 +62,16 @@ function paintTabs(active) {
   switcher.innerHTML = both ? links('space-m') : '';
   me.innerHTML = ctx?.me ? `<span class="me-name">${esc(ctx.me.name)}</span><i class="av">${esc(initial(ctx.me.name))}</i>` : '';
   if (ctx?.me) me.setAttribute('aria-label', `${ctx.me.name}, cài đặt`);
+}
+
+// The TikTok space wears TikTok's shell (Nam, 2026-10-11): black, the feed full screen on a phone under floating
+// bars, a sidebar on a computer. Android's status bar and Safari's top tint follow the theme color. It goes on with
+// the page (or its skeleton), so the page being left never shows on black.
+function paintShell(active, signedIn = Boolean(ctx?.me)) {
+  const tt = signedIn && spaceOf(active) === 'tiktok';
+  document.body.classList.toggle('tt-shell', tt);
+  document.body.classList.toggle('tt-feed', tt && active === '#/tiktok');
+  if (theme) theme.content = tt ? '#000000' : '#F4EEE2';
 }
 
 // Page modes: the sign-in gate hides the shell; a focused task swaps the phone tab bar for its own dock.
@@ -77,11 +91,13 @@ function routeSkeleton(hash) {
   const feedback = hash === '#/gop-y';
   const today = hash === '#/' || hash === '';
   const head = `<div class="sk-head">${skLine(22)}${skLine(60)}${skLine(78)}</div>`;
-  // TikTok's queue: the stage with the large video frame and its steps, the shape the page lands in.
+  // TikTok: the feed's black frame, or the cover grid, the shape each page lands in.
   if (hash === '#/tiktok') {
-    return `<div class="route-skeleton" role="status"><span class="sr-only">Đang tải trang</span><div aria-hidden="true">
-      <div class="sk-tt"><div class="sk-player"><span class="sk-frame"></span></div>
-        <div class="sk-tt-body">${skLine(24)}${skLine(70)}${skLine(92)}${skLine(64)}<span class="sk-pill wide"></span><span class="sk-pill wide"></span><span class="sk-pill wide"></span></div></div></div></div>`;
+    return '<div class="route-skeleton sk-ttf" role="status"><span class="sr-only">Đang tải trang</span><span class="sk-ttf-frame" aria-hidden="true"></span></div>';
+  }
+  if (hash === '#/tiktok/da-dang' || hash === '#/tiktok/bo-qua') {
+    return `<div class="route-skeleton tt-grid-page" role="status"><span class="sr-only">Đang tải trang</span>
+      <div class="tt-covers" aria-hidden="true">${'<span class="sk-cover"></span>'.repeat(9)}</div></div>`;
   }
   const cards = Array.from({ length: feedback ? 3 : 2 }, (_, i) => feedback
     ? `<div class="sk-entry" style="--sk-index:${i}"><span class="sk-avatar"></span>${skCard(i)}</div>`
@@ -103,6 +119,7 @@ async function route() {
   const wait = setTimeout(() => {
     if (id !== routeId) return;
     main.setAttribute('aria-busy', 'true');
+    paintShell(shellFor);
     main.innerHTML = routeSkeleton(hash);
   }, 120);
   try {
@@ -124,7 +141,7 @@ async function route() {
       await (await views.team())(nextMain, ctx);
     } else if (TIKTOK_PAGES[hash] && ctx.me.tiktok === true) {
       paintTabs(hash);
-      mode(nextMain, { narrow: hash !== '#/tiktok' });
+      mode(nextMain);
       await (await views.tiktok())(nextMain, ctx, TIKTOK_PAGES[hash]);
     } else if (hash.startsWith('#/cuoi-tuan/')) {
       paintTabs('#/');
@@ -153,6 +170,7 @@ async function route() {
   document.body.classList.remove('loading');
   main.replaceWith(nextMain);
   main = nextMain;
+  paintShell(shellFor);
   main.dataset.routeMs = String(Math.round(performance.now() - started));
   main.querySelectorAll('textarea').forEach((area) => area.dispatchEvent(new Event('input')));
   main.classList.add('enter');
@@ -198,6 +216,8 @@ function restoreSpace() {
 function bootSkeleton() {
   document.body.classList.remove('gate');
   document.body.classList.add('loading');
+  // She is signed in but her team has not loaded, so a TikTok address paints the black skeleton.
+  paintShell(location.hash || '#/', true);
   main.innerHTML = routeSkeleton(location.hash || '#/');
 }
 

@@ -5,6 +5,12 @@ let toastTimer;
 export function toast(message) {
   const el = document.getElementById('toast');
   el.textContent = message;
+  // A popover sits in the top layer, above any open dialog. Hiding it first puts it above a dialog that opened after
+  // the last toast; it stays open between toasts, and the show class does the fading.
+  if (el.showPopover) {
+    try { el.hidePopover(); } catch { /* not open yet */ }
+    try { el.showPopover(); } catch { /* no popover attribute: the toast stays a fixed box */ }
+  }
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
@@ -77,6 +83,10 @@ const PATHS = {
   download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
   expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  sound: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  mute: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
+  up: '<path d="M6 15l6-6 6 6"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
 };
 export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] ?? ''}</svg>`;

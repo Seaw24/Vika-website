@@ -52,3 +52,36 @@ export function deliveryMode({ coarse, canShareFiles }) {
 }
 
 export const fileName = (video) => `vika-${video.slug}.mp4`;
+
+// The feed (Nam, 2026-10-11): the video on screen and its two neighbours hold a source, the rest drop it, so a phone
+// never keeps every file.
+export function nearby(active, length) {
+  return [active - 1, active, active + 1].filter((i) => i >= 0 && i < length);
+}
+
+// When a video leaves the feed, the one under it comes up; at the end, the one above it.
+export function afterLeave(ids, leavingId, activeId) {
+  const rest = ids.filter((id) => id !== leavingId);
+  if (!rest.length) return null;
+  if (leavingId !== activeId) return rest.includes(activeId) ? activeId : rest[0];
+  return rest[Math.min(ids.indexOf(leavingId), rest.length - 1)];
+}
+
+export const positionLabel = (position, total, seconds) =>
+  [total > 1 ? `Video ${position} / ${total}` : 'Video cuối', durationLabel(seconds)].filter(Boolean).join(' · ');
+
+// Đã đăng: her own post with no TikTok link yet carries a "Thêm link" badge and a Dán link button.
+export const needsLink = (video, memberId) => Boolean(video.posted_at) && video.posted_by === memberId && !video.post_url;
+
+// The name on a cover: who posted the video, or who set it aside.
+export function coverName(video, members) {
+  const id = video.posted_at ? video.posted_by : video.skipped_by;
+  return members.find((m) => m.id === id)?.name ?? 'Thành viên';
+}
+
+// A phone browser keeps its own bars; Studio from the Home Screen is full screen. The hint shows in a phone browser
+// until she dismisses it, and never inside the Home Screen app.
+export const showHomeHint = ({ coarse, standalone, dismissed }) => coarse && !standalone && !dismissed;
+export const homeSteps = (userAgent) => (/iPhone|iPad|iPod/.test(userAgent)
+  ? 'Bấm Chia sẻ rồi chọn Thêm vào MH chính.'
+  : 'Mở menu ⋮ của trình duyệt rồi chọn Thêm vào màn hình chính.');

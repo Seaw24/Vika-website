@@ -1,8 +1,8 @@
-import { askFeedbackChat, recordEvent } from '../data.js?v=20261011x';
-import { chatRows, formAnswers, shuffled, wireChanges } from '../lib/chat.js?v=20261012c';
+import { askFeedbackChat, recordEvent } from '../data.js?v=20261012t';
+import { chatRows, formAnswers, shuffled, wireChanges } from '../lib/chat.js?v=20261012t';
 import { REASONS, PART_LABEL } from '../lib/edits.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc, toast, firstLine } from '../ui.js?v=20261011x';
+import { esc, toast, firstLine } from '../ui.js?v=20261012t';
 
 // The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md), laid out like ChatGPT on a phone and a computer
 // (Nam, 2026-10-12). The bot asks in rounds; the phone shows a round one question at a time with no wait between
@@ -10,7 +10,7 @@ import { esc, toast, firstLine } from '../ui.js?v=20261011x';
 // them. A summary she confirms ends the chat. Without the bot, the old reason chips take over in the same screen.
 // deps.ask and deps.save stand in for the Edge Function and the event queue in tests/fixtures/chat-fixture.html.
 
-const CSS_HREF = 'css/chat.css?v=20261012c';
+const CSS_HREF = 'css/chat.css?v=20261012t';
 const MAX_REGEN = 2;
 const UNSURE = 'Không rõ';
 const WHERE = { portal: 'sửa trong Studio', posted: 'sửa khi đăng' };

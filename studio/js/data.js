@@ -282,7 +282,9 @@ export async function loadTikTok() {
 // Signed links to the private bucket, kept until a minute before they expire, so a return to the tab
 // reuses them and the browser cache serves the posters again.
 const signed = new Map();
-export async function signedTikTokUrls(paths, ttl = 3600) {
+// `fresh` signs the paths again, for a video whose link failed while it still looked valid.
+export async function signedTikTokUrls(paths, ttl = 3600, { fresh = false } = {}) {
+  if (fresh) for (const p of paths) signed.delete(p);
   const missing = [...new Set(paths.filter(Boolean))].filter((p) => !(signed.get(p)?.until > Date.now() + 60000));
   if (missing.length) {
     const data = must(await supabase.storage.from('tiktok').createSignedUrls(missing, ttl));

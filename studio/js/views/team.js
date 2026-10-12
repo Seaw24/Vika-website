@@ -1,8 +1,8 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261011x';
+import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261012t';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
 import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { esc, icon, initial } from '../ui.js?v=20261011x';
+import { esc, icon, initial } from '../ui.js?v=20261012t';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];

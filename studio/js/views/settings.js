@@ -1,6 +1,6 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261011x';
+import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261012t';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261011x';
+import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261012t';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
 
 // Each active seeding account brings 7 cards a week (Nam, 2026-09-27).
