@@ -29,9 +29,9 @@ let routeId = 0;
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261011x').then((m) => m.renderToday),
+  today: () => import('./views/today.js?v=20261012c').then((m) => m.renderToday),
   card: () => import('./views/card.js?v=20261011x').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261011x').then((m) => m.renderAnswers),
+  answers: () => import('./views/answers.js?v=20261012c').then((m) => m.renderAnswers),
   settings: () => import('./views/settings.js?v=20261011x').then((m) => m.renderSettings),
   stats: () => import('./views/stats.js?v=20261011x').then((m) => m.renderStats),
   review: () => import('./views/review.js?v=20261011x').then((m) => m.renderReview),

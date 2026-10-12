@@ -1,7 +1,7 @@
 import { wordDiff } from './diff.js';
 
-// The feedback chat (docs/plans/2026-10-12-feedback-chat.md): which changes a member has not explained yet,
-// how they split into spans for the bot, the team ratio, and the events a finished chat saves.
+// The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md): which changes a member has not explained yet,
+// how they split into spans for the bot, the team ratio, and the answer rows a chat saves after each round.
 
 const DAY = 86400000;
 export const LIST_DAYS = 14;
@@ -12,6 +12,28 @@ const WHOLE_SHARE = 0.6;
 const JOIN_WORDS = 2;
 
 const words = (s) => String(s).trim().split(/\s+/).filter(Boolean).length;
+
+// Edits too small to learn from (CIPHER's edit threshold): only punctuation, spacing or letter case changed, or a short
+// span differs by one or two letters, which is a typo. The bot never asks about these.
+const bare = (s) => String(s ?? '').normalize('NFC').toLowerCase().replace(/[\s\p{P}]/gu, '');
+function distance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const next = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = next;
+    }
+  }
+  return row[b.length];
+}
+export function minorChange(before, after) {
+  const [a, b] = [bare(before), bare(after)];
+  if (a === b) return true;
+  return words(before) <= 2 && words(after) <= 2 && Math.max(a.length, b.length) <= 12 && distance([...a], [...b]) <= 2;
+}
 
 // The changed stretches of one part. A part rewritten past WHOLE_SHARE, or with more than MAX_SPANS
 // stretches, is one whole change, so the bot asks about the post as a whole.
@@ -62,7 +84,8 @@ const closedQuestions = (events) => new Set(events.filter((e) => ['answered', 'q
 
 // One entry per card with something unexplained from the last LIST_DAYS days: her own edits in Studio and
 // the changes the daily read found in Threads after she copied. Newest card first.
-//   entry { assignment_id, card_id, at, changes: [{ id, part, whole, before, after, source, edit_client_id?, question_id? }] }
+//   entry { assignment_id, card_id, at, changes: [{ id, part, whole, before, after, part_before, part_after, minor, source,
+//     edit_client_id?, question_id? }] }
 export function pendingCards({ events, questions, memberId, now = Date.now(), days = LIST_DAYS }) {
   const since = now - days * DAY;
   const byCard = new Map();
@@ -76,7 +99,8 @@ export function pendingCards({ events, questions, memberId, now = Date.now(), da
     if (Date.parse(edit.at) < since || explainedEdit(edit, events)) continue;
     const it = entry(edit.assignment_id, edit.card_id, edit.at);
     changeSpans(edit.payload.before, edit.payload.after).forEach((s, i) => it.changes.push({
-      id: `s-${edit.payload.part}-${i}`, part: edit.payload.part, ...s, source: 'portal', edit_client_id: edit.client_id,
+      id: `s-${edit.payload.part}-${i}`, part: edit.payload.part, ...s, part_before: edit.payload.before, part_after: edit.payload.after,
+      minor: minorChange(s.before, s.after), source: 'portal', edit_client_id: edit.client_id,
     }));
   }
   const closed = closedQuestions(events);
@@ -84,7 +108,8 @@ export function pendingCards({ events, questions, memberId, now = Date.now(), da
     if (q.member_id !== memberId || closed.has(q.id) || Date.parse(q.created_at) < since || !q.assignment_id) continue;
     const it = entry(q.assignment_id, q.assignment?.card_id ?? null, q.created_at);
     changeSpans(q.before_text, q.after_text).forEach((s, i) => it.changes.push({
-      id: `t-${q.part}-${i}`, part: q.part, ...s, source: 'posted', question_id: q.id, guess: q.guess ?? null,
+      id: `t-${q.part}-${i}`, part: q.part, ...s, part_before: q.before_text, part_after: q.after_text,
+      minor: minorChange(s.before, s.after), source: 'posted', question_id: q.id, guess: q.guess ?? null,
     }));
   }
   return [...byCard.values()].filter((it) => it.changes.length).sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
@@ -106,9 +131,104 @@ export function feedbackRatio({ events, questions, members, now = Date.now(), da
   });
 }
 
-const AGREE = { yes: true, no: false, none: null };
+// What the phone sends the bot for each change. The bot never sees the event ids.
+export const wireChanges = (entry) => entry.changes.map((c) => ({
+  id: c.id, part: c.part, whole: c.whole, before: c.before, after: c.after, part_before: c.part_before ?? c.before,
+  part_after: c.part_after ?? c.after, where: c.source === 'posted' ? 'threads' : 'studio', minor: c.minor === true,
+}));
 
-// The answered events a finished chat saves: one per change, the first one carrying the chat itself.
+// A copy in random order, so the bot's best guess is not always the first answer she sees.
+export function shuffled(list, random = Math.random) {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Her answers about one change: the words she typed, the answers she tapped, and whether she took the bot's guess on
+// the reason question. A tapped answer is the bot's wording, so the row keeps the two apart.
+export function answerStats(turns, changeId) {
+  const asked = new Map();
+  const typed = [];
+  const tapped = [];
+  let unsure = false;
+  let guessTaken = null;
+  for (const t of turns) {
+    if (t.role === 'bot') (t.questions ?? []).forEach((q) => asked.set(q.id, q));
+    if (t.role !== 'member' || !t.answers) continue;
+    for (const a of t.answers) {
+      const q = asked.get(a.question_id);
+      if (!q?.change_ids.includes(changeId)) continue;
+      if (a.via === 'type') typed.push(a.text);
+      else if (a.via === 'tap') tapped.push(a.text);
+      else unsure = true;
+      if (q.node === 'reason' && guessTaken === null && a.via !== 'unsure') guessTaken = a.via === 'tap' && a.guess === true;
+    }
+  }
+  const said = typed.length ? 'typed' : tapped.length ? 'tapped' : unsure ? 'unsure' : 'none';
+  return { typed: typed.join(' / '), tapped, said, guess_taken: guessTaken };
+}
+
+const NEXT = { always: 'always', this_post: 'this_post', unsure: 'unsure', open: 'unsure' };
+const BLANK = { type: 'rewrite', verdict: 'unsure', layer: 'none', reason_code: 'other', cue_words: '', lesson: '', scope: 'unsure', history: 'none' };
+
+// The answered rows a chat saves after each round, one per change. Each save repeats the rows with the newer state, so
+// readers keep the newest row per chat and change (latestChatRows). The first row carries the chat so far.
+export function chatRows({ entry, tree = [], summary = [], turns, model = null, chatId, final = false, confirmed = null, writerVersion = null }) {
+  const nodes = new Map(tree.map((n) => [n.change_id, n]));
+  const round = turns.filter((t) => t.role === 'member' && t.answers).length;
+  const amend = turns.find((t) => t.role === 'member' && typeof t.amend === 'string')?.amend ?? '';
+  return entry.changes.map((c, i) => {
+    const n = nodes.get(c.id) ?? (c.minor ? { ...BLANK, type: 'minor', verdict: 'none', scope: 'none' } : BLANK);
+    const s = answerStats(turns, c.id);
+    const line = summary.find((l) => l.change_ids.includes(c.id))?.text ?? n.lesson;
+    return {
+      kind: 'chat', v: 2, chat_id: chatId, round, final, confirmed,
+      part: c.part, change_id: c.id, whole: c.whole, before: c.before, after: c.after, source: c.source,
+      ...(c.question_id ? { question_id: c.question_id } : { edit_client_id: c.edit_client_id }),
+      type: n.type, verdict: n.verdict, layer: n.layer, reasons: [n.reason_code], words: s.typed, picked: s.tapped, said: s.said,
+      guess_taken: s.guess_taken, cue: n.cue_words, lesson: line ?? '', next_time: NEXT[n.scope] ?? null, history: n.history,
+      ...(amend ? { amend } : {}), writer_version: writerVersion, model,
+      ...(i === 0 ? { transcript: turns } : {}),
+    };
+  });
+}
+
+const isV2 = (e) => e.type === 'answered' && e.payload?.kind === 'chat' && e.payload.v === 2;
+const newer = (a, b) => (a.id ?? 0) > (b.id ?? 0) || ((a.id ?? 0) === (b.id ?? 0) && String(a.at) > String(b.at));
+
+// Only the newest saved row of each chat change; every other event passes through unchanged and in order.
+export function latestChatRows(events) {
+  const last = new Map();
+  for (const e of events) {
+    if (!isV2(e)) continue;
+    const key = `${e.payload.chat_id}.${e.payload.change_id}`;
+    if (!last.has(key) || newer(e, last.get(key))) last.set(key, e);
+  }
+  return events.filter((e) => !isV2(e) || last.get(`${e.payload.chat_id}.${e.payload.change_id}`) === e);
+}
+
+// Her chats that got at least one answer, newest first, for the Đã kể list: the newest saved state of each.
+export function doneChats(events) {
+  const chats = new Map();
+  for (const e of latestChatRows(events.filter(isV2))) {
+    const p = e.payload;
+    const it = chats.get(p.chat_id) ?? { chat_id: p.chat_id, assignment_id: e.assignment_id, card_id: e.card_id, at: e.at, final: false, confirmed: null, transcript: [], lessons: [] };
+    if (String(e.at) > String(it.at)) it.at = e.at;
+    if (p.transcript) it.transcript = p.transcript;
+    it.final ||= p.final === true;
+    it.confirmed ??= p.confirmed ?? null;
+    if (p.lesson && !it.lessons.includes(p.lesson)) it.lessons.push(p.lesson);
+    chats.set(p.chat_id, it);
+  }
+  return [...chats.values()].filter((c) => c.transcript.some((t) => t.role === 'member'))
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+
+// The v1 rows. Only a v1 chat screen still cached on a phone imports this; remove it after 2026-10-19.
+const AGREE = { yes: true, no: false, none: null };
 export function chatAnswers({ entry, reply, turns, model, chatId }) {
   const items = new Map(reply.items.map((i) => [i.change_id, i]));
   return entry.changes.map((c, n) => {
