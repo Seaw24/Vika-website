@@ -1,7 +1,7 @@
 import { wordDiff } from './diff.js';
 
-// The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md): which changes a member has not explained yet,
-// how they split into spans for the bot, the team ratio, and the answer rows a chat saves after each round.
+// The feedback chat (docs/plans/2026-10-12-feedback-chat-v3.md): which changes a member has not explained yet,
+// how they split into spans for the bot, the team ratio, and the answer rows a chat saves after each bot turn.
 
 const DAY = 86400000;
 export const LIST_DAYS = 14;
@@ -137,90 +137,76 @@ export const wireChanges = (entry) => entry.changes.map((c) => ({
   part_after: c.part_after ?? c.after, where: c.source === 'posted' ? 'threads' : 'studio', minor: c.minor === true,
 }));
 
-// A copy in random order, so the bot's best guess is not always the first answer she sees.
-export function shuffled(list, random = Math.random) {
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-// Her answers about one change: the words she typed, the answers she tapped, and whether she took the bot's guess on
-// the reason question. A tapped answer is the bot's wording, so the row keeps the two apart.
-export function answerStats(turns, changeId) {
-  const asked = new Map();
+// Her messages in a chat: the words she typed and the suggestions she tapped. A tapped suggestion is the bot's
+// wording, so the row keeps the two apart.
+export function memberWords(turns) {
   const typed = [];
   const tapped = [];
-  let unsure = false;
-  let guessTaken = null;
   for (const t of turns) {
-    if (t.role === 'bot') (t.questions ?? []).forEach((q) => asked.set(q.id, q));
-    if (t.role !== 'member' || !t.answers) continue;
-    for (const a of t.answers) {
-      const q = asked.get(a.question_id);
-      if (!q?.change_ids.includes(changeId)) continue;
-      if (a.via === 'type') typed.push(a.text);
-      else if (a.via === 'tap') tapped.push(a.text);
-      else unsure = true;
-      if (q.node === 'reason' && guessTaken === null && a.via !== 'unsure') guessTaken = a.via === 'tap' && a.guess === true;
-    }
+    if (t.role !== 'member' || typeof t.text !== 'string') continue;
+    (t.via === 'tap' ? tapped : typed).push(t.text);
   }
-  const said = typed.length ? 'typed' : tapped.length ? 'tapped' : unsure ? 'unsure' : 'none';
-  return { typed: typed.join(' / '), tapped, said, guess_taken: guessTaken };
+  return { typed: typed.join(' / '), tapped, said: typed.length ? 'typed' : tapped.length ? 'tapped' : 'none' };
 }
 
-const NEXT = { always: 'always', this_post: 'this_post', unsure: 'unsure', open: 'unsure' };
-const BLANK = { type: 'rewrite', verdict: 'unsure', layer: 'none', reason_code: 'other', cue_words: '', lesson: '', scope: 'unsure', history: 'none' };
+const NEXT = { always: 'always', this_post: 'this_post', unsure: 'unsure' };
+const TOOK = { yes: true, no: false };
+const BLANK = { type: 'rewrite', verdict: 'unsure', layer: 'none', reason_code: 'other', cue_words: '', lesson: '', scope: 'unsure', history: 'none', took_reading: 'none' };
 
-// The answered rows a chat saves after each round, one per change. Each save repeats the rows with the newer state, so
-// readers keep the newest row per chat and change (latestChatRows). The first row carries the chat so far.
-export function chatRows({ entry, tree = [], summary = [], turns, model = null, chatId, final = false, confirmed = null, writerVersion = null }) {
-  const nodes = new Map(tree.map((n) => [n.change_id, n]));
-  const round = turns.filter((t) => t.role === 'member' && t.answers).length;
-  const amend = turns.find((t) => t.role === 'member' && typeof t.amend === 'string')?.amend ?? '';
+// The answered rows a chat saves after each bot turn, one per change. Each save repeats the rows with the newer state,
+// so readers keep the newest row per chat and change (latestChatRows). The first row carries the chat so far.
+// `confirmed` is true only after she tapped Đúng rồi; `corrections` counts her replies to a summary.
+export function chatRows({ entry, notes = [], summary = [], turns, model = null, chatId, final = false, confirmed = null, corrections = 0, writerVersion = null }) {
+  // Nothing is saved before she says something, so opening a chat never marks an edit as explained. A chat the bot
+  // closes on its first turn (only minor edits) still saves its final rows.
+  if (!final && !turns.some((t) => t.role === 'member')) return [];
+  const byId = new Map(notes.map((n) => [n.change_id, n]));
+  const round = turns.filter((t) => t.role === 'member').length;
+  const s = memberWords(turns);
   return entry.changes.map((c, i) => {
-    const n = nodes.get(c.id) ?? (c.minor ? { ...BLANK, type: 'minor', verdict: 'none', scope: 'none' } : BLANK);
-    const s = answerStats(turns, c.id);
+    const n = byId.get(c.id) ?? (c.minor ? { ...BLANK, type: 'minor', verdict: 'none', scope: 'none' } : BLANK);
     const line = summary.find((l) => l.change_ids.includes(c.id))?.text ?? n.lesson;
     return {
-      kind: 'chat', v: 2, chat_id: chatId, round, final, confirmed,
+      kind: 'chat', v: 3, chat_id: chatId, round, final, confirmed: confirmed === true ? true : null, corrections,
       part: c.part, change_id: c.id, whole: c.whole, before: c.before, after: c.after, source: c.source,
       ...(c.question_id ? { question_id: c.question_id } : { edit_client_id: c.edit_client_id }),
       type: n.type, verdict: n.verdict, layer: n.layer, reasons: [n.reason_code], words: s.typed, picked: s.tapped, said: s.said,
-      guess_taken: s.guess_taken, cue: n.cue_words, lesson: line ?? '', next_time: NEXT[n.scope] ?? null, history: n.history,
-      ...(amend ? { amend } : {}), writer_version: writerVersion, model,
+      guess_taken: TOOK[n.took_reading] ?? null, cue: n.cue_words, lesson: line ?? '', next_time: NEXT[n.scope] ?? null, history: n.history,
+      writer_version: writerVersion, model,
       ...(i === 0 ? { transcript: turns } : {}),
     };
   });
 }
 
-const isV2 = (e) => e.type === 'answered' && e.payload?.kind === 'chat' && e.payload.v === 2;
+// v2 rows (rounds of tap answers) and v3 rows (a conversation) share the field names, so both read the same way.
+const isChat = (e) => e.type === 'answered' && e.payload?.kind === 'chat' && (e.payload.v === 2 || e.payload.v === 3);
 const newer = (a, b) => (a.id ?? 0) > (b.id ?? 0) || ((a.id ?? 0) === (b.id ?? 0) && String(a.at) > String(b.at));
 
 // Only the newest saved row of each chat change; every other event passes through unchanged and in order.
 export function latestChatRows(events) {
   const last = new Map();
   for (const e of events) {
-    if (!isV2(e)) continue;
+    if (!isChat(e)) continue;
     const key = `${e.payload.chat_id}.${e.payload.change_id}`;
     if (!last.has(key) || newer(e, last.get(key))) last.set(key, e);
   }
-  return events.filter((e) => !isV2(e) || last.get(`${e.payload.chat_id}.${e.payload.change_id}`) === e);
+  return events.filter((e) => !isChat(e) || last.get(`${e.payload.chat_id}.${e.payload.change_id}`) === e);
 }
 
 // Her chats that got at least one answer, newest first, for the Đã kể list: the newest saved state of each.
 export function doneChats(events) {
   const chats = new Map();
-  for (const e of latestChatRows(events.filter(isV2))) {
+  for (const e of latestChatRows(events.filter(isChat))) {
     const p = e.payload;
-    const it = chats.get(p.chat_id) ?? { chat_id: p.chat_id, assignment_id: e.assignment_id, card_id: e.card_id, at: e.at, final: false, confirmed: null, transcript: [], lessons: [] };
+    const it = chats.get(p.chat_id) ?? { chat_id: p.chat_id, assignment_id: e.assignment_id, card_id: e.card_id, at: e.at, final: false, confirmed: null, transcript: [], lessons: [], changes: [] };
     if (String(e.at) > String(it.at)) it.at = e.at;
     if (p.transcript) it.transcript = p.transcript;
     it.final ||= p.final === true;
     it.confirmed ??= p.confirmed ?? null;
     if (p.lesson && !it.lessons.includes(p.lesson)) it.lessons.push(p.lesson);
+    if (p.change_id && !it.changes.some((c) => c.id === p.change_id)) {
+      it.changes.push({ id: p.change_id, part: p.part, whole: p.whole === true, before: p.before ?? '', after: p.after ?? '', source: p.source });
+    }
     chats.set(p.chat_id, it);
   }
   return [...chats.values()].filter((c) => c.transcript.some((t) => t.role === 'member'))

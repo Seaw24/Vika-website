@@ -80,9 +80,6 @@ html.gpt-lock .toast,html.gpt-lock body.focus .toast{z-index:70;bottom:calc(132p
 .gpt-msg.me{display:flex;justify-content:flex-end}
 .gpt-bubble{max-width:70%;padding:10px 16px;border-radius:22px;background:var(--g-bubble);white-space:pre-wrap;overflow-wrap:anywhere}
 .gpt-w{opacity:0;animation:gpt-fade .32s ease forwards;animation-delay:calc(var(--i) * 18ms)}
-.gpt-acts{display:flex;gap:2px;margin:4px 0 0 -8px}
-.gpt-acts .gpt-icon{width:32px;height:32px;border-radius:8px;color:var(--g-text-3)}
-.gpt-acts .gpt-icon svg{width:18px;height:18px}
 .gpt-note-line{font-size:13px;line-height:18px;color:var(--g-text-3);margin-top:6px}
 .gpt-saved{display:inline-flex;align-items:center;gap:6px;font-size:14px;line-height:20px;color:var(--g-text-2);font-weight:500}
 .gpt-saved svg{width:16px;height:16px;stroke-width:2.2}
@@ -99,6 +96,10 @@ html.gpt-lock .toast,html.gpt-lock body.focus .toast{z-index:70;bottom:calc(132p
 .gpt-quote .lbl{display:block;font-size:12px;line-height:18px;color:var(--g-text-3);margin-top:8px}
 .gpt-quote .lbl:first-of-type{margin-top:0}
 .gpt-more{margin-top:4px;font-size:13px;color:var(--g-text-2);text-decoration:underline;text-underline-offset:3px}
+/* The card at the top of the chat (v3): the post and each part she changed, folded to four lines */
+.gpt-msg.card{margin-bottom:24px}
+.gpt-msg.card .gpt-quote:last-child{margin-bottom:0}
+.gpt-msg.card .clamp{-webkit-line-clamp:4}
 
 /* Thinking: ChatGPT's pulsing dot, with a shimmering word after a few seconds */
 .gpt-thinking{display:flex;align-items:center;gap:10px;height:28px}
@@ -114,7 +115,6 @@ html.gpt-lock .toast,html.gpt-lock body.focus .toast{z-index:70;bottom:calc(132p
 .gpt-chip{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:8px 14px;border-radius:999px;border:1px solid var(--g-border);
   background:var(--g-bg);font-size:14px;line-height:20px;text-align:left;animation:gpt-in .3s ease both;animation-delay:calc(var(--i, 0) * 40ms);transition:background .15s}
 .gpt-chip:hover{background:var(--g-hover)}
-.gpt-chip.quiet{color:var(--g-text-2)}
 .gpt-chip.primary{background:var(--g-send);color:var(--g-send-fg);border-color:transparent}
 .gpt-chip.primary:hover{opacity:.88;background:var(--g-send)}
 .gpt-chip[aria-pressed="true"]{background:var(--g-send);color:var(--g-send-fg);border-color:transparent}

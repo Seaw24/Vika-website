@@ -1,19 +1,21 @@
-import { askFeedbackChat, recordEvent } from '../data.js?v=20261012t';
-import { chatRows, formAnswers, shuffled, wireChanges } from '../lib/chat.js?v=20261012t';
+import { askFeedbackChat, recordEvent } from '../data.js?v=20261012v';
+import { chatRows, formAnswers, wireChanges } from '../lib/chat.js?v=20261012v';
 import { REASONS, PART_LABEL } from '../lib/edits.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc, toast, firstLine } from '../ui.js?v=20261012t';
+import { esc, toast, firstLine } from '../ui.js?v=20261012v';
 
-// The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md), laid out like ChatGPT on a phone and a computer
-// (Nam, 2026-10-12). The bot asks in rounds; the phone shows a round one question at a time with no wait between
-// them, each with tap answers above the composer. Her answers are saved after every round, so closing never loses
-// them. A summary she confirms ends the chat. Without the bot, the old reason chips take over in the same screen.
+// The feedback chat (docs/plans/2026-10-12-feedback-chat-v3.md), laid out like ChatGPT on a phone and a computer
+// (Nam, 2026-10-12). The card sits at the top of the thread. The bot talks like a teammate: it opens with what the card
+// shows, answers her questions and asks one thing at a time, with up to three suggested replies above the composer.
+// Studio saves the chat after every bot turn, so closing never loses it. A summary she confirms ends the chat. Without
+// the bot, the old reason chips take over in the same screen.
 // deps.ask and deps.save stand in for the Edge Function and the event queue in tests/fixtures/chat-fixture.html.
 
-const CSS_HREF = 'css/chat.css?v=20261012t';
-const MAX_REGEN = 2;
-const UNSURE = 'Không rõ';
+const CSS_HREF = 'css/chat.css?v=20261012v';
+// Her replies to a summary before the chat ends with the last summary unconfirmed (MAX_CORRECTIONS in core.ts).
+const MAX_CORRECTIONS = 3;
 const WHERE = { portal: 'sửa trong Studio', posted: 'sửa khi đăng' };
+const SHOW_LABEL = { ...PART_LABEL, source: 'Bài gốc (bản dịch)' };
 const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const ICON = {
   menu: svg('<path d="M4 8h16M4 16h10"/>'),
@@ -41,18 +43,41 @@ function loadCss() {
 const words = (text) => esc(text).split(/(\s+)/).map((w, i) => (/^\s+$/.test(w) ? w : `<span class="gpt-w" style="--i:${i >> 1}">${w}</span>`)).join('');
 const partName = (part) => (PART_LABEL[part] ?? part).toLowerCase();
 const changedWhat = (entry) => [...new Set(entry.changes.map((c) => partName(c.part)))].join(', ');
+const more = '<button type="button" class="gpt-more" hidden>Xem hết</button>';
 
-// One quote per part she changed: the whole part with removed words struck and new words lit, or, for a rewrite,
-// the old text above hers.
-function quoteHtml(changes) {
+// A part she changed: the whole part with removed words struck and new words lit, or, for a rewrite, the old text
+// above hers.
+function changeHtml(changes) {
   const [c] = changes;
   const head = `<figcaption>${esc(PART_LABEL[c.part] ?? c.part)} · ${esc(WHERE[c.source] ?? '')}</figcaption>`;
   const body = changes.some((x) => x.whole)
     ? `<span class="lbl">Bản cũ</span><div class="t clamp was">${esc(c.part_before ?? c.before)}</div><span class="lbl">Bạn sửa thành</span><div class="t clamp">${esc(c.part_after ?? c.after)}</div>`
     : `<div class="t clamp">${wordDiff(c.part_before ?? c.before, c.part_after ?? c.after).map((p) => (p.type === 'same' ? esc(p.text)
       : p.type === 'del' ? `<del>${esc(p.text)}</del>` : `<ins>${esc(p.text)}</ins>`)).join('')}</div>`;
-  return `<figure class="gpt-quote">${head}${body}<button type="button" class="gpt-more" hidden>Xem hết</button></figure>`;
+  return `<figure class="gpt-quote">${head}${body}${more}</figure>`;
 }
+// A part as drafted, with nothing marked.
+const partHtml = (label, text) => `<figure class="gpt-quote"><figcaption>${esc(label)}</figcaption><div class="t clamp">${esc(text)}</div>${more}</figure>`;
+const byPart = (changes) => [...changes.reduce((m, x) => m.set(`${x.part}.${x.source}`, [...(m.get(`${x.part}.${x.source}`) ?? []), x]), new Map()).values()];
+
+// The card at the top of the chat: the post as drafted, unless she changed it, then every part she changed.
+function cardHtml(changes, c) {
+  const post = c?.op && !changes.some((x) => x.part === 'op') ? partHtml(SHOW_LABEL.op, c.op) : '';
+  return `${post}${byPart(changes).map(changeHtml).join('')}`;
+}
+// A quote's key. The opening message skips a quote the card right above it already shows.
+const quoteKey = (s) => `${s.part}:${s.change_id ?? ''}`;
+const cardKeys = (changes, c) => new Set([...(c?.op && !changes.some((x) => x.part === 'op') ? ['op:'] : []), ...changes.map((x) => `${x.part}:${x.id}`)]);
+// The parts the bot quotes above its message: a change as old and new text, or a part as drafted.
+function showHtml(show, changes, c, above = new Set()) {
+  return (show ?? []).filter((s) => !above.has(quoteKey(s))).map((s) => {
+    const changed = s.change_id ? changes.filter((x) => x.id === s.change_id) : [];
+    if (changed.length) return changeHtml(changed);
+    const text = s.part === 'source' ? c?.source_gloss_vi : c?.[s.part] ?? changes.find((x) => x.part === s.part)?.part_before;
+    return text ? partHtml(SHOW_LABEL[s.part] ?? s.part, text) : '';
+  }).join('');
+}
+const summaryHtml = (lines) => `<ul>${lines.map((l) => `<li>${esc(l.text)}</li>`).join('')}</ul>`;
 
 function shellHtml() {
   return `<aside class="gpt-side" aria-label="Các bài cần kể">
@@ -73,7 +98,7 @@ function shellHtml() {
         <form class="gpt-composer"><label class="sr-only" for="gpt-input">Câu trả lời của bạn</label>
           <textarea id="gpt-input" rows="1" maxlength="1000" placeholder="Trả lời…" enterkeyhint="send"></textarea>
           <button type="submit" class="gpt-send" aria-label="Gửi" disabled>${ICON.up}</button></form>
-        <p class="gpt-disclaim">Câu trả lời của bạn giúp bài sau viết đúng ý hơn. Máy có thể hỏi chưa trúng.</p>
+        <p class="gpt-disclaim">Câu trả lời của bạn giúp bài sau viết đúng ý hơn. Máy có thể hiểu chưa trúng.</p>
       </footer>
     </section>`;
 }
@@ -133,12 +158,12 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
     el.innerHTML = html;
     thread.append(el);
     el.querySelectorAll('.gpt-quote').forEach((q) => {
-      const more = q.querySelector('.gpt-more');
+      const btn = q.querySelector('.gpt-more');
       const clamps = [...q.querySelectorAll('.clamp')];
       requestAnimationFrame(() => {
         if (clamps.some((c) => c.scrollHeight > c.clientHeight + 2)) {
-          more.hidden = false;
-          more.onclick = () => { q.classList.add('open'); more.remove(); };
+          btn.hidden = false;
+          btn.onclick = () => { q.classList.add('open'); btn.remove(); };
         }
       });
     });
@@ -216,7 +241,7 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
   }
 
   /* ---------- One chat ---------- */
-  // A chat she leaves with no answer goes back to Cần kể; one with saved answers counts as explained.
+  // A chat she leaves with nothing said goes back to Cần kể; one where she said anything counts as explained.
   function startChat(next) {
     chat?.leave();
     if (chat && !chat.viewOnly && !chat.done && chat.entry !== next && !pending.includes(chat.entry)) pending = [chat.entry, ...pending];
@@ -224,27 +249,36 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
     chat = runChat(next);
     paintSide(next.assignment_id);
   }
+  // A finished chat, read only. v2 chats hold rounds of questions with tap answers; v3 chats hold messages.
   function viewChat(d) {
     chat?.leave();
     if (chat && !chat.viewOnly && !chat.done && !pending.includes(chat.entry)) pending = [chat.entry, ...pending];
     chat = { viewOnly: true, leave() {}, stop() {} };
     thread.innerHTML = '';
     root.classList.add('ended');
-    $('.gpt-title b').textContent = firstLine(cards.get(d.card_id)?.op ?? '', 80) || 'Bài đã kể';
-    for (const t of d.transcript) {
+    const c = cards.get(d.card_id);
+    const changes = d.changes ?? [];
+    $('.gpt-title b').textContent = firstLine(c?.op ?? '', 80) || 'Bài đã kể';
+    const top = cardHtml(changes, c);
+    if (top) add(top, 'bot card');
+    let above = cardKeys(changes, c);
+    d.transcript.forEach((t, i) => {
       if (t.role === 'bot' && t.questions) {
+        // Her v2 answers sit in the next member turn; each question shows with its answer below it.
         if (t.say) add(`<p>${esc(t.say)}</p>`);
-        // Her answers sit in the next member turn; each question shows with its answer below it.
-        const reply = d.transcript[d.transcript.indexOf(t) + 1];
+        const reply = d.transcript[i + 1];
         for (const q of t.questions) {
           add(`<p>${esc(q.text)}</p>`);
           const a = reply?.answers?.find((x) => x.question_id === q.id);
           if (a) addMe(a.text);
         }
-      } else if (t.role === 'bot' && t.summary) {
-        add(`<p>${esc(t.say)}</p><ul>${t.summary.map((l) => `<li>${esc(l.text)}</li>`).join('')}</ul>`);
-      } else if (t.role === 'member' && t.amend) addMe(t.amend);
-    }
+        above = new Set();
+      } else if (t.role === 'bot') {
+        add(`${showHtml(t.show, changes, c, above)}${t.say ? `<p>${esc(t.say)}</p>` : ''}${t.summary?.length ? summaryHtml(t.summary) : ''}`);
+        above = new Set();
+      } else if (t.role === 'member' && typeof t.text === 'string') addMe(t.text);
+      else if (t.role === 'member' && t.amend) addMe(t.amend);
+    });
     add(`<p class="gpt-saved">${ICON.check}${d.confirmed === true ? 'Bạn đã xác nhận' : 'Đã lưu'}</p>`);
     setChips(pending.length ? [{ label: `Bài tiếp theo · còn ${pending.length}`, cls: 'primary', onClick: () => startChat(pending[0]) }] : [{ label: 'Xong', onClick: () => close() }]);
     paintSide(d.chat_id);
@@ -252,25 +286,31 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
 
   function runChat(e) {
     const c = e.card_id ? cards.get(e.card_id) ?? (e === entry ? card : null) : null;
-    const state = { entry: e, viewOnly: false, saved: false, done: false, turns: [], tree: [], summary: [], model: null, chatId: crypto.randomUUID(),
-      round: null, askId: 0, regen: MAX_REGEN, stopped: null, leave, stop };
+    const state = { entry: e, viewOnly: false, saved: 0, done: false, turns: [], notes: [], summary: [], corrections: 0, model: null,
+      chatId: crypto.randomUUID(), askId: 0, leave, stop };
     thread.innerHTML = '';
     root.classList.remove('ended');
     $('.gpt-title b').textContent = firstLine(c?.op ?? e.changes[0]?.before ?? '', 80) || 'Kể lý do sửa';
-    const shown = new Set();
-    const byId = new Map(e.changes.map((x) => [x.id, x]));
+    add(cardHtml(e.changes, c), 'bot card');
+    let above = cardKeys(e.changes, c);
+    const said = () => state.turns.some((t) => t.role === 'member');
+    const record = ({ final, confirmed, lessons }) => ({ chat_id: state.chatId, card_id: e.card_id, assignment_id: e.assignment_id, at: new Date().toISOString(),
+      final, confirmed, transcript: state.turns, lessons, changes: e.changes });
 
+    // `saved` is how many turns the last save held, so leaving saves only when something is new.
     async function persist({ final = false, confirmed = null } = {}) {
-      const rows = chatRows({ entry: e, tree: state.tree, summary: state.summary, turns: state.turns, model: state.model, chatId: state.chatId,
-        final, confirmed, writerVersion: c?.writer_version ?? null });
+      const held = state.turns.length;
+      const rows = chatRows({ entry: e, notes: state.notes, summary: state.summary, turns: state.turns, model: state.model, chatId: state.chatId,
+        final, confirmed, corrections: state.corrections, writerVersion: c?.writer_version ?? null });
+      if (!rows.length) return;
       try {
         for (const payload of rows) await save(e, payload);
-        state.saved = true;
+        state.saved = Math.max(state.saved, held);
         onSaved();
       } catch { toast('Chưa lưu được. Kiểm tra mạng rồi thử lại nhé.'); }
     }
 
-    async function askBot(extra = {}) {
+    async function askBot() {
       const id = ++state.askId;
       setChips([]);
       composer({ busy: true });
@@ -278,115 +318,81 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
       let res = null;
       let why = '';
       try {
-        res = await ask({ assignment_id: e.assignment_id, card_id: e.card_id, changes: wireChanges(e), turns: state.turns, cards_waiting: pending.length, ...extra });
+        res = await ask({ v: 3, assignment_id: e.assignment_id, card_id: e.card_id, changes: wireChanges(e), turns: state.turns, cards_waiting: pending.length });
       } catch (err) { why = err?.message ?? 'no reply'; }
       if (id !== state.askId || closed || chat !== state) return;
       stopThinking();
-      if (!res?.reply) { fallback(why || 'no reply'); return; }
-      state.model = res.model ?? state.model;
-      if (res.reply.tree?.length) state.tree = res.reply.tree;
-      if (res.reply.done) showSummary(res.reply);
-      else startRound(res.reply);
+      if (typeof res?.reply?.message === 'string') { state.model = res.model ?? state.model; showTurn(res.reply); return; }
+      // The first turn falls back to the old reason chips; a later one keeps the chat and offers to try again.
+      if (!state.turns.length) { fallback(why || 'no reply'); return; }
+      add(`<p class="gpt-note-line">Máy chưa trả lời được. Mã lỗi: ${esc(String(why || 'no reply').slice(0, 200))}</p>`);
+      again('Thử lại');
+    }
+    // After a failed or stopped turn: ask again, or say more first. What she adds after a summary still answers it, as
+    // isCorrection in core.ts counts it.
+    function again(label) {
+      const lastBot = [...state.turns].reverse().find((t) => t.role === 'bot');
+      setChips([{ label, icon: ICON.regen, cls: 'primary', onClick: () => askBot() }]);
+      composer({ placeholder: 'Hoặc gõ thêm…', on: lastBot?.summary?.length ? correct : (text) => message(text, 'type') });
     }
     function stop() {
       state.askId += 1;
       thread.querySelector('.gpt-thinking')?.closest('.gpt-msg')?.remove();
       add('<p class="gpt-note-line">Đã dừng.</p>');
-      composer({});
-      setChips([{ label: 'Hỏi lại', icon: ICON.regen, onClick: () => askBot(state.stopped ?? {}) }]);
+      again('Hỏi lại');
     }
 
-    function startRound(reply) {
-      const els = [];
-      state.round = { questions: reply.questions, i: 0, answers: [], els };
-      state.turns.push({ role: 'bot', say: reply.say, questions: reply.questions });
-      if (reply.say) els.push(add(`<p>${words(reply.say)}</p>`));
-      showQuestion();
-    }
-    function showQuestion() {
-      const r = state.round;
-      const q = r.questions[r.i];
-      // A part she changed is quoted the first time a question is about it.
-      const fresh = q.change_ids.map((id) => byId.get(id)).filter((x) => x && !shown.has(x.id));
-      fresh.forEach((x) => shown.add(x.id));
-      const groups = [...fresh.reduce((m, x) => m.set(`${x.part}.${x.source}`, [...(m.get(`${x.part}.${x.source}`) ?? []), x]), new Map()).values()];
-      const canRegen = r.i === 0 && state.regen > 0;
-      const el = add(`${groups.map(quoteHtml).join('')}<p>${words(q.text)}</p>
-        ${canRegen ? `<div class="gpt-acts"><button type="button" class="gpt-icon" data-regen aria-label="Hỏi cách khác" title="Hỏi cách khác">${ICON.regen}</button></div>` : ''}`);
-      r.els.push(el);
-      el.querySelector('[data-regen]')?.addEventListener('click', regen);
-      const options = shuffled(q.options);
-      setChips([
-        ...options.map((o) => ({ label: o.label, onClick: () => answer({ via: 'tap', text: o.label, guess: o.guess }) })),
-        { label: UNSURE, cls: 'quiet', onClick: () => answer({ via: 'unsure', text: UNSURE, guess: null }) },
-      ]);
-      composer({ placeholder: options.length ? 'Hoặc gõ lý do của bạn…' : 'Trả lời…', on: (text) => answer({ via: 'type', text, guess: null }) });
-    }
-    function regen() {
-      const r = state.round;
-      if (!r || r.answers.length || state.regen <= 0) return;
-      state.regen -= 1;
-      r.els.forEach((x) => x.remove());
-      r.questions.flatMap((q) => q.change_ids).forEach((id) => shown.delete(id));
-      state.turns.pop();
-      state.round = null;
-      state.stopped = { regen_of: r.questions };
-      askBot({ regen_of: r.questions });
-    }
-    function answer(a) {
-      const r = state.round;
-      const q = r.questions[r.i];
-      r.els.forEach((x) => x.querySelector('.gpt-acts')?.remove());
-      r.answers.push({ question_id: q.id, ...a });
-      addMe(a.text);
-      setChips([]);
-      r.i += 1;
-      if (r.i < r.questions.length) {
-        composer({});
-        const stopThinking = thinking();
-        setTimeout(() => { if (chat !== state || state.round !== r) return; stopThinking(); showQuestion(); }, 450);
-        return;
-      }
-      state.turns.push({ role: 'member', answers: r.answers });
-      state.round = null;
-      state.stopped = {};
+    function showTurn(reply) {
+      if (reply.notes?.length) state.notes = reply.notes;
+      const turn = { role: 'bot', say: reply.message, show: reply.show ?? [], replies: reply.replies ?? [] };
+      if (reply.done) { showSummary(turn, reply.summary ?? []); return; }
+      state.turns.push(turn);
+      add(`${showHtml(turn.show, e.changes, c, above)}<p>${words(turn.say)}</p>`);
+      above = new Set();
       void persist();
+      setChips(turn.replies.map((label) => ({ label, onClick: () => message(label, 'tap') })));
+      composer({ placeholder: turn.replies.length ? 'Hoặc gõ câu trả lời của bạn…' : 'Trả lời…', on: (text) => message(text, 'type') });
+    }
+    function message(text, via) {
+      above = new Set();
+      addMe(text);
+      state.turns.push({ role: 'member', text, via });
       askBot();
     }
-
-    function showSummary(reply) {
-      state.summary = reply.summary ?? [];
-      state.turns.push({ role: 'bot', say: reply.say, summary: state.summary });
-      const amended = state.turns.some((t) => t.role === 'member' && t.amend);
-      if (!state.summary.length) {
-        add(`<p>${words(reply.say || 'Cảm ơn bạn nha.')}</p>`);
+    function showSummary(turn, summary) {
+      state.summary = summary;
+      state.turns.push({ ...turn, summary });
+      const quotes = showHtml(turn.show, e.changes, c, above);
+      above = new Set();
+      if (!summary.length) {
+        add(`${quotes}<p>${words(turn.say || 'Cảm ơn bạn nha.')}</p>`);
         finish({ confirmed: null });
         return;
       }
-      add(`<p>${words(reply.say)}</p><ul>${state.summary.map((l) => `<li>${esc(l.text)}</li>`).join('')}</ul>${amended ? '' : '<p>Đúng ý bạn chưa?</p>'}`);
-      if (amended) { finish({ confirmed: 'amended' }); return; }
-      void persist({ final: true });
+      add(`${quotes}<p>${words(turn.say)}</p>${summaryHtml(summary)}<p>Đúng ý bạn chưa?</p>`);
+      if (said()) void persist({ final: true });
       setChips([
         { label: 'Đúng rồi', icon: ICON.check, cls: 'primary', onClick: () => { addMe('Đúng rồi'); finish({ confirmed: true }); } },
-        { label: 'Chưa đúng', onClick: () => { setChips([]); composer({ placeholder: 'Chỗ nào chưa đúng?', on: amend }); input.focus(); } },
+        { label: 'Chưa đúng', onClick: () => { setChips([]); composer({ placeholder: 'Chỗ nào chưa đúng?', on: correct }); input.focus(); } },
       ]);
-      composer({ placeholder: 'Chỗ nào chưa đúng thì gõ ở đây…', on: amend });
+      composer({ placeholder: 'Chỗ nào chưa đúng thì gõ ở đây…', on: correct });
     }
-    function amend(text) {
+    // Her reply to a summary: a correction or a question about it. The third one ends the chat, unconfirmed.
+    function correct(text) {
+      state.corrections += 1;
+      if (state.corrections < MAX_CORRECTIONS) { message(text, 'type'); return; }
       addMe(text);
-      state.turns.push({ role: 'member', amend: text });
-      state.stopped = {};
-      askBot();
+      state.turns.push({ role: 'member', text, via: 'type' });
+      finish({ confirmed: null });
     }
     async function finish({ confirmed }) {
       state.done = true;
       setChips([]);
       composer({});
       await persist({ final: true, confirmed });
+      finished = [record({ final: true, confirmed, lessons: state.summary.map((l) => l.text) }), ...finished];
       if (chat !== state) return;
       add(`<p class="gpt-saved">${ICON.check}Đã lưu</p>`);
-      finished = [{ chat_id: state.chatId, card_id: e.card_id, assignment_id: e.assignment_id, at: new Date().toISOString(), final: true, confirmed,
-        transcript: state.turns, lessons: state.summary.map((l) => l.text) }, ...finished];
       paintSide(state.chatId);
       ended();
     }
@@ -415,30 +421,24 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
         composer({});
         try {
           for (const payload of formAnswers({ entry: e, reasons: [...picked], words: note, nextTime: null })) await save(e, payload);
-          state.saved = true;
+          state.saved = state.turns.length;
           state.done = true;
           onSaved();
+          if (chat !== state) return;
           add(`<p class="gpt-saved">${ICON.check}Đã lưu</p>`);
           ended();
         } catch { toast('Chưa lưu được. Thử lại nhé.'); }
       } });
     }
 
-    // Leaving mid-round keeps what she already answered in this round.
+    // Leaving keeps what she said: a message the last save does not hold yet is saved now, and a chat she said anything
+    // in moves to Đã kể.
     function leave() {
       state.askId += 1;
-      const r = state.round;
-      const answeredNow = Boolean(r?.answers.length);
-      if (answeredNow) {
-        state.turns.push({ role: 'member', answers: r.answers });
-        state.round = null;
-        void persist();
-      }
-      if ((state.saved || answeredNow || state.turns.some((t) => t.role === 'member')) && !state.done) {
-        state.done = true;
-        finished = [{ chat_id: state.chatId, card_id: e.card_id, assignment_id: e.assignment_id, at: new Date().toISOString(), final: false,
-          confirmed: null, transcript: state.turns, lessons: [] }, ...finished];
-      }
+      if (state.done || !said()) return;
+      if (state.turns.length > state.saved) void persist();
+      state.done = true;
+      finished = [record({ final: false, confirmed: null, lessons: [] }), ...finished];
     }
 
     askBot();

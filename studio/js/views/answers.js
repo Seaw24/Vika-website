@@ -1,13 +1,13 @@
-import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261012t';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261012v';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { esc, firstLine, initial } from '../ui.js?v=20261012t';
+import { esc, firstLine, initial } from '../ui.js?v=20261012v';
 import { diffHtml } from './shared.js';
-import { latestChatRows } from '../lib/chat.js?v=20261012t';
+import { latestChatRows } from '../lib/chat.js?v=20261012v';
 
 const when = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const KINDS = { skip: ['Bài chưa dùng', 'line'], dismiss: ['Không dùng bài này', 'gold'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''], chat: ['Kể lý do sửa', 'dark'] };
-// A v2 chat answer (docs/plans/2026-10-12-feedback-chat-v2.md) says whether the draft was wrong and where the problem sits.
+// A v2 or v3 chat answer (docs/plans/2026-10-12-feedback-chat-v3.md) says whether the draft was wrong and where the problem sits.
 const VERDICT = { draft_wrong: ['Bản cũ có vấn đề', 'warn'], taste: ['Chỉ là gu riêng', 'line'], test: ['Sửa thử', 'line'] };
 const LAYER = { wording: 'Cách nói', point: 'Chủ đề hoặc ý', style: 'Gu riêng', fact: 'Sai ý', r2: 'Bình luận 2' };
 let scope = 'all';
@@ -38,8 +38,8 @@ function entry(a, edit) {
     <div class="entry-head"><b>${esc(a.member?.name ?? '')}</b><span class="tiny muted">${esc(when.format(new Date(a.at)))}</span></div>
     <div class="tags" style="margin-top:8px"><span class="tag ${tone}">${esc(title)}</span>${p.part ? `<span class="tag line">${esc(PART_LABEL[p.part] ?? '')}</span>` : ''}${a.account ? `<span class="tag line">@${esc(a.account.handle)}</span>` : ''}</div>
     ${a.card?.op ? `<p class="about">Bài: <q>${esc(firstLine(a.card.op, 90))}</q></p>` : ''}
-    ${p.v === 2 ? chatLines(p) : ''}
-    ${p.kind === 'chat' && p.v !== 2 && p.agree != null ? `<p class="guessline">${p.agree ? 'Đồng ý với điều máy đoán.' : 'Không đồng ý với điều máy đoán.'} <span class="tiny muted">· ${esc(p.model ?? '')}</span></p>` : ''}
+    ${p.v >= 2 ? chatLines(p) : ''}
+    ${p.kind === 'chat' && !(p.v >= 2) && p.agree != null ? `<p class="guessline">${p.agree ? 'Đồng ý với điều máy đoán.' : 'Không đồng ý với điều máy đoán.'} <span class="tiny muted">· ${esc(p.model ?? '')}</span></p>` : ''}
     ${p.guess ? `<p class="guessline">Máy đoán: ${esc(p.guess)} <span class="tiny muted">· ${esc(p.model)}</span><br><b style="font-weight:500">${p.agree === true ? 'Thành viên xác nhận đúng.' : 'Thành viên không đồng ý.'}</b></p>` : ''}
     ${p.reasons?.length ? `<div class="tags">${p.reasons.map((r) => `<span class="tag">${esc(labelFor([...REASONS, ...SKIP_REASONS], r))}</span>`).join('')}</div>` : ''}
     ${p.words ? `<p class="words">${esc(p.words)}</p>` : ''}
@@ -52,7 +52,7 @@ function chatLines(p) {
   const [verdict, tone] = VERDICT[p.verdict] ?? [];
   const tags = [verdict ? `<span class="tag ${tone}">${esc(verdict)}</span>` : '', LAYER[p.layer] ? `<span class="tag line">${esc(LAYER[p.layer])}</span>` : ''].join('');
   return `${tags ? `<div class="tags" style="margin-top:8px">${tags}</div>` : ''}
-    ${p.lesson ? `<p class="guessline">Bài học: ${esc(p.lesson)} <span class="tiny muted">· ${p.confirmed === true ? 'đã xác nhận' : p.confirmed === 'amended' ? 'đã sửa lại' : 'chưa xác nhận'}</span></p>` : ''}
+    ${p.lesson ? `<p class="guessline">Bài học: ${esc(p.lesson)} <span class="tiny muted">· ${p.confirmed === true ? 'đã xác nhận' : p.confirmed === 'amended' ? 'đã sửa lại' : 'chưa xác nhận'}${p.corrections ? ` · sửa ${p.corrections} lần` : ''}</span></p>` : ''}
     ${p.picked?.length ? `<p class="small muted" style="margin-top:8px">Chọn: ${esc(p.picked.join(' · '))}</p>` : ''}`;
 }
 
@@ -66,7 +66,7 @@ export async function renderAnswers(main, ctx) {
   const paint = ({ rows, questions }) => {
     displayed = { rows, questions };
     // A chat saves its rows after every round; only the newest row of each change shows, and minor edits do not.
-    const enriched = latestChatRows(rows).filter((row) => !(row.payload?.v === 2 && row.payload.type === 'minor')).map((row) => {
+    const enriched = latestChatRows(rows).filter((row) => !(row.payload?.v >= 2 && row.payload.type === 'minor')).map((row) => {
       const q = questions.get(row.payload?.question_id);
       // A chat answer already holds the exact span it is about.
       return q && row.payload?.kind !== 'chat' ? { ...row, payload: { ...row.payload, guess: q.guess, model: q.model, before: q.before_text, after: q.after_text } } : row;

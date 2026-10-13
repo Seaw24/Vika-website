@@ -225,7 +225,7 @@ export async function loadMyFeedback(memberId, sinceIso) {
 }
 
 export async function loadCardsBrief(ids) {
-  return ids.length ? must(await supabase.from('cards').select('id,op,r1,point_vi,writer_version').in('id', [...new Set(ids)])) : [];
+  return ids.length ? must(await supabase.from('cards').select('id,op,r1,point_vi,source_gloss_vi,writer_version').in('id', [...new Set(ids)])) : [];
 }
 
 // One bot turn. Returns { reply, model }, or throws so the sheet can fall back to the reason form.
