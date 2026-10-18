@@ -1,5 +1,5 @@
-import { esc, icon } from '../ui.js?v=20261017a';
-import { nearby, afterLeave } from '../lib/tiktok.js?v=20261017a';
+import { esc, icon } from '../ui.js?v=20261017b';
+import { nearby, afterLeave } from '../lib/tiktok.js?v=20261017b';
 
 // The TikTok feed (Nam, 2026-10-11): one video per screen in a snapping scroller, as on TikTok. The video on screen
 // plays and loops; its two neighbours keep their source and the rest drop it. The feed knows nothing about posting

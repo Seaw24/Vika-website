@@ -1,8 +1,8 @@
-import { askFeedbackChat, recordEvent } from '../data.js?v=20261017a';
-import { chatRows, formAnswers, wireChanges } from '../lib/chat.js?v=20261017a';
+import { askFeedbackChat, recordEvent } from '../data.js?v=20261017b';
+import { chatRows, chatLessons, chatConfirmed, formAnswers, wireChanges, summaryLabel } from '../lib/chat.js?v=20261017b';
 import { REASONS, PART_LABEL } from '../lib/edits.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc, toast, firstLine } from '../ui.js?v=20261017a';
+import { esc, toast, firstLine } from '../ui.js?v=20261017b';
 
 // The feedback chat (docs/plans/2026-10-12-feedback-chat-v3.md), laid out like ChatGPT on a phone and a computer
 // (Nam, 2026-10-12). The card sits at the top of the thread. The bot talks like a teammate: it opens with what the card
@@ -11,9 +11,12 @@ import { esc, toast, firstLine } from '../ui.js?v=20261017a';
 // the bot, the old reason chips take over in the same screen.
 // deps.ask and deps.save stand in for the Edge Function and the event queue in tests/fixtures/chat-fixture.html.
 
-const CSS_HREF = 'css/chat.css?v=20261017a';
-// Her replies to a summary before the chat ends with the last summary unconfirmed (MAX_CORRECTIONS in core.ts).
+const CSS_HREF = 'css/chat.css?v=20261017b';
+// Her replies to a part's summary before the chat moves on with it unconfirmed (MAX_CORRECTIONS in core.ts).
 const MAX_CORRECTIONS = 3;
+// The request version and her tap on a part's summary (VERSION and CONFIRM in core.ts).
+const VERSION = 4;
+const CONFIRM = 'Đúng rồi';
 const WHERE = { portal: 'sửa trong Studio', posted: 'sửa khi đăng' };
 const SHOW_LABEL = { ...PART_LABEL, source: 'Bài gốc (bản dịch)' };
 const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
@@ -77,7 +80,11 @@ function showHtml(show, changes, c, above = new Set()) {
     return text ? partHtml(SHOW_LABEL[s.part] ?? s.part, text) : '';
   }).join('');
 }
-const summaryHtml = (lines) => `<ul>${lines.map((l) => `<li>${esc(l.text)}</li>`).join('')}</ul>`;
+// Each line names its part, so she confirms the post's lesson and each reply's lesson on their own.
+const summaryHtml = (lines, changes) => `<ul>${lines.map((l) => {
+  const label = summaryLabel(l, changes);
+  return `<li>${label ? `<b>${esc(label)}:</b> ` : ''}${esc(l.text)}</li>`;
+}).join('')}</ul>`;
 
 function shellHtml() {
   return `<aside class="gpt-side" aria-label="Các bài cần kể">
@@ -274,7 +281,7 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
         }
         above = new Set();
       } else if (t.role === 'bot') {
-        add(`${showHtml(t.show, changes, c, above)}${t.say ? `<p>${esc(t.say)}</p>` : ''}${t.summary?.length ? summaryHtml(t.summary) : ''}`);
+        add(`${showHtml(t.show, changes, c, above)}${t.say ? `<p>${esc(t.say)}</p>` : ''}${t.summary?.length ? summaryHtml(t.summary, changes) : ''}`);
         above = new Set();
       } else if (t.role === 'member' && typeof t.text === 'string') addMe(t.text);
       else if (t.role === 'member' && t.amend) addMe(t.amend);
@@ -286,7 +293,9 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
 
   function runChat(e) {
     const c = e.card_id ? cards.get(e.card_id) ?? (e === entry ? card : null) : null;
-    const state = { entry: e, viewOnly: false, saved: 0, done: false, turns: [], notes: [], summary: [], corrections: 0, model: null,
+    // corrections counts her replies to the current part's summary; onSummary is true while that summary waits for her
+    // answer; last says whether it is the chat's last.
+    const state = { entry: e, viewOnly: false, saved: 0, done: false, turns: [], notes: [], corrections: 0, onSummary: false, last: true, model: null,
       chatId: crypto.randomUUID(), askId: 0, leave, stop };
     thread.innerHTML = '';
     root.classList.remove('ended');
@@ -298,10 +307,10 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
       final, confirmed, transcript: state.turns, lessons, changes: e.changes });
 
     // `saved` is how many turns the last save held, so leaving saves only when something is new.
-    async function persist({ final = false, confirmed = null } = {}) {
+    async function persist({ final = false } = {}) {
       const held = state.turns.length;
-      const rows = chatRows({ entry: e, notes: state.notes, summary: state.summary, turns: state.turns, model: state.model, chatId: state.chatId,
-        final, confirmed, corrections: state.corrections, writerVersion: c?.writer_version ?? null });
+      const rows = chatRows({ entry: e, notes: state.notes, turns: state.turns, model: state.model, chatId: state.chatId,
+        final, writerVersion: c?.writer_version ?? null });
       if (!rows.length) return;
       try {
         for (const payload of rows) await save(e, payload);
@@ -318,7 +327,7 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
       let res = null;
       let why = '';
       try {
-        res = await ask({ v: 3, assignment_id: e.assignment_id, card_id: e.card_id, changes: wireChanges(e), turns: state.turns, cards_waiting: pending.length });
+        res = await ask({ v: VERSION, assignment_id: e.assignment_id, card_id: e.card_id, changes: wireChanges(e), turns: state.turns, cards_waiting: pending.length });
       } catch (err) { why = err?.message ?? 'no reply'; }
       if (id !== state.askId || closed || chat !== state) return;
       stopThinking();
@@ -331,9 +340,8 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
     // After a failed or stopped turn: ask again, or say more first. What she adds after a summary still answers it, as
     // isCorrection in core.ts counts it.
     function again(label) {
-      const lastBot = [...state.turns].reverse().find((t) => t.role === 'bot');
       setChips([{ label, icon: ICON.regen, cls: 'primary', onClick: () => askBot() }]);
-      composer({ placeholder: 'Hoặc gõ thêm…', on: lastBot?.summary?.length ? correct : (text) => message(text, 'type') });
+      composer({ placeholder: 'Hoặc gõ thêm…', on: state.onSummary ? correct : (text) => message(text, 'type') });
     }
     function stop() {
       state.askId += 1;
@@ -344,8 +352,9 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
 
     function showTurn(reply) {
       if (reply.notes?.length) state.notes = reply.notes;
-      const turn = { role: 'bot', say: reply.message, show: reply.show ?? [], replies: reply.replies ?? [] };
-      if (reply.done) { showSummary(turn, reply.summary ?? []); return; }
+      const turn = { role: 'bot', say: reply.message, show: reply.show ?? [], replies: reply.replies ?? [], part: reply.part ?? '' };
+      if (reply.done) { showSummary(turn, reply); return; }
+      state.onSummary = false;
       state.turns.push(turn);
       add(`${showHtml(turn.show, e.changes, c, above)}<p>${words(turn.say)}</p>`);
       above = new Set();
@@ -359,38 +368,55 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
       state.turns.push({ role: 'member', text, via });
       askBot();
     }
-    function showSummary(turn, summary) {
-      state.summary = summary;
+    // A part's summary (core.ts closes one part at a time, the post first). Her Đúng rồi saves that part's lesson as
+    // confirmed, then the bot asks about the next part, or the chat ends after the last one.
+    function showSummary(turn, reply) {
+      const summary = reply.summary ?? [];
+      state.last = reply.last !== false;
+      state.onSummary = summary.length > 0;
       state.turns.push({ ...turn, summary });
       const quotes = showHtml(turn.show, e.changes, c, above);
       above = new Set();
       if (!summary.length) {
         add(`${quotes}<p>${words(turn.say || 'Cảm ơn bạn nha.')}</p>`);
-        finish({ confirmed: null });
+        finish();
         return;
       }
-      add(`${quotes}<p>${words(turn.say)}</p>${summaryHtml(summary)}<p>Đúng ý bạn chưa?</p>`);
-      if (said()) void persist({ final: true });
+      add(`${quotes}<p>${words(turn.say)}</p>${summaryHtml(summary, e.changes)}<p>Đúng ý bạn chưa?</p>`);
+      if (said()) void persist({ final: state.last });
       setChips([
-        { label: 'Đúng rồi', icon: ICON.check, cls: 'primary', onClick: () => { addMe('Đúng rồi'); finish({ confirmed: true }); } },
+        { label: CONFIRM, icon: ICON.check, cls: 'primary', onClick: () => confirm() },
         { label: 'Chưa đúng', onClick: () => { setChips([]); composer({ placeholder: 'Chỗ nào chưa đúng?', on: correct }); input.focus(); } },
       ]);
       composer({ placeholder: 'Chỗ nào chưa đúng thì gõ ở đây…', on: correct });
     }
-    // Her reply to a summary: a correction or a question about it. The third one ends the chat, unconfirmed.
+    function confirm() {
+      addMe(CONFIRM);
+      state.turns.push({ role: 'member', text: CONFIRM, via: 'confirm' });
+      nextPart();
+    }
+    // Her reply to a summary: a correction or a question about it. The third one leaves the part unconfirmed.
     function correct(text) {
       state.corrections += 1;
       if (state.corrections < MAX_CORRECTIONS) { message(text, 'type'); return; }
       addMe(text);
       state.turns.push({ role: 'member', text, via: 'type' });
-      finish({ confirmed: null });
+      nextPart();
     }
-    async function finish({ confirmed }) {
+    function nextPart() {
+      state.corrections = 0;
+      state.onSummary = false;
+      if (state.last) { finish(); return; }
+      above = new Set();
+      void persist();
+      askBot();
+    }
+    async function finish() {
       state.done = true;
       setChips([]);
       composer({});
-      await persist({ final: true, confirmed });
-      finished = [record({ final: true, confirmed, lessons: state.summary.map((l) => l.text) }), ...finished];
+      await persist({ final: true });
+      finished = [record({ final: true, confirmed: chatConfirmed(state.turns), lessons: chatLessons(state.turns) }), ...finished];
       if (chat !== state) return;
       add(`<p class="gpt-saved">${ICON.check}Đã lưu</p>`);
       paintSide(state.chatId);

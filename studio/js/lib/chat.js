@@ -1,4 +1,5 @@
 import { wordDiff } from './diff.js';
+import { PART_LABEL } from './edits.js';
 
 // The feedback chat (docs/plans/2026-10-12-feedback-chat-v3.md): which changes a member has not explained yet,
 // how they split into spans for the bot, the team ratio, and the answer rows a chat saves after each bot turn.
@@ -143,31 +144,65 @@ export function memberWords(turns) {
   const typed = [];
   const tapped = [];
   for (const t of turns) {
-    if (t.role !== 'member' || typeof t.text !== 'string') continue;
+    if (t.role !== 'member' || typeof t.text !== 'string' || t.via === 'confirm') continue;
     (t.via === 'tap' ? tapped : typed).push(t.text);
   }
   return { typed: typed.join(' / '), tapped, said: typed.length ? 'typed' : tapped.length ? 'tapped' : 'none' };
+}
+
+// The parts a summary line is about, in card order, so she checks each part's lesson on its own.
+export function summaryLabel(line, changes) {
+  const parts = new Set(changes.filter((c) => line.change_ids.includes(c.id)).map((c) => c.part));
+  return ['op', 'r1', 'r2'].filter((p) => parts.has(p)).map((p, i) => (i ? PART_LABEL[p].toLowerCase() : PART_LABEL[p])).join(', ');
 }
 
 const NEXT = { always: 'always', this_post: 'this_post', unsure: 'unsure' };
 const TOOK = { yes: true, no: false };
 const BLANK = { type: 'rewrite', verdict: 'unsure', layer: 'none', reason_code: 'other', cue_words: '', lesson: '', scope: 'unsure', history: 'none', took_reading: 'none' };
 
+// The chat goes one part at a time (core.ts partState): each part's newest summary, whether she confirmed it with
+// Đúng rồi, and how many times she replied to its summaries instead.
+function partResults(turns) {
+  const out = new Map();
+  let open = null;
+  for (const t of turns) {
+    if (t.role === 'bot') {
+      open = t.summary?.length ? (t.part ?? '') : null;
+      if (open !== null) out.set(open, { summary: t.summary, confirmed: false, corrections: out.get(open)?.corrections ?? 0 });
+    } else if (open !== null) {
+      if (t.via === 'confirm') { out.get(open).confirmed = true; open = null; } else out.get(open).corrections += 1;
+    }
+  }
+  return out;
+}
+// Every lesson of the chat: the newest summary of each part, in the order the chat reached them.
+export const chatLessons = (turns) => [...partResults(turns).values()].flatMap((r) => r.summary.map((l) => l.text));
+// true when she confirmed the summary of every part that got one, else null.
+export function chatConfirmed(turns) {
+  const results = [...partResults(turns).values()];
+  return results.length > 0 && results.every((r) => r.confirmed) ? true : null;
+}
+
 // The answered rows a chat saves after each bot turn, one per change. Each save repeats the rows with the newer state,
-// so readers keep the newest row per chat and change (latestChatRows). The first row carries the chat so far.
-// `confirmed` is true only after she tapped Đúng rồi; `corrections` counts her replies to a summary.
-export function chatRows({ entry, notes = [], summary = [], turns, model = null, chatId, final = false, confirmed = null, corrections = 0, writerVersion = null }) {
+// so readers keep the newest row per chat and change (latestChatRows). The first row carries the chat so far. A change
+// takes its own part's summary: `confirmed` is true only after she tapped Đúng rồi on it, which also makes its rows
+// final, and `corrections` counts her replies to it.
+export function chatRows({ entry, notes = [], turns, model = null, chatId, final = false, writerVersion = null }) {
   // Nothing is saved before she says something, so opening a chat never marks an edit as explained. A chat the bot
   // closes on its first turn (only minor edits) still saves its final rows.
   if (!final && !turns.some((t) => t.role === 'member')) return [];
   const byId = new Map(notes.map((n) => [n.change_id, n]));
-  const round = turns.filter((t) => t.role === 'member').length;
+  const round = turns.filter((t) => t.role === 'member' && t.via !== 'confirm').length;
   const s = memberWords(turns);
+  const results = partResults(turns);
   return entry.changes.map((c, i) => {
     const n = byId.get(c.id) ?? (c.minor ? { ...BLANK, type: 'minor', verdict: 'none', scope: 'none' } : BLANK);
-    const line = summary.find((l) => l.change_ids.includes(c.id))?.text ?? n.lesson;
+    const r = results.get(c.part) ?? null;
+    // Every line of its part's summary that names this change.
+    const lines = (r?.summary ?? []).filter((l) => l.change_ids.includes(c.id)).map((l) => l.text);
+    const line = lines.length ? lines.join(' / ') : n.lesson;
     return {
-      kind: 'chat', v: 3, chat_id: chatId, round, final, confirmed: confirmed === true ? true : null, corrections,
+      kind: 'chat', v: 3, chat_id: chatId, round, final: final || r?.confirmed === true, confirmed: r?.confirmed ? true : null, corrections: r?.corrections ?? 0,
       part: c.part, change_id: c.id, whole: c.whole, before: c.before, after: c.after, source: c.source,
       ...(c.question_id ? { question_id: c.question_id } : { edit_client_id: c.edit_client_id }),
       type: n.type, verdict: n.verdict, layer: n.layer, reasons: [n.reason_code], words: s.typed, picked: s.tapped, said: s.said,

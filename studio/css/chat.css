@@ -77,7 +77,8 @@ html.gpt-lock .toast,html.gpt-lock body.focus .toast{z-index:70;bottom:calc(132p
 .gpt-msg.bot ul{margin:4px 0 0;padding-left:22px}
 .gpt-msg.bot li{margin:6px 0;padding-left:2px}
 .gpt-msg.bot li::marker{color:var(--g-text-3)}
-.gpt-msg.me{display:flex;justify-content:flex-end}
+/* studio.css styles the header's .me pill (justify-self, padding, min-height); her bubbles share the class name, so undo it. */
+.gpt-msg.me{display:flex;justify-content:flex-end;justify-self:auto;align-items:normal;gap:0;min-height:0;padding:0;border-radius:0}
 .gpt-bubble{max-width:70%;padding:10px 16px;border-radius:22px;background:var(--g-bubble);white-space:pre-wrap;overflow-wrap:anywhere}
 .gpt-w{opacity:0;animation:gpt-fade .32s ease forwards;animation-delay:calc(var(--i) * 18ms)}
 .gpt-note-line{font-size:13px;line-height:18px;color:var(--g-text-3);margin-top:6px}
