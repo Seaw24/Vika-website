@@ -1,6 +1,7 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261012v';
+import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, topUpCards } from '../data.js?v=20261017a';
+import { addedToast } from '../lib/topup.js';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261012v';
+import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261017a';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
 
 // Each active seeding account brings 7 cards a week (Nam, 2026-09-27).
@@ -150,7 +151,7 @@ function wireAdd(ctx, panel, main) {
     f.querySelector('[data-handle-warn]').hidden = !handle || HANDLE.test(handle);
     const card = f.elements.kind.value === 'card';
     note.textContent = card
-      ? `${home && isActive(home) ? 'Dùng chung Bình luận 2 và mã link của bạn. ' : ''}Từ tuần sau bạn nhận ${(seeding + 1) * CARDS_PER_ACCOUNT} bài mỗi tuần thay vì ${seeding * CARDS_PER_ACCOUNT}. Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.`
+      ? `${home && isActive(home) ? 'Dùng chung Bình luận 2 và mã link của bạn. ' : ''}Bạn nhận ngay ${CARDS_PER_ACCOUNT} bài cho tài khoản này, rồi ${(seeding + 1) * CARDS_PER_ACCOUNT} bài mỗi tuần thay vì ${seeding * CARDS_PER_ACCOUNT}. Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.`
       : 'Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.';
   };
   toggle.onclick = () => setOpen(f.hidden);
@@ -175,7 +176,7 @@ function wireAdd(ctx, panel, main) {
         ctx.team.accounts.push(account);
       });
       // A new creative account starts from her creative text. A seeding account needs no row of its own:
-      // it shares the first seeding account's, or shows the empty form when it is her first.
+      // it shares the first seeding account's, or the team pitch when it is her first.
       const source = kind === 'creative'
         ? ctx.team.accounts.find((a) => a.member_id === ctx.me.id && a.kind === 'creative' && a.id !== account.id && isActive(a)) ?? home
         : null;
@@ -183,7 +184,9 @@ function wireAdd(ctx, panel, main) {
         await saveSettings({ account_id: account.id, r2_template: settingsFor(ctx, source).r2_template, account_code: freshCode(ctx, handle) });
         ctx.team.settings = (await loadTeam()).settings;
       }
-      toast(`Đã thêm @${handle}.`);
+      // A seeding account brings its cards now (Nam, 2026-10-17; migration card_top_up).
+      const dealt = kind === 'card' ? await topUpCards().catch((error) => { console.error(error); return null; }) : null;
+      toast(addedToast(handle, dealt));
       await renderSettings(main, ctx);
       const added = main.querySelector(`form[data-account="${CSS.escape(account.id)}"]`);
       added?.classList.add('fresh');

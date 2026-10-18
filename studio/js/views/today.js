@@ -1,12 +1,13 @@
-import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief } from '../data.js?v=20261012v';
+import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, topUpCards } from '../data.js?v=20261017a';
+import { emptyMessage } from '../lib/topup.js';
 import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip, skippedIds } from '../lib/week.js';
 import { reviewable } from '../lib/feedback.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261012v';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261017a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261012v';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261017a';
 import { settingsFor, isActive } from './shared.js';
-import { openChat } from './chat.js?v=20261012v';
+import { openChat } from './chat.js?v=20261017a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -177,6 +178,9 @@ export async function renderToday(main, ctx) {
   // A retired account still names its old posts, but holds no slot and no creative tile.
   const cardAccounts = mine.filter((a) => a.kind === 'card');
   const creative = mine.find((a) => a.kind === 'creative' && isActive(a)) ?? null;
+  // She gets the cards she is owed before the page reads her week (Nam, 2026-10-17; migration card_top_up).
+  const seeding = cardAccounts.filter(isActive).length;
+  const topUp = seeding ? await topUpCards().catch((error) => { console.error(error); return null; }) : null;
   const [weeks, questions] = await Promise.all([loadWeeksFor(ctx.me.id), loadQuestions(ctx.me.id)]);
   const current = mondayOf(today);
   const weekId = weeks.includes(ctx.activeWeek) ? ctx.activeWeek : weeks.includes(current) ? current
@@ -213,12 +217,15 @@ export async function renderToday(main, ctx) {
   const doneToday = postedToday(assignments, states, today);
   const waiting = ledger.filter(({ s }) => s.status === 'claimed').length;
   const confirmed = ledger.filter(({ s }) => s.status === 'confirmed').length;
-  const headline = !weekId ? 'Tuần này chưa có bài.'
+  const waitNote = !weekId || plan[0].status === 'empty' ? emptyMessage({ seeding, short: topUp?.short ?? 0 }) : null;
+  const headline = waitNote ? waitNote.headline
+    : !weekId ? 'Tuần này chưa có bài.'
     : plan[0].status === 'empty' ? 'Hết bài cho tuần này.'
     : doneToday >= slots ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>. Nghỉ thôi.`
     : doneToday ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>.`
     : `Hôm nay có <span class="gold">${slots}&nbsp;bài</span> cho bạn.`;
-  const lede = !weekId ? 'Bài mới có trước 22:00 Chủ nhật.'
+  const lede = waitNote ? waitNote.lede
+    : !weekId ? 'Bài mới có trước 22:00 Chủ nhật.'
     : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài kế tiếp lên thay.'
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
     : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';

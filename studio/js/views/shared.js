@@ -1,8 +1,10 @@
 import { cleanAccountCode } from '../lib/ct.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc } from '../ui.js?v=20261012v';
+import { esc } from '../ui.js?v=20261017a';
 
-export const DEFAULT_TEMPLATE = 'Tải app Vika ở đây nha:\n{link}';
+// The team's locked Bình luận 2 pitch (vika-ops tools/threads-writer/R2.txt, its App Store link as {link}), for a
+// member who never saved her own (Nam, 2026-10-17).
+export const DEFAULT_TEMPLATE = 'Mng ai mà muốn giảm cân, giảm mỡ hiệu quả thì recommend thật lòng là phải tải cái app Vika luôn nhé, free mà xịn cực. Như kiểu có PT sửa form + đếm rep cho mình trong lúc tập luôn ý:\n{link}';
 
 export function settingsFor(ctx, account) {
   const s = ctx.team.settings.find((x) => x.account_id === account.id);

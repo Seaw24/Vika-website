@@ -1,8 +1,9 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps } from '../data.js?v=20261012v';
+import { loadTeamActivity, loadLatestObservations, loadLatestOps, loadTeamShort } from '../data.js?v=20261017a';
+import { shortLines } from '../lib/topup.js';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
 import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { esc, icon, initial } from '../ui.js?v=20261012v';
+import { esc, icon, initial } from '../ui.js?v=20261017a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -91,7 +92,12 @@ export async function renderTeam(main, ctx) {
   // The sample member only shows to itself; real members never see its fake posts here.
   const members = ctx.team.members.filter((m) => ctx.me.is_demo || !m.is_demo);
   const accounts = ctx.team.accounts.filter((a) => members.some((m) => m.id === a.member_id));
-  const { assignments, events, posts, questions } = await loadTeamActivity();
+  const [{ assignments, events, posts, questions }, shortRows] = await Promise.all([
+    loadTeamActivity(),
+    loadTeamShort().catch((error) => { console.error(error); return []; }),
+  ]);
+  // Who still waits for cards, so the admin sees it (Nam, 2026-10-17).
+  const short = shortLines(shortRows, members);
   const items = teamItems({ members, accounts, assignments, events, posts });
   const weeks = teamWeekIds(items, today);
   const weekId = weeks.includes(ctx.teamWeek) ? ctx.teamWeek : current;
@@ -117,6 +123,7 @@ export async function renderTeam(main, ctx) {
         <div class="strip">${gridHtml(week, members)}</div>
       </div>
     </section>
+    ${short.length ? `<p class="notice">${icon('info')}<span>Chờ admin thêm bài: ${esc(short.join(' '))}</span></p>` : ''}
     ${ratioHtml(feedbackRatio({ events, questions, members }))}
     <div class="tm-days">${shown.length ? shown.map((d) => dayHtml(d, today, observations, ops)).join('')
     : '<div class="ledger-empty" style="margin-top:32px"><p>Tuần này chưa bắt đầu.</p></div>'}</div>`;

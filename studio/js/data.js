@@ -210,6 +210,19 @@ export async function addAccount({ member_id, handle, kind }) {
   return must(await supabase.from('accounts').insert({ member_id, handle, kind }).select(ACCOUNT))[0];
 }
 
+// Cards right away (migration card_top_up): deals her the cards she is owed in the newest week from the spare
+// pool. Returns { week_id, dealt, short }.
+export async function topUpCards() {
+  const result = must(await supabase.rpc('top_up_cards')) ?? { week_id: null, dealt: 0, short: 0 };
+  if (result.dealt) clearReadCache();
+  return result;
+}
+
+// Members who still wait for cards in the newest week: [{ member_id, short }].
+export function loadTeamShort() {
+  return cached('team-short', 30000, async () => must(await supabase.rpc('team_cards_short')));
+}
+
 /* ---------- The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md) ---------- */
 
 // Her edits and answers of the last weeks, from any card week, for the Kể lý do sửa list on Hôm nay.
