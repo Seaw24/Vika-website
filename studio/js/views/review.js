@@ -1,7 +1,7 @@
-import { loadAssignments, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261017b';
+import { loadAssignments, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261020a';
 import { reviewable } from '../lib/feedback.js';
-import { esc, toast, icon, cardTags } from '../ui.js?v=20261017b';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261017b';
+import { esc, toast, icon, cardTags } from '../ui.js?v=20261020a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261020a';
 
 export async function renderReview(main, ctx, week) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('bad week');

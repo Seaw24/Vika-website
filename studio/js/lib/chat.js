@@ -160,23 +160,26 @@ const NEXT = { always: 'always', this_post: 'this_post', unsure: 'unsure' };
 const TOOK = { yes: true, no: false };
 const BLANK = { type: 'rewrite', verdict: 'unsure', layer: 'none', reason_code: 'other', cue_words: '', lesson: '', scope: 'unsure', history: 'none', took_reading: 'none' };
 
-// The chat goes one part at a time (core.ts partState): each part's newest summary, whether she confirmed it with
-// Đúng rồi, and how many times she replied to its summaries instead.
+// The chat goes through the parts in card order (core.ts partState), and one summary may close several parts: each
+// part's newest summary, whether she confirmed it with Đúng rồi, and how many times she replied to its summaries instead.
 function partResults(turns) {
   const out = new Map();
-  let open = null;
+  let open = [];
   for (const t of turns) {
     if (t.role === 'bot') {
-      open = t.summary?.length ? (t.part ?? '') : null;
-      if (open !== null) out.set(open, { summary: t.summary, confirmed: false, corrections: out.get(open)?.corrections ?? 0 });
-    } else if (open !== null) {
-      if (t.via === 'confirm') { out.get(open).confirmed = true; open = null; } else out.get(open).corrections += 1;
+      open = t.summary?.length ? (t.parts?.length ? t.parts : [t.part ?? '']) : [];
+      for (const p of open) out.set(p, { summary: t.summary, confirmed: false, corrections: out.get(p)?.corrections ?? 0 });
+    } else if (open.length) {
+      for (const p of open) {
+        if (t.via === 'confirm') out.get(p).confirmed = true; else out.get(p).corrections += 1;
+      }
+      if (t.via === 'confirm') open = [];
     }
   }
   return out;
 }
-// Every lesson of the chat: the newest summary of each part, in the order the chat reached them.
-export const chatLessons = (turns) => [...partResults(turns).values()].flatMap((r) => r.summary.map((l) => l.text));
+// Every lesson of the chat: the newest summary of each part, in the order the chat reached them, each line once.
+export const chatLessons = (turns) => [...new Set([...partResults(turns).values()].flatMap((r) => r.summary.map((l) => l.text)))];
 // true when she confirmed the summary of every part that got one, else null.
 export function chatConfirmed(turns) {
   const results = [...partResults(turns).values()];

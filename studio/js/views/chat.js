@@ -1,8 +1,8 @@
-import { askFeedbackChat, recordEvent } from '../data.js?v=20261017b';
-import { chatRows, chatLessons, chatConfirmed, formAnswers, wireChanges, summaryLabel } from '../lib/chat.js?v=20261017b';
+import { askFeedbackChat, recordEvent } from '../data.js?v=20261020a';
+import { chatRows, chatLessons, chatConfirmed, formAnswers, wireChanges, summaryLabel } from '../lib/chat.js?v=20261020a';
 import { REASONS, PART_LABEL } from '../lib/edits.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc, toast, firstLine } from '../ui.js?v=20261017b';
+import { esc, toast, firstLine } from '../ui.js?v=20261020a';
 
 // The feedback chat (docs/plans/2026-10-12-feedback-chat-v3.md), laid out like ChatGPT on a phone and a computer
 // (Nam, 2026-10-12). The card sits at the top of the thread. The bot talks like a teammate: it opens with what the card
@@ -11,11 +11,11 @@ import { esc, toast, firstLine } from '../ui.js?v=20261017b';
 // the bot, the old reason chips take over in the same screen.
 // deps.ask and deps.save stand in for the Edge Function and the event queue in tests/fixtures/chat-fixture.html.
 
-const CSS_HREF = 'css/chat.css?v=20261017b';
+const CSS_HREF = 'css/chat.css?v=20261020a';
 // Her replies to a part's summary before the chat moves on with it unconfirmed (MAX_CORRECTIONS in core.ts).
 const MAX_CORRECTIONS = 3;
 // The request version and her tap on a part's summary (VERSION and CONFIRM in core.ts).
-const VERSION = 4;
+const VERSION = 5;
 const CONFIRM = 'Đúng rồi';
 const WHERE = { portal: 'sửa trong Studio', posted: 'sửa khi đăng' };
 const SHOW_LABEL = { ...PART_LABEL, source: 'Bài gốc (bản dịch)' };
@@ -189,37 +189,48 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
     chips.scrollLeft = 0;
   }
   // The composer has one job at a time: `on` receives the text when she sends, `canSend` says when the button wakes
-  // (some typed text, unless the job says otherwise), and `busy` turns the button into ChatGPT's stop square.
+  // (some typed text, unless the job says otherwise), and `busy` means the bot is thinking. While it thinks, an empty
+  // box shows ChatGPT's stop square; once she types, the button sends again, and her message replaces the bot's turn
+  // (Hà Vi's chat f6504058, 2026-10-20: she typed while the bot opened, and her send stopped it).
   const typed = () => Boolean(input.value.trim());
   let job = { on: null, canSend: typed, busy: false };
-  const refresh = () => { send.disabled = !job.busy && !(job.on && job.canSend()); };
+  let stopShown = null;
+  const refresh = () => {
+    const stop = job.busy && !typed();
+    if (stop !== stopShown) {
+      stopShown = stop;
+      send.classList.toggle('stop', stop);
+      send.innerHTML = stop ? ICON.stop : ICON.up;
+      send.setAttribute('aria-label', stop ? 'Dừng' : 'Gửi');
+    }
+    send.disabled = !stop && !(job.busy ? typed() : job.on && job.canSend());
+  };
   function composer({ placeholder = 'Trả lời…', on = null, busy = false, canSend = typed } = {}) {
     job = { on, canSend, busy };
     input.placeholder = placeholder;
     input.disabled = !on && !busy;
-    send.classList.toggle('stop', busy);
-    send.innerHTML = busy ? ICON.stop : ICON.up;
-    send.setAttribute('aria-label', busy ? 'Dừng' : 'Gửi');
     refresh();
   }
   const grow = () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 208)}px`; };
   input.addEventListener('input', () => { grow(); refresh(); });
   // Enter sends on a computer; on a phone it makes a new line, and the button sends. A Vietnamese input method is
-  // still composing while isComposing is true, so Enter then only finishes the word. While the bot works, Enter waits.
+  // still composing while isComposing is true, so Enter then only finishes the word. While the bot works, Enter sends
+  // what she typed and never stops the bot on an empty box.
   input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !wide.matches) return;
     e.preventDefault();
-    if (!job.busy) form.requestSubmit();
+    if (!job.busy || typed()) form.requestSubmit();
   });
   form.addEventListener('click', (e) => { if (e.target === form) input.focus(); });
+  const take = () => { const text = input.value.trim(); input.value = ''; grow(); return text; };
   form.onsubmit = (e) => {
     e.preventDefault();
-    if (job.busy) { chat?.stop(); return; }
+    if (job.busy) {
+      if (typed() && chat?.interrupt) chat.interrupt(take()); else chat?.stop();
+      return;
+    }
     if (!job.on || !job.canSend()) return;
-    const text = input.value.trim();
-    input.value = '';
-    grow();
-    job.on(text);
+    job.on(take());
   };
 
   /* ---------- Sidebar ---------- */
@@ -296,7 +307,7 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
     // corrections counts her replies to the current part's summary; onSummary is true while that summary waits for her
     // answer; last says whether it is the chat's last.
     const state = { entry: e, viewOnly: false, saved: 0, done: false, turns: [], notes: [], corrections: 0, onSummary: false, last: true, model: null,
-      chatId: crypto.randomUUID(), askId: 0, leave, stop };
+      chatId: crypto.randomUUID(), askId: 0, leave, stop, interrupt };
     thread.innerHTML = '';
     root.classList.remove('ended');
     $('.gpt-title b').textContent = firstLine(c?.op ?? e.changes[0]?.before ?? '', 80) || 'Kể lý do sửa';
@@ -349,6 +360,12 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
       add('<p class="gpt-note-line">Đã dừng.</p>');
       again('Hỏi lại');
     }
+    // She sent a message while the bot was thinking: its turn is dropped and hers goes out, as after a stop.
+    function interrupt(text) {
+      state.askId += 1;
+      thread.querySelector('.gpt-thinking')?.closest('.gpt-msg')?.remove();
+      if (state.onSummary) correct(text); else message(text, 'type');
+    }
 
     function showTurn(reply) {
       if (reply.notes?.length) state.notes = reply.notes;
@@ -368,13 +385,13 @@ export async function openChat({ entry, card = null, entries = [], cards = new M
       state.turns.push({ role: 'member', text, via });
       askBot();
     }
-    // A part's summary (core.ts closes one part at a time, the post first). Her Đúng rồi saves that part's lesson as
-    // confirmed, then the bot asks about the next part, or the chat ends after the last one.
+    // A summary of the part the chat is on, plus any later parts she already explained (core.ts parseReply). Her Đúng
+    // rồi saves those parts' lessons as confirmed, then the bot asks about the next open part, or the chat ends.
     function showSummary(turn, reply) {
       const summary = reply.summary ?? [];
       state.last = reply.last !== false;
       state.onSummary = summary.length > 0;
-      state.turns.push({ ...turn, summary });
+      state.turns.push({ ...turn, summary, ...(reply.parts?.length ? { parts: reply.parts } : {}) });
       const quotes = showHtml(turn.show, e.changes, c, above);
       above = new Set();
       if (!summary.length) {

@@ -1,13 +1,13 @@
-import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, topUpCards } from '../data.js?v=20261017b';
+import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, topUpCards } from '../data.js?v=20261020a';
 import { emptyMessage } from '../lib/topup.js';
 import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip, skippedIds } from '../lib/week.js';
 import { reviewable } from '../lib/feedback.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261017b';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261020a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261017b';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261020a';
 import { settingsFor, isActive } from './shared.js';
-import { openChat } from './chat.js?v=20261017b';
+import { openChat } from './chat.js?v=20261020a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
