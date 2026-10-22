@@ -256,6 +256,27 @@ export async function askFeedbackChat(body) {
   return data;
 }
 
+// An admin's login carries app_metadata.studio_admin, which only the service key sets (Nam, 2026-10-21).
+// getUser reads the login from Auth, so the flag shows without a new sign-in.
+export function isAdmin() {
+  return cached(`admin.${email}`, 10 * 60_000, async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user?.app_metadata?.studio_admin === true;
+  });
+}
+
+// Adds a person to the team. Returns { member, password }; throws an Error whose code the screen words.
+export async function addMember(email, name) {
+  const { data, error } = await supabase.functions.invoke('add-member', { body: { email, name } });
+  if (error) {
+    let code = 'failed';
+    try { code = (await error.context?.json())?.error ?? code; } catch { /* the body was not JSON */ }
+    throw Object.assign(new Error(code), { code });
+  }
+  return data;
+}
+
 /* ---------- The owner's team view (every member already reads every row under RLS) ---------- */
 
 // Everything that places a post on a day, across all card weeks: members post a card week's

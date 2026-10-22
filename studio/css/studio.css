@@ -553,6 +553,7 @@ thead th{color:var(--muted);font-weight:500;font-size:12px}
 .kind-opt span span{display:block;font-size:14px;color:var(--muted);line-height:1.5;margin-top:2px}
 .add-note{margin-top:12px}
 .add-acct .save{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+.add-done{margin-top:16px}
 .retired li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .retired li:first-child{border-top:0}
 .retired .grow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;flex:1}

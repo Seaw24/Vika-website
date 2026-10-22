@@ -1,8 +1,8 @@
-import { askFeedbackChat, recordEvent } from '../data.js?v=20261020a';
-import { chatRows, chatLessons, chatConfirmed, formAnswers, wireChanges, summaryLabel } from '../lib/chat.js?v=20261020a';
+import { askFeedbackChat, recordEvent } from '../data.js?v=20261021a';
+import { chatRows, chatLessons, chatConfirmed, formAnswers, wireChanges, summaryLabel } from '../lib/chat.js?v=20261021a';
 import { REASONS, PART_LABEL } from '../lib/edits.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc, toast, firstLine } from '../ui.js?v=20261020a';
+import { esc, toast, firstLine } from '../ui.js?v=20261021a';
 
 // The feedback chat (docs/plans/2026-10-12-feedback-chat-v3.md), laid out like ChatGPT on a phone and a computer
 // (Nam, 2026-10-12). The card sits at the top of the thread. The bot talks like a teammate: it opens with what the card
@@ -11,7 +11,7 @@ import { esc, toast, firstLine } from '../ui.js?v=20261020a';
 // the bot, the old reason chips take over in the same screen.
 // deps.ask and deps.save stand in for the Edge Function and the event queue in tests/fixtures/chat-fixture.html.
 
-const CSS_HREF = 'css/chat.css?v=20261020a';
+const CSS_HREF = 'css/chat.css?v=20261021a';
 // Her replies to a part's summary before the chat moves on with it unconfirmed (MAX_CORRECTIONS in core.ts).
 const MAX_CORRECTIONS = 3;
 // The request version and her tap on a part's summary (VERSION and CONFIRM in core.ts).

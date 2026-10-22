@@ -1,8 +1,9 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, topUpCards } from '../data.js?v=20261020a';
+import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, topUpCards } from '../data.js?v=20261021a';
 import { addedToast } from '../lib/topup.js';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261020a';
+import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261021a';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
+import { showMemberPanel } from './members-admin.js';
 
 // Each active seeding account brings 7 cards a week (Nam, 2026-09-27).
 const CARDS_PER_ACCOUNT = 7;
@@ -362,4 +363,5 @@ export async function renderSettings(main, ctx) {
     };
   });
   main.querySelector('#out').onclick = () => signOut();
+  showMemberPanel(main, ctx);
 }
