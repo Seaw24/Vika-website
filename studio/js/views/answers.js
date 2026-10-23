@@ -1,9 +1,9 @@
-import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261021a';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261023a';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { esc, firstLine, initial } from '../ui.js?v=20261021a';
+import { esc, firstLine, initial } from '../ui.js?v=20261023a';
 import { diffHtml } from './shared.js';
-import { latestChatRows } from '../lib/chat.js?v=20261021a';
+import { latestChatRows } from '../lib/chat.js?v=20261023a';
 
 const when = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const KINDS = { skip: ['Bài chưa dùng', 'line'], dismiss: ['Không dùng bài này', 'gold'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''], chat: ['Kể lý do sửa', 'dark'] };
@@ -42,18 +42,21 @@ function entry(a, edit) {
     ${p.kind === 'chat' && !(p.v >= 2) && p.agree != null ? `<p class="guessline">${p.agree ? 'Đồng ý với điều máy đoán.' : 'Không đồng ý với điều máy đoán.'} <span class="tiny muted">· ${esc(p.model ?? '')}</span></p>` : ''}
     ${p.guess ? `<p class="guessline">Máy đoán: ${esc(p.guess)} <span class="tiny muted">· ${esc(p.model)}</span><br><b style="font-weight:500">${p.agree === true ? 'Thành viên xác nhận đúng.' : 'Thành viên không đồng ý.'}</b></p>` : ''}
     ${p.reasons?.length ? `<div class="tags">${p.reasons.map((r) => `<span class="tag">${esc(labelFor([...REASONS, ...SKIP_REASONS], r))}</span>`).join('')}</div>` : ''}
-    ${p.words ? `<p class="words">${esc(p.words)}</p>` : ''}
+    ${p.words && !(p.v >= 2) ? `<p class="words">${esc(p.words)}</p>` : ''}
     ${p.next_time ? `<p class="small muted" style="margin-top:10px">Bài sau: <b style="color:var(--ink);font-weight:500">${esc(labelFor(NEXT_TIME, p.next_time))}</b></p>` : ''}
     ${edit ? `<details><summary>Xem chỗ sửa</summary>${diffHtml(edit.payload.before, edit.payload.after)}</details>` : ''}
   </div></article>`;
 }
 
+// A chat entry shows the bot's summary of the change, the one she answers Đúng rồi to, never her own messages
+// (Nam, 2026-10-23); the transcript keeps those.
 function chatLines(p) {
   const [verdict, tone] = VERDICT[p.verdict] ?? [];
-  const tags = [verdict ? `<span class="tag ${tone}">${esc(verdict)}</span>` : '', LAYER[p.layer] ? `<span class="tag line">${esc(LAYER[p.layer])}</span>` : ''].join('');
-  return `${tags ? `<div class="tags" style="margin-top:8px">${tags}</div>` : ''}
-    ${p.lesson ? `<p class="guessline">Bài học: ${esc(p.lesson)} <span class="tiny muted">· ${p.confirmed === true ? 'đã xác nhận' : p.confirmed === 'amended' ? 'đã sửa lại' : 'chưa xác nhận'}${p.corrections ? ` · sửa ${p.corrections} lần` : ''}</span></p>` : ''}
-    ${p.picked?.length ? `<p class="small muted" style="margin-top:8px">Chọn: ${esc(p.picked.join(' · '))}</p>` : ''}`;
+  const state = p.confirmed === true ? 'Đã xác nhận' : p.confirmed === 'amended' ? 'Đã sửa lại' : 'Chưa xác nhận';
+  const tags = [verdict ? `<span class="tag ${tone}">${esc(verdict)}</span>` : '', LAYER[p.layer] ? `<span class="tag line">${esc(LAYER[p.layer])}</span>` : '',
+    `<span class="tag ${p.confirmed === true ? 'dark' : 'line'}">${esc(state)}${p.corrections ? ` · sửa ${p.corrections} lần` : ''}</span>`].join('');
+  return `<div class="tags" style="margin-top:8px">${tags}</div>
+    <p class="words">${esc(p.lesson)}</p>`;
 }
 
 export async function renderAnswers(main, ctx) {
@@ -65,8 +68,9 @@ export async function renderAnswers(main, ctx) {
   let displayed = initial;
   const paint = ({ rows, questions }) => {
     displayed = { rows, questions };
-    // A chat saves its rows after every round; only the newest row of each change shows, and minor edits do not.
-    const enriched = latestChatRows(rows).filter((row) => !(row.payload?.v >= 2 && row.payload.type === 'minor')).map((row) => {
+    // A chat saves its rows after every round; only the newest row of each change shows. Minor edits do not, nor a
+    // change the bot has no summary for yet.
+    const enriched = latestChatRows(rows).filter((row) => !(row.payload?.v >= 2 && (row.payload.type === 'minor' || !String(row.payload.lesson ?? '').trim()))).map((row) => {
       const q = questions.get(row.payload?.question_id);
       // A chat answer already holds the exact span it is about.
       return q && row.payload?.kind !== 'chat' ? { ...row, payload: { ...row.payload, guess: q.guess, model: q.model, before: q.before_text, after: q.after_text } } : row;

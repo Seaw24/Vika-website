@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261021a';
-import { renderSignIn } from './views/signin.js?v=20261021a';
-import { esc, toast, icon, initial } from './ui.js?v=20261021a';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261023a';
+import { renderSignIn } from './views/signin.js?v=20261023a';
+import { esc, toast, icon, initial } from './ui.js?v=20261023a';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
@@ -30,14 +30,14 @@ let routeId = 0;
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261021a').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261021a').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261021a').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js?v=20261021a').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261021a').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261021a').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261021a').then((m) => m.renderTeam),
-  tiktok: () => import('./views/tiktok.js?v=20261021a').then((m) => m.renderTikTok),
+  today: () => import('./views/today.js?v=20261023a').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261023a').then((m) => m.renderCard),
+  answers: () => import('./views/answers.js?v=20261023a').then((m) => m.renderAnswers),
+  settings: () => import('./views/settings.js?v=20261023a').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261023a').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261023a').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261023a').then((m) => m.renderTeam),
+  tiktok: () => import('./views/tiktok.js?v=20261023a').then((m) => m.renderTikTok),
 };
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
@@ -262,9 +262,12 @@ function reboot() {
   return booting;
 }
 
-// Never await Supabase calls inside this callback; schedule them instead.
-supabase.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') setTimeout(reboot, 0);
+// Never await Supabase calls inside this callback; schedule them instead. Supabase also sends SIGNED_IN with the same
+// session each time the tab comes back into view, and a reboot then repaints the page she was on, so only a sign-in by
+// someone else reboots.
+supabase.auth.onAuthStateChange((event, session) => {
+  const signedInAs = session?.user?.email?.toLowerCase() ?? null;
+  if (event === 'SIGNED_OUT' || (event === 'SIGNED_IN' && signedInAs !== ctx?.email)) setTimeout(reboot, 0);
 });
 window.addEventListener('hashchange', route);
 window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 8), { passive: true });

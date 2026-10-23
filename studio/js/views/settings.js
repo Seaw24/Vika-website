@@ -1,7 +1,7 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, topUpCards } from '../data.js?v=20261021a';
+import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, topUpCards } from '../data.js?v=20261023a';
 import { addedToast } from '../lib/topup.js';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261021a';
+import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261023a';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
 import { showMemberPanel } from './members-admin.js';
 

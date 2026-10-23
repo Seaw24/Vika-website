@@ -1,8 +1,8 @@
 // Cài đặt, for admins only: add a person to the team (Nam, 2026-10-21). The panel appears once the admin check
 // answers, so the rest of the page never waits on it.
-import { addMember, isAdmin } from '../data.js?v=20261021a';
+import { addMember, isAdmin } from '../data.js?v=20261023a';
 import { checkMember, cleanEmail, cleanName, failText, addedText, inviteText } from '../lib/members.js';
-import { esc, toast, icon, copyText } from '../ui.js?v=20261021a';
+import { esc, toast, icon, copyText } from '../ui.js?v=20261023a';
 
 function panelHtml() {
   return `<section class="panel add-acct" id="add-member">
@@ -13,7 +13,7 @@ function panelHtml() {
       <label class="field"><span>Email của người mới</span>
         <input name="email" type="email" inputmode="email" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="254" placeholder="ten@gmail.com"></label>
       <label class="field"><span>Tên trong nhóm</span>
-        <input name="name" maxlength="60" autocomplete="off" placeholder="Ví dụ: Hana"></label>
+        <input name="name" maxlength="60" autocomplete="off" placeholder="Ví dụ: Hòa"></label>
       <p class="tiny muted add-note">Người mới tự đổi tên trong Cài đặt, rồi thêm tài khoản Threads để nhận bài ngay.</p>
       <p class="warn" data-warn hidden></p>
       <div class="save"><button class="btn btn-ink" type="submit">Thêm người</button><button type="button" class="btn btn-line" data-cancel>Huỷ</button></div>
