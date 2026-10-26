@@ -51,7 +51,44 @@ export function deliveryMode({ coarse, canShareFiles }) {
   return coarse && canShareFiles ? 'share' : 'download';
 }
 
-export const fileName = (video) => `vika-${video.slug}.mp4`;
+// Thay video (Nam, 2026-10-25): a member uploads her edited copy of a waiting video, with memes or sound effects.
+// Studio plays and saves the edit in place of the original, which stays until the desktop's clean.
+export const MAX_EDIT_BYTES = 50 * 1024 * 1024;
+export const videoPath = (video) => video.edit_path || video.video_path;
+const isMov = (path) => /\.mov$/i.test(String(path ?? ''));
+export const videoType = (video) => (isMov(videoPath(video)) ? 'video/quicktime' : 'video/mp4');
+
+export const fileName = (video) => (video.edit_path
+  ? `vika-${video.slug}-ban-sua.${isMov(video.edit_path) ? 'mov' : 'mp4'}`
+  : `vika-${video.slug}.mp4`);
+
+// The extension her file goes up under, or null for a file Studio does not take. Some phones give no type.
+export function editExtension(file) {
+  const type = String(file?.type ?? '').toLowerCase();
+  const name = String(file?.name ?? '').toLowerCase();
+  if (type === 'video/quicktime' || (!type && name.endsWith('.mov'))) return 'mov';
+  if (type === 'video/mp4' || (!type && name.endsWith('.mp4'))) return 'mp4';
+  return null;
+}
+export const editContentType = (ext) => (ext === 'mov' ? 'video/quicktime' : 'video/mp4');
+
+// Why her file cannot go up, or null when it can.
+export function editProblem(file) {
+  if (!editExtension(file)) return 'Chọn một file video MP4 hoặc MOV nhé.';
+  if (!file.size) return 'File này trống. Chọn lại video nhé.';
+  if (file.size > MAX_EDIT_BYTES) return `Video nặng ${sizeLabel(file.size)}, quá 50 MB. Xuất lại ở 1080p rồi tải lên nhé.`;
+  return null;
+}
+
+// Only the member who put an edit in can replace it or go back to the original, and only while the video waits.
+export const canEdit = (video, memberId) => !video.posted_at && !video.skipped_at && !video.file_removed_at
+  && (!video.edit_by || video.edit_by === memberId);
+
+export function editLabel(video, members, memberId) {
+  if (!video.edit_path) return '';
+  if (video.edit_by === memberId) return 'Bản sửa của bạn';
+  return `Bản sửa của ${members.find((m) => m.id === video.edit_by)?.name ?? 'thành viên'}`;
+}
 
 // The feed (Nam, 2026-10-11): the video on screen and its two neighbours hold a source, the rest drop it, so a phone
 // never keeps every file.

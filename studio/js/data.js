@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { createPendingQueue, createPendingStore } from './lib/pending.js';
 
 let email = null;
@@ -337,4 +338,59 @@ export async function updateTikTok(id, patch, { waiting = false, mine = null, by
   const rows = must(await query.select('*'));
   readCache.delete('tiktok');
   return rows[0] ?? null;
+}
+
+// Thay video (migration tiktok_edit): her edited file goes to edits/<video id>/ in the bucket, then a function points
+// the waiting video at it. A plain request, because a 30 MB upload from a phone needs a progress line and supabase-js
+// reports none. Uploads never overwrite, so the name is the upload time.
+export async function uploadTikTokEdit(videoId, file, { ext, type, onProgress }) {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('signed out');
+  const path = `edits/${videoId}/${Date.now()}.${ext}`;
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/tiktok/${path}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+    xhr.setRequestHeader('Content-Type', type);
+    xhr.setRequestHeader('x-upsert', 'false');
+    xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(event.loaded / event.total); };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`upload ${xhr.status}: ${xhr.responseText}`)));
+    xhr.onerror = () => reject(new Error('upload failed'));
+    xhr.send(file);
+  });
+  return path;
+}
+
+// Her own files in the video's folder go, except `keep`. The storage policy lets her remove only her uploads and never
+// the file a video plays, and the desktop's clean sweeps whatever stays.
+async function sweepEdits(videoId, keep = null) {
+  try {
+    const { data } = await supabase.storage.from('tiktok').list(`edits/${videoId}`, { limit: 100 });
+    const gone = (data ?? []).map((f) => `edits/${videoId}/${f.name}`).filter((p) => p !== keep);
+    if (gone.length) await supabase.storage.from('tiktok').remove(gone);
+  } catch { /* left for the desktop's clean */ }
+}
+
+// The video plays her upload from now on. If the function refuses (posted, skipped, or another member's edit), her
+// upload goes again.
+export async function useTikTokEdit(id, path) {
+  try {
+    const row = must(await supabase.rpc('tiktok_use_edit', { p_video: id, p_path: path }));
+    readCache.delete('tiktok');
+    sweepEdits(id, path);
+    return row;
+  } catch (error) {
+    sweepEdits(id, null);
+    throw error;
+  }
+}
+
+// Dùng lại bản gốc: the edit comes out and her file goes.
+export async function dropTikTokEdit(id) {
+  const row = must(await supabase.rpc('tiktok_drop_edit', { p_video: id }));
+  readCache.delete('tiktok');
+  sweepEdits(id);
+  return row;
 }

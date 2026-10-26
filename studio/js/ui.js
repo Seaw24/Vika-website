@@ -81,6 +81,7 @@ const PATHS = {
   play: '<path d="M8 5.2v13.6L19 12z"/>',
   threads: '<circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.3a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.4 6.9"/>',
   download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
+  upload: '<path d="M12 20V9M7 13.5l5-5 5 5M5 4h14"/>',
   expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   sound: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',

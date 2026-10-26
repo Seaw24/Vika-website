@@ -1,11 +1,11 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261023a';
+import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261025a';
 import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261023a';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261025a';
 import { memberR2 } from './shared.js';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261023a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261025a';
 import { SKIP_REASONS } from '../lib/feedback.js';
 
 const THREADS_LIMIT = 500;

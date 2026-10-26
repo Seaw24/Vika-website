@@ -1168,6 +1168,14 @@ body.tt-shell main{max-width:none;padding:0}
 .sheet .tt-link{display:block;margin-top:16px}
 .sheet .tt-link input{width:100%;min-height:48px;padding:0 16px;border-radius:999px;border:1px solid var(--line-2);background:var(--paper);font-size:16px}
 .sheet .tt-link input:focus{outline:none;border-color:var(--gold-text);box-shadow:0 0 0 4px var(--gold-wash)}
+/* The edit sheet: the buttons stack, and the upload line takes their place while the file goes up. */
+.sheet .tt-edit-acts{flex-direction:column}
+.sheet .tt-edit-acts[hidden],.sheet .tt-up[hidden]{display:none}
+.sheet .tt-edit-acts label.btn{cursor:pointer}
+.sheet .tt-up{margin-top:18px}
+.sheet .tt-up-bar{height:6px;border-radius:6px;background:var(--line-2);overflow:hidden}
+.sheet .tt-up-bar span{display:block;height:100%;width:0;background:var(--gold-text);transition:width .2s linear}
+.sheet .tt-up p{margin-top:8px}
 /* The Home Screen hint: once, in a phone browser, under the top bar. */
 .tt-hint{position:fixed;z-index:26;left:12px;right:12px;top:calc(54px + env(safe-area-inset-top));display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;
   border-radius:16px;background:rgba(24,24,24,.94);color:#fff;font-size:13px;line-height:1.45;box-shadow:0 14px 34px -14px rgba(0,0,0,.9)}

@@ -1,10 +1,11 @@
-import { loadTikTok, signedTikTokUrls, updateTikTok, clearReadCache } from '../data.js?v=20261023a';
+import { loadTikTok, signedTikTokUrls, updateTikTok, clearReadCache, uploadTikTokEdit, useTikTokEdit, dropTikTokEdit } from '../data.js?v=20261025a';
 import { splitQueue, nextVideo, canTakeBack, tiktokUrl, positionLabel, deliveryMode, fileName, skipLabels, SKIP_REASONS, KEEP_DAYS,
-  needsLink, coverName, showHomeHint, homeSteps } from '../lib/tiktok.js?v=20261023a';
+  needsLink, coverName, showHomeHint, homeSteps, videoPath, videoType, editExtension, editContentType, editProblem, canEdit,
+  editLabel, sizeLabel } from '../lib/tiktok.js?v=20261025a';
 import { vnDate } from '../lib/week.js';
-import { esc, toast, icon, copyText } from '../ui.js?v=20261023a';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261023a';
-import { createFeed } from './tiktok-feed.js?v=20261023a';
+import { esc, toast, icon, copyText } from '../ui.js?v=20261025a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261025a';
+import { createFeed } from './tiktok-feed.js?v=20261025a';
 
 // TikTok space (Nam, 2026-10-09; a TikTok feed since 2026-10-11): finished read-Threads videos wait here until a
 // member in Vietnam posts them. Chờ đăng is a feed of the waiting videos with the actions down the side; Đã đăng and
@@ -23,15 +24,20 @@ function whenLabel(at) {
 
 // Chưa đăng and Dùng lại bring a video back; Chờ đăng then opens on it instead of the oldest.
 let startAt = null;
-// One download per video for the whole visit: { promise, blob, loaded, total, onProgress }, and its object URL.
+// One download per file for the whole visit: { promise, blob, loaded, total, onProgress }, and its object URL. Both
+// key on the file's path, so an edit that goes in or comes out never serves the file it replaced.
 const files = new Map();
 const blobUrls = new Map();
-// Steps she has finished on each video this visit (saved, copied), so a repaint keeps their ticks.
+// Steps she has finished on each video this visit (saved, copied), so a repaint keeps their ticks. Lưu counts per
+// file, so a new edit asks her to save again.
 const done = new Map();
 const isDone = (id, step) => done.get(id)?.has(step) ?? false;
 const markDone = (id, step) => { if (!done.has(id)) done.set(id, new Set()); done.get(id).add(step); };
+const saveStep = (video) => `save:${videoPath(video)}`;
 // Bỏ qua shows once the database has the skip columns (migration tiktok_skip); before that the button would only fail.
 let skipReady = false;
+// Thay video shows once the database has the edit columns (migration tiktok_edit).
+let editReady = false;
 const HINT_KEY = 'studio.tiktok.homehint';
 
 const coarse = () => window.matchMedia('(pointer: coarse)').matches;
@@ -46,15 +52,18 @@ function mode(blob) {
 const KEEP_FILES = 3;
 function trimFiles() {
   const finished = [...files].filter(([, entry]) => entry.blob);
-  for (const [id] of finished.slice(0, Math.max(0, finished.length - KEEP_FILES))) {
-    files.delete(id);
-    if (blobUrls.has(id)) { URL.revokeObjectURL(blobUrls.get(id)); blobUrls.delete(id); }
-  }
+  for (const [key] of finished.slice(0, Math.max(0, finished.length - KEEP_FILES))) dropFile(key);
+}
+function dropFile(key) {
+  files.delete(key);
+  if (blobUrls.has(key)) { URL.revokeObjectURL(blobUrls.get(key)); blobUrls.delete(key); }
 }
 
 // The signal belongs to a download the page started on its own (prefetch), so it can stop when she scrolls on.
 function fetchFile(video, url, onProgress, signal) {
-  const hit = files.get(video.id);
+  const key = videoPath(video);
+  const type = videoType(video);
+  const hit = files.get(key);
   if (hit) return hit.promise;
   const entry = { blob: null, loaded: 0, total: video.bytes || 0, onProgress };
   entry.promise = (async () => {
@@ -71,12 +80,12 @@ function fetchFile(video, url, onProgress, signal) {
       entry.loaded += value.length;
       entry.onProgress?.(entry);
     }
-    entry.blob = new Blob(chunks, { type: 'video/mp4' });
+    entry.blob = new Blob(chunks, { type });
     trimFiles();
     return entry.blob;
   })();
-  entry.promise.catch(() => files.delete(video.id));
-  files.set(video.id, entry);
+  entry.promise.catch(() => files.delete(key));
+  files.set(key, entry);
   return entry.promise;
 }
 
@@ -105,6 +114,18 @@ const linkSheet = () => `<dialog class="sheet" id="tt-link-sheet" aria-labelledb
   </form>
 </dialog>`;
 
+// Thay video (Nam, 2026-10-25): she uploads her edited copy, with memes or sound effects, and everyone then plays and
+// saves the edit. The member who put it in can upload another version or go back to the original while the video
+// waits. The file field sits under a label, because a phone opens its picker only from her own tap.
+const editSheet = () => `<dialog class="sheet" id="tt-edit-sheet" aria-labelledby="tt-edit-title">
+  <div class="sheet-grip" aria-hidden="true"></div>
+  <h2 id="tt-edit-title" tabindex="-1" autofocus></h2>
+  <p class="small muted" data-note></p>
+  <div class="tt-up" hidden><div class="tt-up-bar"><span></span></div><p class="small" data-up></p></div>
+  <div class="row-actions tt-edit-acts" data-acts></div>
+  <input class="sr-only" id="tt-edit-file" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" tabindex="-1">
+</dialog>`;
+
 const viewerDialog = () => `<dialog class="ttv" id="tt-viewer" aria-label="Xem video">
   <button class="ttv-x" type="button" data-close aria-label="Đóng">${icon('close')}</button><div class="ttv-feed" tabindex="-1" autofocus></div>
 </dialog>`;
@@ -129,56 +150,67 @@ export async function renderTikTok(main, ctx, section = 'queue') {
   }
   const videos = (await loadTikTok()).map((v) => ({ ...v }));
   skipReady = videos.some((v) => 'skipped_at' in v);
+  editReady = videos.some((v) => 'edit_path' in v);
   let urls = new Map();
   let feed = null;
   let viewerFeed = null;
   let shownId = null;
   let settled = false;
   let saving = false;
-  // The download prefetch has running, { id, controller }, so it can stop when a different video comes on screen.
+  // The download prefetch has running, { id, key, controller }, so it can stop when a different video comes on screen.
   let prefetching = null;
   let linkFor = null;
+  let editFor = null;
+  let uploading = false;
   // The Đã đăng write still in flight for each video, so a link pasted at once waits for it.
   const writes = new Map();
   const find = (id) => videos.find((v) => v.id === id);
   const name = (video) => coverName(video, ctx.team.members);
 
-  main.innerHTML = `<div class="tt-view" id="tt-view"></div>${skipSheet()}${linkSheet()}${viewerDialog()}`;
+  main.innerHTML = `<div class="tt-view" id="tt-view"></div>${skipSheet()}${linkSheet()}${editSheet()}${viewerDialog()}`;
   const view = main.querySelector('#tt-view');
   const skipDialog = main.querySelector('#tt-skip-sheet');
   const linkDialog = main.querySelector('#tt-link-sheet');
+  const editDialog = main.querySelector('#tt-edit-sheet');
   const viewer = main.querySelector('#tt-viewer');
   // A sheet over a feed pauses the video under it.
   const hold = (on) => { feed?.hold(on); viewerFeed?.hold(on); };
 
   const posterOf = (video) => (video.file_removed_at ? null : urls.get(video.poster_path) ?? null);
+  // An edit plays and saves in place of the original.
   async function signedVideo(video, fresh = false) {
-    const url = (await signedTikTokUrls([video.video_path], 3600, { fresh })).get(video.video_path);
+    const path = videoPath(video);
+    const url = (await signedTikTokUrls([path], 3600, { fresh })).get(path);
     if (!url) throw new Error('no signed link');
     return url;
   }
   // The feed plays the downloaded file when there is one, otherwise the signed link.
   async function videoUrl(video, { fresh = false } = {}) {
-    const blob = files.get(video.id)?.blob;
+    const key = videoPath(video);
+    const blob = files.get(key)?.blob;
     if (blob && !fresh) {
-      if (!blobUrls.has(video.id)) blobUrls.set(video.id, URL.createObjectURL(blob));
-      return blobUrls.get(video.id);
+      if (!blobUrls.has(key)) blobUrls.set(key, URL.createObjectURL(blob));
+      return blobUrls.get(key);
     }
     return signedVideo(video, fresh);
   }
+  const edited = (video) => editLabel(video, ctx.team.members, ctx.me.id);
 
   /* Chờ đăng */
 
   const queueButtons = (video) => [
-    { act: 'save', icon: 'download', label: 'Lưu', done: isDone(video.id, 'save') },
+    { act: 'save', icon: 'download', label: 'Lưu', done: isDone(video.id, saveStep(video)) },
     video.caption && { act: 'copy', icon: 'copy', label: 'Mô tả', done: isDone(video.id, 'copy') },
+    editReady && { act: 'edit', icon: 'upload', label: video.edit_path ? 'Bản sửa' : 'Thay video' },
     skipReady && { act: 'skip', icon: 'flag', label: 'Bỏ qua' },
     { act: 'posted', icon: 'check', label: 'Đã đăng', strong: true },
   ].filter(Boolean);
-  // The sound is one line, where TikTok shows a video's sound (Nam, 2026-10-11).
-  const queueOverlay = (video, position, total) => lines(video, positionLabel(position, total, video.duration_s),
+  // The sound is one line, where TikTok shows a video's sound (Nam, 2026-10-11). An edit's length is unknown, so the
+  // line names the edit instead.
+  const queueOverlay = (video, position, total) => lines(video,
+    [positionLabel(position, total, video.edit_path ? null : video.duration_s), edited(video)].filter(Boolean).join(' · '),
     `${video.caption ? `<p class="ttf-cap">${esc(video.caption)}</p>` : ''}${video.sound ? `<p class="ttf-music">♫ ${esc(video.sound)}</p>` : ''}`);
-  const queueActs = { save: (v) => save(v), copy: (v) => copyCaption(v), skip: (v) => openSkip(v), posted: (v, b) => markPosted(v, b) };
+  const queueActs = { save: (v) => save(v), copy: (v) => copyCaption(v), edit: (v) => openEdit(v), skip: (v) => openSkip(v), posted: (v, b) => markPosted(v, b) };
 
   function paintQueue(waiting) {
     if (!waiting.length) {
@@ -231,7 +263,8 @@ export async function renderTikTok(main, ctx, section = 'queue') {
     canTakeBack(video, ctx.me.id) && { act: 'unpost', icon: 'undo', label: 'Chưa đăng' },
   ].filter(Boolean);
   const skippedButtons = (video) => [video.skipped_by === ctx.me.id && { act: 'unskip', icon: 'undo', label: 'Dùng lại' }].filter(Boolean);
-  const postedOverlay = (video) => lines(video, `${name(video)} đăng · ${whenLabel(video.posted_at)}${video.file_removed_at ? ' · đã xoá file' : ''}`);
+  const postedOverlay = (video) => lines(video, [`${name(video)} đăng`, whenLabel(video.posted_at), edited(video),
+    video.file_removed_at && 'đã xoá file'].filter(Boolean).join(' · '));
   const skippedOverlay = (video) => {
     const why = skipLabels(video);
     return lines(video, `${name(video)} bỏ · ${whenLabel(video.skipped_at)}`, why.length ? `<p class="ttf-why">${esc(why.join(' · '))}</p>` : '');
@@ -265,7 +298,7 @@ export async function renderTikTok(main, ctx, section = 'queue') {
     if (section === 'queue') paintQueue(waiting);
     else paintGrid(section === 'posted' ? posted : skipped);
     // A sheet still open over the page keeps the new feed paused too.
-    if (skipDialog.open || linkDialog.open) hold(true);
+    if (skipDialog.open || linkDialog.open || editDialog.open) hold(true);
   }
 
   // Posters fade in as they arrive; nothing else repaints.
@@ -306,18 +339,18 @@ export async function renderTikTok(main, ctx, section = 'queue') {
   // An aborted download leaves `files` and shows no message.
   function stopPrefetch(keepId) {
     if (!prefetching || prefetching.id === keepId) return;
-    if (!files.get(prefetching.id)?.onProgress) prefetching.controller.abort();
+    if (!files.get(prefetching.key)?.onProgress) prefetching.controller.abort();
     prefetching = null;
   }
   // The file of the video on screen downloads once she has watched it for 2 s, unless the phone asks to save data.
   function prefetch(video) {
     if (!video) return;
     stopPrefetch(video.id);
-    if (files.has(video.id) || navigator.connection?.saveData) return;
+    if (files.has(videoPath(video)) || navigator.connection?.saveData) return;
     setTimeout(() => {
-      if (shownId !== video.id || files.has(video.id) || prefetching?.id === video.id || !main.isConnected) return;
+      if (shownId !== video.id || files.has(videoPath(video)) || prefetching?.id === video.id || !main.isConnected) return;
       const controller = new AbortController();
-      prefetching = { id: video.id, controller };
+      prefetching = { id: video.id, key: videoPath(video), controller };
       signedVideo(video).then((url) => fetchFile(video, url, undefined, controller.signal)).catch(() => {})
         .finally(() => { if (prefetching?.controller === controller) prefetching = null; });
     }, 2000);
@@ -325,7 +358,7 @@ export async function renderTikTok(main, ctx, section = 'queue') {
 
   async function save(video) {
     if (saving) { toast('Đang tải một video khác. Đợi xong rồi bấm Lưu lần nữa.'); return; }
-    let blob = files.get(video.id)?.blob;
+    let blob = files.get(videoPath(video))?.blob;
     if (!blob) {
       saving = true;
       saveState(video, '…');
@@ -333,7 +366,7 @@ export async function renderTikTok(main, ctx, section = 'queue') {
         // Look for the download after the link arrives: prefetch may have started it meanwhile, and a download Lưu
         // waits on (it has onProgress) is never stopped.
         const url = await signedVideo(video);
-        const entry = files.get(video.id);
+        const entry = files.get(videoPath(video));
         if (entry) entry.onProgress = progressFor(video);
         blob = await fetchFile(video, url, progressFor(video));
       } catch {
@@ -346,8 +379,8 @@ export async function renderTikTok(main, ctx, section = 'queue') {
     }
     if (mode(blob) === 'share') {
       try {
-        await navigator.share({ files: [new File([blob], fileName(video), { type: 'video/mp4' })] });
-        tick(video, 'save');
+        await navigator.share({ files: [new File([blob], fileName(video), { type: videoType(video) })] });
+        tick(video, saveStep(video));
         toast('Xong. Đăng lên TikTok rồi bấm Đã đăng.');
       } catch (error) {
         // The phone allows sharing only straight after a tap; a slow download uses it up, so ask for one more tap.
@@ -362,7 +395,7 @@ export async function renderTikTok(main, ctx, section = 'queue') {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(href), 60000);
-    tick(video, 'save');
+    tick(video, saveStep(video));
     toast('Đã tải video về máy.');
   }
 
@@ -481,6 +514,106 @@ export async function renderTikTok(main, ctx, section = 'queue') {
     }
   }
 
+  /* Thay video: her edited copy in place of the original, and back */
+
+  const editTitle = editDialog.querySelector('h2');
+  const editNote = editDialog.querySelector('[data-note]');
+  const editActs = editDialog.querySelector('[data-acts]');
+  const editUp = editDialog.querySelector('.tt-up');
+  const editFile = editDialog.querySelector('#tt-edit-file');
+
+  function paintEdit(video) {
+    const who = ctx.team.members.find((m) => m.id === video.edit_by)?.name ?? 'Thành viên';
+    const mine = canEdit(video, ctx.me.id);
+    const size = video.edit_bytes ? `, ${sizeLabel(video.edit_bytes)}` : '';
+    if (!video.edit_path) {
+      editTitle.textContent = 'Thay bằng bản bạn đã sửa';
+      editNote.textContent = 'Tải lên video bạn đã chèn meme hoặc âm thanh. Mọi người sẽ xem và lưu bản này. Bản gốc vẫn được giữ, bạn dùng lại được cho tới khi video được đăng.';
+    } else if (mine) {
+      editTitle.textContent = 'Bản sửa của bạn';
+      editNote.textContent = `Bạn thay lúc ${whenLabel(video.edit_at)}${size}. Mọi người đang xem và lưu bản này. Bản gốc vẫn còn.`;
+    } else {
+      editTitle.textContent = `Bản sửa của ${who}`;
+      editNote.textContent = `${who} thay lúc ${whenLabel(video.edit_at)}${size}. Chỉ ${who} đổi được bản sửa này hoặc dùng lại bản gốc.`;
+    }
+    editActs.innerHTML = mine
+      ? `<label class="btn btn-ink" for="tt-edit-file">${video.edit_path ? 'Chọn bản khác' : 'Chọn video đã sửa'}</label>
+        ${video.edit_path ? '<button class="btn btn-line" type="button" data-revert>Dùng lại bản gốc</button>' : ''}
+        <button class="btn btn-line" type="button" data-close>Thôi</button>`
+      : '<button class="btn btn-line" type="button" data-close>Đóng</button>';
+  }
+
+  function openEdit(video) {
+    editFor = video;
+    paintEdit(video);
+    hold(true);
+    editDialog.showModal();
+  }
+
+  function upState(share, label) {
+    const on = share != null;
+    editUp.hidden = !on;
+    editActs.hidden = on;
+    if (!on) return;
+    editUp.querySelector('span').style.width = `${Math.round(share * 100)}%`;
+    editUp.querySelector('[data-up]').textContent = label ?? `Đang tải lên ${Math.round(share * 100)}%`;
+  }
+
+  // The video now plays another file: the feed reloads it, the old download goes, and Lưu asks for a new save.
+  function swapped(video, row) {
+    const old = videoPath(video);
+    Object.assign(video, row);
+    feed?.swap(video.id);
+    if (old !== videoPath(video)) dropFile(old);
+  }
+
+  // The server refused: someone posted or skipped the video, or put in an edit first, or the upload policy said no.
+  // Any other failure is the network, and the sheet stays for another try.
+  const refused = (error) => ['P0001', '42501'].includes(error?.code) || /^upload 40[03]/.test(error?.message ?? '');
+  async function showRefusal(video) {
+    editDialog.close();
+    try { await reload(); } catch { /* the page keeps what it has */ }
+    const fresh = find(video.id);
+    startAt = fresh && !fresh.posted_at && !fresh.skipped_at ? fresh.id : (feed?.activeId ?? null);
+    paint();
+    toast('Video này vừa có người khác xử lý rồi.');
+  }
+
+  async function uploadEdit(video, file) {
+    const problem = editProblem(file);
+    if (problem) { toast(problem); return; }
+    const ext = editExtension(file);
+    uploading = true;
+    upState(0);
+    try {
+      const path = await uploadTikTokEdit(video.id, file, { ext, type: editContentType(ext), onProgress: (share) => upState(share) });
+      upState(1, 'Đang lưu…');
+      swapped(video, await useTikTokEdit(video.id, path));
+      editDialog.close();
+      toast('Đã thay video. Mọi người sẽ xem và lưu bản sửa này.');
+    } catch (error) {
+      uploading = false;
+      if (refused(error)) await showRefusal(video);
+      else toast('Chưa tải lên được. Kiểm tra mạng rồi thử lại nhé.');
+    } finally {
+      uploading = false;
+      upState(null);
+    }
+  }
+
+  async function revertEdit(video, button) {
+    button.disabled = true;
+    try {
+      swapped(video, await dropTikTokEdit(video.id));
+      editDialog.close();
+      toast('Đã dùng lại bản gốc.');
+    } catch (error) {
+      button.disabled = false;
+      if (refused(error)) await showRefusal(video);
+      else toast('Chưa đổi được. Kiểm tra mạng rồi thử lại nhé.');
+    }
+  }
+
   async function reload() {
     clearReadCache();
     const fresh = await loadTikTok();
@@ -491,10 +624,22 @@ export async function renderTikTok(main, ctx, section = 'queue') {
 
   linkDialog.querySelector('form').onsubmit = (event) => { event.preventDefault(); saveLink(linkFor, event.currentTarget); };
   linkDialog.querySelector('[data-later]').onclick = () => { linkDialog.close(); toast('Dán link sau: mở video ở mục Đã đăng.'); };
-  for (const dialog of [linkDialog, skipDialog]) {
-    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+  for (const dialog of [linkDialog, skipDialog, editDialog]) {
+    dialog.addEventListener('click', (event) => { if (event.target === dialog && !uploading) dialog.close(); });
     dialog.addEventListener('close', () => hold(false));
   }
+  // The edit sheet stays open while her file goes up, so Esc and the phone's back gesture wait for it.
+  editDialog.addEventListener('cancel', (event) => { if (uploading) event.preventDefault(); });
+  editDialog.addEventListener('click', (event) => {
+    if (event.target.closest('[data-close]')) editDialog.close();
+    const revert = event.target.closest('[data-revert]');
+    if (revert && editFor) revertEdit(editFor, revert);
+  });
+  editFile.addEventListener('change', () => {
+    const file = editFile.files?.[0];
+    editFile.value = '';
+    if (file && editFor && !uploading) uploadEdit(editFor, file);
+  });
   viewer.querySelector('[data-close]').onclick = () => viewer.close();
   viewer.addEventListener('close', () => {
     viewerFeed?.destroy();

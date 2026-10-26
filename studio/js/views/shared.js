@@ -1,6 +1,6 @@
 import { cleanAccountCode } from '../lib/ct.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc } from '../ui.js?v=20261023a';
+import { esc } from '../ui.js?v=20261025a';
 
 // The team's locked Bình luận 2 pitch (vika-ops tools/threads-writer/R2.txt, its App Store link as {link}), for a
 // member who never saved her own (Nam, 2026-10-17).

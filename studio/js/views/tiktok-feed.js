@@ -1,5 +1,5 @@
-import { esc, icon } from '../ui.js?v=20261023a';
-import { nearby, afterLeave } from '../lib/tiktok.js?v=20261023a';
+import { esc, icon } from '../ui.js?v=20261025a';
+import { nearby, afterLeave } from '../lib/tiktok.js?v=20261025a';
 
 // The TikTok feed (Nam, 2026-10-11): one video per screen in a snapping scroller, as on TikTok. The video on screen
 // plays and loops; its two neighbours keep their source and the rest drop it. The feed knows nothing about posting
@@ -370,6 +370,23 @@ export function createFeed(host, { videos, startId = null, urlOf, posterOf = () 
       const node = itemOf(id);
       const video = videoOf(id);
       if (node && video) node.querySelector('.ttf-rail').innerHTML = rail(video);
+    },
+    // The video's file changed (an edit went in or came out): its text and buttons repaint, the old file drops, and
+    // the video on screen loads the new one. A sheet still open keeps it paused.
+    swap(id) {
+      const node = itemOf(id);
+      const video = videoOf(id);
+      if (!node || !video || dead) return;
+      node.querySelector('.ttf-info').innerHTML = info(video);
+      node.querySelector('.ttf-rail').innerHTML = rail(video);
+      markMore();
+      const media = node.querySelector('video');
+      if (!media) return;
+      media.pause();
+      media.removeAttribute('src');
+      media.load();
+      delete node.dataset.retried;
+      if (id === activeId) play(node);
     },
     button: (id, act) => itemOf(id)?.querySelector(`.ttf-btn[data-act="${CSS.escape(act)}"]`) ?? null,
     refreshPosters() {
