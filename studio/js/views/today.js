@@ -1,12 +1,12 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, nextCards, loadPool } from '../data.js?v=20261027a';
-import { emptyMessage } from '../lib/pool.js?v=20261027a';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, nextCards, loadPool } from '../data.js?v=20261027b';
+import { emptyMessage } from '../lib/pool.js?v=20261027b';
 import { vnDate, mondayOf, addDays, postingState, remaining, todayPlan, postedToday, postedDay, weekStrip, skippedIds, heldIds } from '../lib/week.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261027a';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261027b';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261027a';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261027b';
 import { settingsFor, isActive, memberR2 } from './shared.js';
-import { openChat } from './chat.js?v=20261027a';
+import { openChat } from './chat.js?v=20261027b';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -211,11 +211,12 @@ export async function renderToday(main, ctx) {
   const available = assignments.filter((a) => held.has(a.id) && !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
 
-  // One slot per card account is the daily target; which account each post goes on is hers to pick. Every card she
-  // holds is in the panel: one per slot, plus any card she had started before the pool (copied or edited).
+  // One slot per card account is the daily target; which account each post goes on is hers to pick. The panel
+  // shows one card per slot, as before the pool (Nam, 2026-10-27). A card she started before the pool (copied or
+  // edited) and that does not fit waits behind and comes up when she posts, before the pool's next card.
   const slots = Math.max(1, seeding);
   const queue = remaining(available, states);
-  const plan = todayPlan({ assignments: available, slots: Math.max(slots, queue.length), states });
+  const plan = todayPlan({ assignments: available, slots, states });
   // The strip and the ledger follow the calendar week, whatever week a card came from.
   const strip = weekStrip({ weekId: current, today, slots, states });
   // Only the daily read knows the account, so a claim shows none until it is confirmed.
@@ -238,7 +239,7 @@ export async function renderToday(main, ctx) {
     : plan[0].status === 'empty' ? 'Chưa có bài cho bạn.'
     : doneToday >= slots ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>. Nghỉ thôi.`
     : doneToday ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>.`
-    : `Hôm nay có <span class="gold">${due}&nbsp;bài</span> cho bạn.`;
+    : `Hôm nay có <span class="gold">${slots}&nbsp;bài</span> cho bạn.`;
   const lede = waitNote ? waitNote.lede
     : plan[0].status === 'empty' ? 'Mở lại trang sau ít phút để nhận bài từ kho chung.'
     : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài đầu kho chung lên thay.'

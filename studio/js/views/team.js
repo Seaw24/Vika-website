@@ -1,9 +1,9 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps, loadPool } from '../data.js?v=20261027a';
-import { poolNotice } from '../lib/pool.js?v=20261027a';
+import { loadTeamActivity, loadLatestObservations, loadLatestOps, loadPool } from '../data.js?v=20261027b';
+import { poolNotice } from '../lib/pool.js?v=20261027b';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
 import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { esc, icon, initial } from '../ui.js?v=20261027a';
+import { esc, icon, initial } from '../ui.js?v=20261027b';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
