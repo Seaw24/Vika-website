@@ -1,13 +1,13 @@
-import { loadWeeksFor, loadAssignments, loadEvents, loadPosts, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, topUpCards } from '../data.js?v=20261025a';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, topUpCards } from '../data.js?v=20261026a';
 import { emptyMessage } from '../lib/topup.js';
-import { vnDate, mondayOf, postingState, remaining, todayPlan, postedToday, weekStrip, skippedIds } from '../lib/week.js';
+import { vnDate, mondayOf, addDays, postingState, remaining, todayPlan, postedToday, postedDay, weekStrip, skippedIds, heldIds } from '../lib/week.js';
 import { reviewable } from '../lib/feedback.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261025a';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261026a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261025a';
-import { settingsFor, isActive } from './shared.js';
-import { openChat } from './chat.js?v=20261025a';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261026a';
+import { settingsFor, isActive, memberR2 } from './shared.js';
+import { openChat } from './chat.js?v=20261026a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -61,7 +61,7 @@ function ticket(p, i) {
   const status = p.status === 'open' ? '<span class="tag line">Chưa đăng</span>' : '';
   if (!p.assignment) {
     return `<article class="ticket is-empty"><div class="ticket-top">${label}${status}</div>
-      <p class="ticket-op">Hết bài tuần này.</p></article>`;
+      <p class="ticket-op">Hết bài.</p></article>`;
   }
   const c = p.assignment.card;
   const href = `#/bai/${esc(p.assignment.id)}`;
@@ -114,17 +114,23 @@ function homeHint() {
     <button class="btn sm btn-line" id="a2hs-ok">Đã hiểu</button></div>`;
 }
 
-function creativeTile(account) {
-  return `<section class="stage gold tile"><p class="eyebrow">Tài khoản sáng tạo · @${esc(account.handle)}</p>
+// Every member gets the tile (Nam, 2026-10-26). A creative account keeps its own Bình luận 2 and link code;
+// without one, the link takes the Bình luận 2 and code of her card posts, and she posts on any account of hers.
+function linkSource(ctx, creative) {
+  return creative ? { account: creative, ...settingsFor(ctx, creative) } : memberR2(ctx, ctx.me.id);
+}
+
+function creativeTile(creative) {
+  return `<section class="stage gold tile"><p class="eyebrow">${creative ? `Tài khoản sáng tạo · @${esc(creative.handle)}` : 'Bài tự viết · tài khoản nào cũng được'}</p>
     <h3>Bài tự viết cũng có link tải app riêng.</h3>
     <p class="muted small">Tạo link cho từng bài mới rồi dán vào bình luận 2, để biết bài nào mang về lượt cài.</p>
     <div class="foot"><button class="btn btn-ink" id="mint">${icon('link')}Tạo link cho bài mới</button></div>
     <div id="minted"></div></section>`;
 }
 
-function wireCreative(main, ctx, account) {
+function wireCreative(main, s) {
+  const { account } = s;
   main.querySelector('#mint').onclick = async () => {
-    const s = settingsFor(ctx, account);
     const code = mintCreativeCode();
     const ct = buildCt(s.account_code, code);
     const text = fillTemplate(s.r2_template, appLink(ct));
@@ -178,73 +184,80 @@ export async function renderToday(main, ctx) {
   // A retired account still names its old posts, but holds no slot and no creative tile.
   const cardAccounts = mine.filter((a) => a.kind === 'card');
   const creative = mine.find((a) => a.kind === 'creative' && isActive(a)) ?? null;
+  const linkFrom = linkSource(ctx, creative);
   // She gets the cards she is owed before the page reads her week (Nam, 2026-10-17; migration card_top_up).
   const seeding = cardAccounts.filter(isActive).length;
   const topUp = seeding ? await topUpCards().catch((error) => { console.error(error); return null; }) : null;
-  const [weeks, questions] = await Promise.all([loadWeeksFor(ctx.me.id), loadQuestions(ctx.me.id)]);
+  // One queue (Nam, 2026-10-26): every card she was dealt and still holds, from all weeks, the newest week first.
+  const [assignments, questions] = await Promise.all([loadMyCards(ctx.me.id), loadQuestions(ctx.me.id)]);
   const current = mondayOf(today);
-  const weekId = weeks.includes(ctx.activeWeek) ? ctx.activeWeek : weeks.includes(current) ? current
-    : [...weeks].filter((w) => w > current).sort()[0] ?? weeks[0] ?? null;
-  ctx.activeWeek = weekId;
-  const assignments = weekId ? await loadAssignments(weekId, ctx.me.id) : [];
   const ids = assignments.map((a) => a.id);
-  const [posts, events] = await Promise.all([
-    loadPosts(ids),
+  const cardIds = [...new Set(assignments.map((a) => a.card.id))];
+  const [cardPosts, holders, events] = await Promise.all([
+    loadCardPosts(cardIds),
+    loadCardHolders(cardIds),
     loadEvents([...new Set([...ids, ...questions.map((q) => q.assignment_id).filter(Boolean)])]),
   ]);
+  const posts = cardPosts.filter((p) => ids.includes(p.assignment_id));
   const states = postingState(events, posts);
   const skipped = skippedIds(events);
-  const available = assignments.filter((a) => !skipped.has(a.id));
+  const held = heldIds(assignments, holders, cardPosts);
+  const available = assignments.filter((a) => held.has(a.id) && !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
 
   // One slot per card account is the daily target; which account each post goes on is hers to pick.
   const slots = Math.max(1, cardAccounts.filter(isActive).length);
   const plan = todayPlan({ assignments: available, slots, states });
-  const strip = weekId ? weekStrip({ weekId, today, slots, states }) : null;
+  // The strip and the ledger follow the calendar week, whatever week a card came from.
+  const strip = weekStrip({ weekId: current, today, slots, states });
   const shown = new Set(plan.filter((p) => p.status === 'open').map((p) => p.assignment.id));
-  const left = remaining(available, states).filter((a) => !shown.has(a.id));
+  const queue = remaining(available, states);
+  const left = queue.filter((a) => !shown.has(a.id));
+  const latest = assignments[0]?.week_id ?? null;
   // Only the daily read knows the account, so a claim shows none until it is confirmed.
-  const ledger = assignments.map((a) => ({ a, s: states.get(a.id) })).filter(({ s }) => s)
+  const ledger = assignments.map((a) => ({ a, s: states.get(a.id) }))
+    .filter(({ s }) => s && (s.status === 'claimed' || postedDay(s) >= current))
     .map((it) => ({ ...it, account: it.s.status === 'confirmed' ? accountOf(it.s.account_id) : null }));
   const rank = { claimed: 0, missing: 1, confirmed: 2 };
   const stamp = (s) => Date.parse(s.posted_at ?? s.published_at ?? s.at ?? 0);
   ledger.sort((x, y) => rank[x.s.status] - rank[y.s.status] || stamp(y.s) - stamp(x.s));
   const observations = await loadLatestObservations(ledger.filter(({ s }) => s.status === 'confirmed').map(({ s }) => s.post.id));
-  const elsewhere = assignments.filter((a) => skipped.has(a.id) && !states.has(a.id)).map((a) => ({ a, note: ['Đã bỏ qua', 'line'] }));
-  const toReview = weekId ? reviewable(assignments, events, posts).length : 0;
+  const elsewhere = assignments.filter((a) => held.has(a.id) && skipped.has(a.id) && !states.has(a.id)).map((a) => ({ a, note: ['Đã bỏ qua', 'line'] }));
+  // The Sunday review asks about her newest week that has started.
+  const reviewWeek = assignments.map((a) => a.week_id).find((w) => w <= current) ?? null;
+  const toReview = reviewWeek ? reviewable(assignments.filter((a) => a.week_id === reviewWeek && held.has(a.id)), events, posts).length : 0;
 
   const due = plan.filter((p) => p.status === 'open').length;
   const doneToday = postedToday(assignments, states, today);
   const waiting = ledger.filter(({ s }) => s.status === 'claimed').length;
   const confirmed = ledger.filter(({ s }) => s.status === 'confirmed').length;
-  const waitNote = !weekId || plan[0].status === 'empty' ? emptyMessage({ seeding, short: topUp?.short ?? 0 }) : null;
+  const waitNote = plan[0].status === 'empty' ? emptyMessage({ seeding, short: topUp?.short ?? 0 }) : null;
   const headline = waitNote ? waitNote.headline
-    : !weekId ? 'Tuần này chưa có bài.'
-    : plan[0].status === 'empty' ? 'Hết bài cho tuần này.'
+    : !assignments.length ? 'Chưa có bài cho bạn.'
+    : plan[0].status === 'empty' ? 'Bạn đã đăng hết bài.'
     : doneToday >= slots ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>. Nghỉ thôi.`
     : doneToday ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>.`
     : `Hôm nay có <span class="gold">${slots}&nbsp;bài</span> cho bạn.`;
   const lede = waitNote ? waitNote.lede
-    : !weekId ? 'Bài mới có trước 22:00 Chủ nhật.'
+    : plan[0].status === 'empty' ? 'Bài mới có trước 22:00 Chủ nhật.'
     : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài kế tiếp lên thay.'
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
     : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';
-  const weekNote = weekId > current ? ' · xem trước' : weekId && weekId < current ? ' · tuần trước' : '';
 
   main.innerHTML = `${ctx.me.is_demo ? `<p class="notice">${icon('info')}<span>Tài khoản mẫu để thử portal. Bài là nội dung đã chuẩn bị; các tên @vika.demo chưa phải tài khoản Threads thật.</span></p>` : ''}
     <section class="stage today-hero">
       <div class="hero-grid">
         <div class="hero-lead">
-          <p class="eyebrow">${esc(formatDay(today))}${weekId ? ` · Tuần ${esc(shortWeek(weekId))}${weekNote}` : ''}</p>
+          <p class="eyebrow">${esc(formatDay(today))} · Tuần ${esc(shortWeek(current))} – ${esc(shortWeek(addDays(current, 6)))}</p>
           <h1>${headline}</h1>
           <p class="lede">${esc(lede)}</p>
         </div>
-        ${strip ? stripHtml(strip, slots) : ''}
+        ${stripHtml(strip, slots)}
       </div>
-      ${plan.length && weekId ? `<div class="tickets">${plan.map((p, i) => ticket(p, i)).join('')}</div>` : ''}
+      ${assignments.length ? `<div class="tickets">${plan.map((p, i) => ticket(p, i)).join('')}</div>` : ''}
     </section>
     <div id="questions"></div>
-    ${weekId ? `<div class="today-board">
+    ${assignments.length ? `<div class="today-board">
       <section class="section ledger-sec">
         <div class="section-head"><div><p class="eyebrow">Bài đã đăng</p><h2 class="section-title">${waiting ? 'Chờ Threads xác nhận' : 'Tuần này đã đăng'}</h2></div>
           <span class="count">${waiting ? `${waiting} chờ · ` : ''}${confirmed} đã xác nhận</span></div>
@@ -252,28 +265,32 @@ export async function renderToday(main, ctx) {
     : `<div class="ledger-empty"><p>Chưa có bài nào tuần này. Bài đầu tiên bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận lúc 06:00 mỗi sáng.</p></div>`}
       </section>
       <section class="section">
-        <div class="section-head"><div><p class="eyebrow">Kho bài</p><h2 class="section-title">Còn lại của tuần</h2></div>
-          <span class="count">${left.length} bài chờ · ${assignments.length} cả tuần</span></div>
-        <div class="library-tools"><div class="seg" role="group" aria-label="Lọc bài">${FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${filter === v}">${l}</button>`).join('')}</div>
-          ${weeks.length > 1 ? `<label><span class="sr-only">Tuần bài</span><select id="active-week">${weeks.map((w) => `<option value="${w}"${w === weekId ? ' selected' : ''}>Tuần ${shortWeek(w)}${w > current ? ' · xem trước' : ''}</option>`).join('')}</select></label>` : ''}</div>
+        <div class="section-head"><div><p class="eyebrow">Kho bài</p><h2 class="section-title">Bài chưa đăng</h2>
+          ${shown.size ? `<p class="sub">${shown.size} bài đầu nằm ở phần Hôm nay phía trên. Bài mới nhất xếp trước.</p>` : ''}</div>
+          <span class="count">Còn ${queue.length} bài</span></div>
+        <div class="library-tools"><div class="seg" role="group" aria-label="Lọc bài">${FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${filter === v}">${l}</button>`).join('')}</div></div>
         <ol class="library" id="library"></ol>
         ${elsewhere.length ? `<details class="fold"><summary>Đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note, after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
       </section>
     </div>` : ''}
     <div class="duo">
-      ${weekId ? `<a class="panel sand tile" href="#/cuoi-tuan/${weekId}"><p class="eyebrow">Cuối tuần</p><h3>Nhìn lại bài chưa dùng</h3>
-        <p class="small muted">${toReview ? `${toReview} bài chưa đăng. Bài chưa dùng về kho cho tuần sau; cho biết vì sao nếu muốn.` : 'Không còn bài nào chưa xử lý.'}</p>
+      ${reviewWeek ? `<a class="panel sand tile" href="#/cuoi-tuan/${reviewWeek}"><p class="eyebrow">Cuối tuần · tuần ${esc(shortWeek(reviewWeek))}</p><h3>Nhìn lại bài chưa dùng</h3>
+        <p class="small muted">${toReview ? `${toReview} bài tuần ${esc(shortWeek(reviewWeek))} chưa đăng. Bài nào không muốn đăng thì cho biết vì sao; bài đó rời kho của bạn.` : 'Không còn bài nào chưa xử lý.'}</p>
         <span class="foot"><span class="btn btn-line sm">Bắt đầu${icon('right')}</span></span></a>` : ''}
-      ${creative ? creativeTile(creative) : ''}
+      ${linkFrom ? creativeTile(creative) : ''}
     </div>
     ${homeHint()}`;
 
+  // The list goes on from the tickets' numbers; cards from earlier weeks sit under one divider.
   const paintLibrary = () => {
     const list = left.filter(matches);
-    main.querySelector('#library').innerHTML = list.length ? list.map((a) => row(a, left.indexOf(a))).join('')
-      : `<li class="muted small" style="padding:18px 4px">${left.length ? 'Không có bài nào khớp bộ lọc này.' : 'Đã dùng hết bài của tuần.'}</li>`;
+    const rows = list.map((a) => row(a, shown.size + left.indexOf(a)));
+    const older = list.findIndex((a) => a.week_id < latest);
+    if (older >= 0) rows.splice(older, 0, `<li class="lib-group">Bài cũ hơn · ${list.length - older}</li>`);
+    main.querySelector('#library').innerHTML = list.length ? rows.join('')
+      : `<li class="muted small" style="padding:18px 4px">${left.length ? 'Không có bài nào khớp bộ lọc này.' : shown.size ? 'Không còn bài nào ngoài bài ở trên.' : 'Đã dùng hết bài.'}</li>`;
   };
-  if (weekId) paintLibrary();
+  if (assignments.length) paintLibrary();
   main.querySelectorAll('[data-filter]').forEach((b) => { b.onclick = () => {
     filter = b.dataset.filter;
     main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
@@ -293,7 +310,6 @@ export async function renderToday(main, ctx) {
       renderToday(main, ctx);
     } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
   }; });
-  if (creative) wireCreative(main, ctx, creative);
+  if (linkFrom) wireCreative(main, linkFrom);
   paintFeedback(main, ctx, questions).catch(() => { /* the list returns on the next visit */ });
-  main.querySelector('#active-week')?.addEventListener('change', (e) => { ctx.activeWeek = e.target.value; renderToday(main, ctx); });
 }

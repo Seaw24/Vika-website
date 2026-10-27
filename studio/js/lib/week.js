@@ -71,13 +71,28 @@ export function issuedCt(events, assignmentId) {
     .sort(byTime).at(-1)?.payload.ct ?? null;
 }
 
-// Cards with no standing choice, in the picker's order. A missing card is free again.
+// Hôm nay holds every card she has not used, from all her weeks (Nam, 2026-10-26: one queue). A card belongs to
+// the member with its newest assignment: an unused card goes back to the spare pool, and the next push or a
+// top-up may deal it to someone else, or to her again. Her older copy then leaves her queue, and so does a card
+// someone else posted. holders are every assignment of her cards { card_id, week_id }; cardPosts every post of them.
+export function heldIds(assignments, holders, cardPosts = []) {
+  const newest = new Map();
+  for (const h of [...holders, ...assignments.map((a) => ({ card_id: a.card.id, week_id: a.week_id }))]) {
+    if (!(newest.get(h.card_id) >= h.week_id)) newest.set(h.card_id, h.week_id);
+  }
+  const mine = new Set(assignments.map((a) => a.id));
+  const postedElsewhere = new Set(cardPosts.filter((p) => !mine.has(p.assignment_id)).map((p) => p.card_id));
+  return new Set(assignments.filter((a) => a.week_id >= newest.get(a.card.id) && !postedElsewhere.has(a.card.id)).map((a) => a.id));
+}
+
+// Cards with no standing choice: the newest week first, then the picker's order. A missing card is free again.
 export const remaining = (assignments, states) =>
-  assignments.filter((a) => !states.has(a.id) || states.get(a.id).status === 'missing').sort((a, b) => a.suggested_order - b.suggested_order);
+  assignments.filter((a) => !states.has(a.id) || states.get(a.id).status === 'missing')
+    .sort((a, b) => String(b.week_id ?? '').localeCompare(String(a.week_id ?? '')) || a.suggested_order - b.suggested_order);
 
 const dayOf = (iso) => (iso ? vnDate(new Date(iso)) : null);
 // The day a post counts for: the member's own tap, or the read's publish time when there was no tap.
-const postedDay = (s) => dayOf(s.posted_at ?? s.published_at);
+export const postedDay = (s) => dayOf(s.posted_at ?? s.published_at);
 
 const postedAt = (s) => Date.parse(s.posted_at ?? s.published_at);
 
@@ -95,8 +110,10 @@ export const postedToday = (assignments, states, today) => assignments.filter((a
   && postedDay(states.get(a.id)) === today).length;
 
 // The week as seven columns with one dot per slot: that day's first, second … post, confirmed or claimed.
+// states may hold cards of any week, so only posts dated inside this one count.
 export function weekStrip({ weekId, today, slots, states }) {
-  const posted = [...states.values()].filter((s) => ['claimed', 'confirmed'].includes(s.status));
+  const end = addDays(weekId, 6);
+  const posted = [...states.values()].filter((s) => ['claimed', 'confirmed'].includes(s.status) && postedDay(s) >= weekId && postedDay(s) <= end);
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(weekId, i);
     const here = posted.filter((s) => postedDay(s) === date).sort((a, b) => postedAt(a) - postedAt(b));

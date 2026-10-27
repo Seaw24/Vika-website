@@ -260,6 +260,7 @@ select{appearance:none;-webkit-appearance:none;min-height:44px;padding:0 40px 0 
 .library li.has-action{display:flex;align-items:center;gap:10px}
 .library li.has-action .lib-row{flex:1;min-width:0}
 .library li.has-action > .btn{flex:none}
+.library li.lib-group{grid-column:1/-1;padding:26px 6px 10px;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;color:var(--muted)}
 @media (min-width:900px){
   .library{display:grid;grid-template-columns:1fr 1fr;column-gap:32px;border-top:0}
   .library li{border-top:0}

@@ -99,11 +99,13 @@ async function allRows(query) {
   }
 }
 
-export async function loadWeeksFor(memberId) {
-  return cached(`weeks:${memberId}`, 30000, async () => {
-    const rows = await allRows(() => supabase.from('assignments').select('week_id').eq('member_id', memberId).order('week_id', { ascending: false }).order('id'));
-    return [...new Set(rows.map((a) => a.week_id))];
-  });
+// A long id list makes the request URL too long, so an .in() read goes 100 ids at a time (one queue: every card
+// she was ever dealt).
+async function inChunks(ids, read) {
+  const unique = [...new Set(ids)];
+  const parts = [];
+  for (let i = 0; i < unique.length; i += 100) parts.push(unique.slice(i, i + 100));
+  return (await Promise.all(parts.map((part) => allRows(() => read(part))))).flat();
 }
 
 export async function loadPosts(assignmentIds) {
@@ -149,6 +151,25 @@ export async function loadAssignments(weekId, memberId) {
     async () => must(await supabase.from('assignments').select(ASSIGNMENT).eq('week_id', weekId).eq('member_id', memberId).order('suggested_order')));
 }
 
+// Every card she was dealt, from all weeks, for the one queue on Hôm nay (Nam, 2026-10-26).
+export async function loadMyCards(memberId) {
+  return cached(`assignments:all:${memberId}`, 30000,
+    () => allRows(() => supabase.from('assignments').select(ASSIGNMENT).eq('member_id', memberId).order('week_id', { ascending: false }).order('suggested_order').order('id')));
+}
+
+// Who else holds these cards, and who posted them (lib/week.js heldIds).
+export async function loadCardHolders(cardIds) {
+  if (!cardIds.length) return [];
+  return cached(`holders:${idsKey(cardIds)}`, 30000,
+    () => inChunks(cardIds, (part) => supabase.from('assignments').select('id,card_id,member_id,week_id').in('card_id', part).order('id')));
+}
+
+export async function loadCardPosts(cardIds) {
+  if (!cardIds.length) return [];
+  return cached(`card-posts:${idsKey(cardIds)}`, 15000,
+    () => inChunks(cardIds, (part) => supabase.from('posts').select('*').in('card_id', part).order('id')));
+}
+
 export async function loadAssignment(id) {
   const rows = must(await supabase.from('assignments').select(ASSIGNMENT).eq('id', id).limit(1));
   return rows[0] ?? null;
@@ -156,7 +177,7 @@ export async function loadAssignment(id) {
 
 export async function loadEvents(assignmentIds) {
   const rows = assignmentIds.length ? await cached(`events:${idsKey(assignmentIds)}`, 15000,
-    () => allRows(() => supabase.from('events').select('id,client_id,at,member_id,type,assignment_id,card_id,account_id,payload').in('assignment_id', assignmentIds).order('id'))) : [];
+    () => inChunks(assignmentIds, (part) => supabase.from('events').select('id,client_id,at,member_id,type,assignment_id,card_id,account_id,payload').in('assignment_id', part).order('id'))) : [];
   const seen = new Set(rows.map((r) => r.client_id));
   const pending = readPending()
     .filter((p) => !seen.has(p.client_id) && assignmentIds.includes(p.assignment_id))
