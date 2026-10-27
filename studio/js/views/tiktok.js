@@ -1,11 +1,11 @@
-import { loadTikTok, signedTikTokUrls, updateTikTok, clearReadCache, uploadTikTokEdit, useTikTokEdit, dropTikTokEdit } from '../data.js?v=20261026a';
+import { loadTikTok, signedTikTokUrls, updateTikTok, clearReadCache, uploadTikTokEdit, useTikTokEdit, dropTikTokEdit } from '../data.js?v=20261027a';
 import { splitQueue, nextVideo, canTakeBack, tiktokUrl, positionLabel, deliveryMode, fileName, skipLabels, SKIP_REASONS, KEEP_DAYS,
   needsLink, coverName, showHomeHint, homeSteps, videoPath, videoType, editExtension, editContentType, editProblem, canEdit,
-  editLabel, sizeLabel } from '../lib/tiktok.js?v=20261026a';
+  editLabel, sizeLabel } from '../lib/tiktok.js?v=20261027a';
 import { vnDate } from '../lib/week.js';
-import { esc, toast, icon, copyText } from '../ui.js?v=20261026a';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261026a';
-import { createFeed } from './tiktok-feed.js?v=20261026a';
+import { esc, toast, icon, copyText } from '../ui.js?v=20261027a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261027a';
+import { createFeed } from './tiktok-feed.js?v=20261027a';
 
 // TikTok space (Nam, 2026-10-09; a TikTok feed since 2026-10-11): finished read-Threads videos wait here until a
 // member in Vietnam posts them. Chờ đăng is a feed of the waiting videos with the actions down the side; Đã đăng and

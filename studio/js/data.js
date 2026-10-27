@@ -144,24 +144,25 @@ export async function loadAnalytics() {
   });
 }
 
-const ASSIGNMENT = 'id,week_id,member_id,suggested_order,card:cards(*)';
+const ASSIGNMENT = 'id,week_id,member_id,suggested_order,released_at,card:cards(*)';
 
 export async function loadAssignments(weekId, memberId) {
   return cached(`assignments:${weekId}:${memberId}`, 30000,
     async () => must(await supabase.from('assignments').select(ASSIGNMENT).eq('week_id', weekId).eq('member_id', memberId).order('suggested_order')));
 }
 
-// Every card she was dealt, from all weeks, for the one queue on Hôm nay (Nam, 2026-10-26).
+// Every card she was dealt and did not give back to the pool (migration card_pool), for Hôm nay.
 export async function loadMyCards(memberId) {
   return cached(`assignments:all:${memberId}`, 30000,
-    () => allRows(() => supabase.from('assignments').select(ASSIGNMENT).eq('member_id', memberId).order('week_id', { ascending: false }).order('suggested_order').order('id')));
+    () => allRows(() => supabase.from('assignments').select(ASSIGNMENT).eq('member_id', memberId).is('released_at', null)
+      .order('week_id', { ascending: false }).order('suggested_order').order('id')));
 }
 
-// Who else holds these cards, and who posted them (lib/week.js heldIds).
+// Who else holds these cards, and who posted them (lib/week.js heldIds). A released copy holds nothing.
 export async function loadCardHolders(cardIds) {
   if (!cardIds.length) return [];
   return cached(`holders:${idsKey(cardIds)}`, 30000,
-    () => inChunks(cardIds, (part) => supabase.from('assignments').select('id,card_id,member_id,week_id').in('card_id', part).order('id')));
+    () => inChunks(cardIds, (part) => supabase.from('assignments').select('id,card_id,member_id,week_id').in('card_id', part).is('released_at', null).order('id')));
 }
 
 export async function loadCardPosts(cardIds) {
@@ -232,17 +233,17 @@ export async function addAccount({ member_id, handle, kind }) {
   return must(await supabase.from('accounts').insert({ member_id, handle, kind }).select(ACCOUNT))[0];
 }
 
-// Cards right away (migration card_top_up): deals her the cards she is owed in the newest week from the spare
-// pool. Returns { week_id, dealt, short }.
-export async function topUpCards() {
-  const result = must(await supabase.rpc('top_up_cards')) ?? { week_id: null, dealt: 0, short: 0 };
+// One shared pool (Nam, 2026-10-27; migration card_pool): fills her empty slots, one per seeding account, from the
+// top of the pool. Returns { dealt, short, pool }; short is what the empty pool could not give.
+export async function nextCards() {
+  const result = must(await supabase.rpc('next_cards')) ?? { dealt: 0, short: 0, pool: 0 };
   if (result.dealt) clearReadCache();
   return result;
 }
 
-// Members who still wait for cards in the newest week: [{ member_id, short }].
-export function loadTeamShort() {
-  return cached('team-short', 30000, async () => must(await supabase.rpc('team_cards_short')));
+// The pool every member sees, in deal order: [{ ord, id, card_code, op, engine, pull }].
+export function loadPool() {
+  return cached('pool', 30000, async () => (must(await supabase.rpc('card_pool')) ?? []).sort((a, b) => a.ord - b.ord));
 }
 
 /* ---------- The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md) ---------- */

@@ -1,13 +1,12 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, topUpCards } from '../data.js?v=20261026a';
-import { emptyMessage } from '../lib/topup.js';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, nextCards, loadPool } from '../data.js?v=20261027a';
+import { emptyMessage } from '../lib/pool.js?v=20261027a';
 import { vnDate, mondayOf, addDays, postingState, remaining, todayPlan, postedToday, postedDay, weekStrip, skippedIds, heldIds } from '../lib/week.js';
-import { reviewable } from '../lib/feedback.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261026a';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261027a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261026a';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261027a';
 import { settingsFor, isActive, memberR2 } from './shared.js';
-import { openChat } from './chat.js?v=20261026a';
+import { openChat } from './chat.js?v=20261027a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -100,7 +99,13 @@ const row = (a, i, { note = null, after = '' } = {}) => `<li${after ? ' class="h
   <span><span class="t">${esc(a.card.op)}</span><span class="tags">${note ? `<span class="tag ${note[1]}">${esc(note[0])}</span>` : ''}${cardTags(a.card)}</span></span>
   <span class="arrow">${icon('right')}</span></a>${after}</li>`;
 
-const matches = (a) => filter === 'all' || a.card.engine === filter || a.card.pull === filter;
+// A pool card is read-only until next_cards() deals it to someone.
+const poolRow = (c, i) => `<li><div class="lib-row is-pool">
+  <span class="n">${String(i + 1).padStart(2, '0')}</span>
+  <span><span class="t">${esc(c.op)}</span><span class="tags">${cardTags(c)}</span></span><span></span></div></li>`;
+const POOL_FIRST = 12;
+
+const matches = (c) => filter === 'all' || c.engine === filter || c.pull === filter;
 
 // The portal sends no reminders, so it asks once to be added to the home screen. It hides for good after
 // "Đã hiểu", and never shows inside the home-screen app itself.
@@ -185,11 +190,12 @@ export async function renderToday(main, ctx) {
   const cardAccounts = mine.filter((a) => a.kind === 'card');
   const creative = mine.find((a) => a.kind === 'creative' && isActive(a)) ?? null;
   const linkFrom = linkSource(ctx, creative);
-  // She gets the cards she is owed before the page reads her week (Nam, 2026-10-17; migration card_top_up).
+  // One shared pool (Nam, 2026-10-27; migration card_pool): before the page reads her cards, her empty slots,
+  // one per seeding account, take the top cards of the pool.
   const seeding = cardAccounts.filter(isActive).length;
-  const topUp = seeding ? await topUpCards().catch((error) => { console.error(error); return null; }) : null;
-  // One queue (Nam, 2026-10-26): every card she was dealt and still holds, from all weeks, the newest week first.
-  const [assignments, questions] = await Promise.all([loadMyCards(ctx.me.id), loadQuestions(ctx.me.id)]);
+  const dealt = seeding ? await nextCards().catch((error) => { console.error(error); return null; }) : null;
+  const [assignments, questions, pool] = await Promise.all([loadMyCards(ctx.me.id), loadQuestions(ctx.me.id),
+    loadPool().catch((error) => { console.error(error); return []; })]);
   const current = mondayOf(today);
   const ids = assignments.map((a) => a.id);
   const cardIds = [...new Set(assignments.map((a) => a.card.id))];
@@ -205,15 +211,13 @@ export async function renderToday(main, ctx) {
   const available = assignments.filter((a) => held.has(a.id) && !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
 
-  // One slot per card account is the daily target; which account each post goes on is hers to pick.
-  const slots = Math.max(1, cardAccounts.filter(isActive).length);
-  const plan = todayPlan({ assignments: available, slots, states });
+  // One slot per card account is the daily target; which account each post goes on is hers to pick. Every card she
+  // holds is in the panel: one per slot, plus any card she had started before the pool (copied or edited).
+  const slots = Math.max(1, seeding);
+  const queue = remaining(available, states);
+  const plan = todayPlan({ assignments: available, slots: Math.max(slots, queue.length), states });
   // The strip and the ledger follow the calendar week, whatever week a card came from.
   const strip = weekStrip({ weekId: current, today, slots, states });
-  const shown = new Set(plan.filter((p) => p.status === 'open').map((p) => p.assignment.id));
-  const queue = remaining(available, states);
-  const left = queue.filter((a) => !shown.has(a.id));
-  const latest = assignments[0]?.week_id ?? null;
   // Only the daily read knows the account, so a claim shows none until it is confirmed.
   const ledger = assignments.map((a) => ({ a, s: states.get(a.id) }))
     .filter(({ s }) => s && (s.status === 'claimed' || postedDay(s) >= current))
@@ -222,25 +226,22 @@ export async function renderToday(main, ctx) {
   const stamp = (s) => Date.parse(s.posted_at ?? s.published_at ?? s.at ?? 0);
   ledger.sort((x, y) => rank[x.s.status] - rank[y.s.status] || stamp(y.s) - stamp(x.s));
   const observations = await loadLatestObservations(ledger.filter(({ s }) => s.status === 'confirmed').map(({ s }) => s.post.id));
+  // A card she skipped left the pool for good; Dùng lại makes it hers again.
   const elsewhere = assignments.filter((a) => held.has(a.id) && skipped.has(a.id) && !states.has(a.id)).map((a) => ({ a, note: ['Đã bỏ qua', 'line'] }));
-  // The Sunday review asks about her newest week that has started.
-  const reviewWeek = assignments.map((a) => a.week_id).find((w) => w <= current) ?? null;
-  const toReview = reviewWeek ? reviewable(assignments.filter((a) => a.week_id === reviewWeek && held.has(a.id)), events, posts).length : 0;
 
   const due = plan.filter((p) => p.status === 'open').length;
   const doneToday = postedToday(assignments, states, today);
   const waiting = ledger.filter(({ s }) => s.status === 'claimed').length;
   const confirmed = ledger.filter(({ s }) => s.status === 'confirmed').length;
-  const waitNote = plan[0].status === 'empty' ? emptyMessage({ seeding, short: topUp?.short ?? 0 }) : null;
+  const waitNote = plan[0].status === 'empty' ? emptyMessage({ seeding, short: dealt?.short ?? 0 }) : null;
   const headline = waitNote ? waitNote.headline
-    : !assignments.length ? 'Chưa có bài cho bạn.'
-    : plan[0].status === 'empty' ? 'Bạn đã đăng hết bài.'
+    : plan[0].status === 'empty' ? 'Chưa có bài cho bạn.'
     : doneToday >= slots ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>. Nghỉ thôi.`
     : doneToday ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>.`
-    : `Hôm nay có <span class="gold">${slots}&nbsp;bài</span> cho bạn.`;
+    : `Hôm nay có <span class="gold">${due}&nbsp;bài</span> cho bạn.`;
   const lede = waitNote ? waitNote.lede
-    : plan[0].status === 'empty' ? 'Bài mới có trước 22:00 Chủ nhật.'
-    : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài kế tiếp lên thay.'
+    : plan[0].status === 'empty' ? 'Mở lại trang sau ít phút để nhận bài từ kho chung.'
+    : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài đầu kho chung lên thay.'
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
     : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';
 
@@ -254,10 +255,10 @@ export async function renderToday(main, ctx) {
         </div>
         ${stripHtml(strip, slots)}
       </div>
-      ${assignments.length ? `<div class="tickets">${plan.map((p, i) => ticket(p, i)).join('')}</div>` : ''}
+      ${seeding || queue.length ? `<div class="tickets">${plan.map((p, i) => ticket(p, i)).join('')}</div>` : ''}
     </section>
     <div id="questions"></div>
-    ${assignments.length ? `<div class="today-board">
+    <div class="today-board">
       <section class="section ledger-sec">
         <div class="section-head"><div><p class="eyebrow">Bài đã đăng</p><h2 class="section-title">${waiting ? 'Chờ Threads xác nhận' : 'Tuần này đã đăng'}</h2></div>
           <span class="count">${waiting ? `${waiting} chờ · ` : ''}${confirmed} đã xác nhận</span></div>
@@ -265,32 +266,31 @@ export async function renderToday(main, ctx) {
     : `<div class="ledger-empty"><p>Chưa có bài nào tuần này. Bài đầu tiên bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận lúc 06:00 mỗi sáng.</p></div>`}
       </section>
       <section class="section">
-        <div class="section-head"><div><p class="eyebrow">Kho bài</p><h2 class="section-title">Bài chưa đăng</h2>
-          ${shown.size ? `<p class="sub">${shown.size} bài đầu nằm ở phần Hôm nay phía trên. Bài mới nhất xếp trước.</p>` : ''}</div>
-          <span class="count">Còn ${queue.length} bài</span></div>
+        <div class="section-head"><div><p class="eyebrow">Kho chung · cả nhóm</p><h2 class="section-title">Còn ${pool.length} bài trong kho chung</h2>
+          <p class="sub">Bạn đăng xong một bài thì bài đầu kho lên Hôm nay của bạn. Bài ai đó bỏ qua thì rời kho.</p></div></div>
         <div class="library-tools"><div class="seg" role="group" aria-label="Lọc bài">${FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${filter === v}">${l}</button>`).join('')}</div></div>
         <ol class="library" id="library"></ol>
-        ${elsewhere.length ? `<details class="fold"><summary>Đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note, after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
+        <div id="pool-more"></div>
+        ${elsewhere.length ? `<details class="fold"><summary>Bạn đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note, after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
       </section>
-    </div>` : ''}
+    </div>
     <div class="duo">
-      ${reviewWeek ? `<a class="panel sand tile" href="#/cuoi-tuan/${reviewWeek}"><p class="eyebrow">Cuối tuần · tuần ${esc(shortWeek(reviewWeek))}</p><h3>Nhìn lại bài chưa dùng</h3>
-        <p class="small muted">${toReview ? `${toReview} bài tuần ${esc(shortWeek(reviewWeek))} chưa đăng. Bài nào không muốn đăng thì cho biết vì sao; bài đó rời kho của bạn.` : 'Không còn bài nào chưa xử lý.'}</p>
-        <span class="foot"><span class="btn btn-line sm">Bắt đầu${icon('right')}</span></span></a>` : ''}
       ${linkFrom ? creativeTile(creative) : ''}
     </div>
     ${homeHint()}`;
 
-  // The list goes on from the tickets' numbers; cards from earlier weeks sit under one divider.
+  // The pool in deal order, the first cards only until she asks for all of them.
+  let showAll = false;
   const paintLibrary = () => {
-    const list = left.filter(matches);
-    const rows = list.map((a) => row(a, shown.size + left.indexOf(a)));
-    const older = list.findIndex((a) => a.week_id < latest);
-    if (older >= 0) rows.splice(older, 0, `<li class="lib-group">Bài cũ hơn · ${list.length - older}</li>`);
-    main.querySelector('#library').innerHTML = list.length ? rows.join('')
-      : `<li class="muted small" style="padding:18px 4px">${left.length ? 'Không có bài nào khớp bộ lọc này.' : shown.size ? 'Không còn bài nào ngoài bài ở trên.' : 'Đã dùng hết bài.'}</li>`;
+    const list = pool.filter(matches);
+    const shownRows = showAll ? list : list.slice(0, POOL_FIRST);
+    main.querySelector('#library').innerHTML = shownRows.length ? shownRows.map((c) => poolRow(c, pool.indexOf(c))).join('')
+      : `<li class="muted small" style="padding:18px 4px">${pool.length ? 'Không có bài nào khớp bộ lọc này.' : 'Kho chung đã hết bài.'}</li>`;
+    main.querySelector('#pool-more').innerHTML = list.length > shownRows.length
+      ? `<button type="button" class="btn btn-line sm" id="pool-all" style="margin-top:14px">Xem tất cả ${list.length} bài</button>` : '';
+    main.querySelector('#pool-all')?.addEventListener('click', () => { showAll = true; paintLibrary(); });
   };
-  if (assignments.length) paintLibrary();
+  paintLibrary();
   main.querySelectorAll('[data-filter]').forEach((b) => { b.onclick = () => {
     filter = b.dataset.filter;
     main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
@@ -300,13 +300,13 @@ export async function renderToday(main, ctx) {
     try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
     main.querySelector('#a2hs')?.remove();
   });
-  // Dùng lại puts a card she set aside back in her queue, in its place (Nam, 2026-09-28).
+  // Dùng lại puts a card she set aside back on her Hôm nay (Nam, 2026-09-28); it never goes back to the pool.
   main.querySelectorAll('[data-take-back]').forEach((b) => { b.onclick = async () => {
     const a = assignments.find((x) => x.id === b.dataset.takeBack);
     b.disabled = true;
     try {
       await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
-      toast('Đã đưa bài về kho.');
+      toast('Đã đưa bài về Hôm nay.');
       renderToday(main, ctx);
     } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
   }; });

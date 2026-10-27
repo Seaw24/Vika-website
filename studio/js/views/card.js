@@ -1,11 +1,11 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261026a';
+import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261027a';
 import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261026a';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261027a';
 import { memberR2 } from './shared.js';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261026a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261027a';
 import { SKIP_REASONS } from '../lib/feedback.js';
 
 const THREADS_LIMIT = 500;
@@ -31,7 +31,9 @@ export async function renderCard(main, ctx, assignmentId) {
     ctx,
     a,
     card: a.card,
-    mine: a.member_id === ctx.me.id,
+    // A card released to the shared pool (migration card_pool) is nobody's until next_cards() deals it again.
+    released: Boolean(a.released_at),
+    mine: a.member_id === ctx.me.id && !a.released_at,
     cardAccounts: ctx.team.accounts.filter((x) => x.member_id === a.member_id && x.kind === 'card'),
     events,
     post: posts[0] ?? null,
@@ -118,6 +120,9 @@ function pickBlock(view) {
   if (view.post) {
     return `<section class="pick" id="pick"><div class="posted-banner">${icon('check')}<span>Đã đăng trên <b>@${esc(postedOn(view)?.handle ?? '')}</b>. Lần đọc Threads đã xác nhận bài này.</span></div></section>`;
   }
+  if (view.released) {
+    return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài này đã về kho chung. Bài kế tiếp của bạn nằm trên Hôm nay.</span></p></section>`;
+  }
   if (!view.mine) {
     return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài của thành viên khác. Bạn xem và sao chép được, nhưng không đánh dấu đã đăng.</span></p></section>`;
   }
@@ -143,6 +148,7 @@ function dockInner(view, next) {
   const label = PARTS.find(([p]) => p === next)?.[1];
   const act = view.post ? `<span class="done-msg">${icon('check')}<span>Bài đã đăng</span></span>`
     : isClaimed(view) ? `<span class="done-msg">${icon('check')}<span>Đã đăng · chờ xác nhận</span></span>`
+    : view.released ? '<span class="done-msg"><span>Bài đã về kho chung</span></span>'
     : !view.mine ? '<span class="done-msg"><span>Bài của thành viên khác</span></span>'
     : next
     ? `<button class="btn btn-gold main-act" data-dock="${next}">${icon('copy')}<span>Sao chép ${esc(label.toLowerCase())}</span></button>`
@@ -184,12 +190,12 @@ function flagCard(view) {
     const why = [...reasonLabels(last), last?.payload?.words].filter(Boolean);
     return `<section class="flag-card" id="flag">
       <div class="flag-head"><span class="flag-ic">${icon('check')}</span>
-        <div><h3>Bạn đã bỏ bài này</h3><p>Bài nằm ở mục Đã bỏ qua trên Hôm nay.${why.length ? ` Lý do: ${esc(why.join(' · '))}.` : ''}</p></div></div>
+        <div><h3>Bạn đã bỏ bài này</h3><p>Bài nằm ở mục Bạn đã bỏ qua trên Hôm nay.${why.length ? ` Lý do: ${esc(why.join(' · '))}.` : ''}</p></div></div>
       <div><button class="btn btn-ink" data-take-back>${icon('undo')}Dùng lại</button></div></section>`;
   }
   return `<section class="flag-card" id="flag">
     <div class="flag-head"><span class="flag-ic">${icon('flag')}</span>
-      <div><h3>Không muốn dùng bài này?</h3><p>Cho nhóm biết vì sao. Bài rời Hôm nay, bài kế tiếp lên thay. Bạn lấy lại được ở mục Đã bỏ qua.</p></div></div>
+      <div><h3>Không muốn dùng bài này?</h3><p>Cho nhóm biết vì sao. Bài rời Hôm nay và rời kho chung, không ai nhận lại bài này; bài đầu kho lên thay. Bạn lấy lại được ở mục Bạn đã bỏ qua.</p></div></div>
     <div data-flag-body><button class="btn btn-ink" data-flag-open>${icon('flag')}Không dùng bài này</button></div></section>`;
 }
 
@@ -352,7 +358,7 @@ async function takeBack(view, button) {
   button.disabled = true;
   try {
     view.events.push(await recordEvent({ ...base(view), type: 'skip_undo' }));
-    toast('Đã đưa bài về kho.');
+    toast('Đã đưa bài về Hôm nay.');
     q(view, '#flag').outerHTML = flagCard(view);
   } catch { toast('Chưa lưu được. Thử lại nhé.'); button.disabled = false; }
 }

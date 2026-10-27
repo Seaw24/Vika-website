@@ -1,9 +1,9 @@
-import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261026a';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261027a';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { esc, firstLine, initial } from '../ui.js?v=20261026a';
+import { esc, firstLine, initial } from '../ui.js?v=20261027a';
 import { diffHtml } from './shared.js';
-import { latestChatRows } from '../lib/chat.js?v=20261026a';
+import { latestChatRows } from '../lib/chat.js?v=20261027a';
 
 const when = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const KINDS = { skip: ['Bài chưa dùng', 'line'], dismiss: ['Không dùng bài này', 'gold'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''], chat: ['Kể lý do sửa', 'dark'] };

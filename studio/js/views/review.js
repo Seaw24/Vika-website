@@ -1,8 +1,8 @@
-import { loadAssignments, loadCardHolders, loadCardPosts, loadEvents, recordEvent } from '../data.js?v=20261026a';
+import { loadAssignments, loadCardHolders, loadCardPosts, loadEvents, recordEvent } from '../data.js?v=20261027a';
 import { reviewable } from '../lib/feedback.js';
 import { heldIds } from '../lib/week.js';
-import { esc, toast, icon, cardTags } from '../ui.js?v=20261026a';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261026a';
+import { esc, toast, icon, cardTags } from '../ui.js?v=20261027a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261027a';
 
 export async function renderReview(main, ctx, week) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('bad week');
@@ -11,8 +11,9 @@ export async function renderReview(main, ctx, week) {
   const cardIds = assignments.map((a) => a.card.id);
   const [events, cardPosts, holders] = await Promise.all([loadEvents(ids), loadCardPosts(cardIds), loadCardHolders(cardIds)]);
   const posts = cardPosts.filter((p) => ids.includes(p.assignment_id));
-  // A card dealt to someone else since then is no longer hers to answer for (lib/week.js heldIds).
-  const held = heldIds(assignments, holders, cardPosts);
+  // A card dealt to someone else since then, or given back to the shared pool (migration card_pool), is no longer
+  // hers to answer for (lib/week.js heldIds).
+  const held = heldIds(assignments.filter((a) => !a.released_at), holders, cardPosts);
   const pending = reviewable(assignments.filter((a) => held.has(a.id)), events, posts);
   const [, m, d] = week.split('-').map(Number);
   let index = 0;

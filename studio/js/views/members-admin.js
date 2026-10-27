@@ -1,8 +1,8 @@
 // Cài đặt, for admins only: add a person to the team (Nam, 2026-10-21). The panel appears once the admin check
 // answers, so the rest of the page never waits on it.
-import { addMember, isAdmin } from '../data.js?v=20261026a';
+import { addMember, isAdmin } from '../data.js?v=20261027a';
 import { checkMember, cleanEmail, cleanName, failText, addedText, inviteText } from '../lib/members.js';
-import { esc, toast, icon, copyText } from '../ui.js?v=20261026a';
+import { esc, toast, icon, copyText } from '../ui.js?v=20261027a';
 
 function panelHtml() {
   return `<section class="panel add-acct" id="add-member">

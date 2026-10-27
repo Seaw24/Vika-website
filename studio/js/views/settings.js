@@ -1,12 +1,11 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, topUpCards } from '../data.js?v=20261026a';
-import { addedToast } from '../lib/topup.js';
+import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut, nextCards } from '../data.js?v=20261027a';
+import { addedToast } from '../lib/pool.js?v=20261027a';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261026a';
+import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261027a';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode } from './shared.js';
 import { showMemberPanel } from './members-admin.js';
 
-// Each active seeding account brings 7 cards a week (Nam, 2026-09-27).
-const CARDS_PER_ACCOUNT = 7;
+// Each active seeding account holds one card from the shared pool at a time (Nam, 2026-10-27; migration card_pool).
 const KIND_LABEL = { card: 'Seeding', creative: 'Sáng tạo' };
 
 const HANDLE = /^[a-z0-9._]{1,30}$/;
@@ -66,7 +65,7 @@ function form(ctx, account) {
     <div class="save"><button class="btn btn-ink" type="submit">Lưu</button><span class="tiny muted" data-status></span>
       <button type="button" class="retire-btn" data-retire>Ngừng dùng</button></div>
     <div class="retire-box" data-retire-box hidden>
-      <p><b>Ngừng dùng @${esc(account.handle)}?</b> Bài đã đăng và số liệu vẫn giữ nguyên. Từ sáng mai hệ thống thôi tìm bài mới trên tài khoản này${account.kind === 'card' ? `, và từ tuần sau bạn nhận ít hơn ${CARDS_PER_ACCOUNT} bài` : ''}. Muốn dùng lại lúc nào cũng được.</p>
+      <p><b>Ngừng dùng @${esc(account.handle)}?</b> Bài đã đăng và số liệu vẫn giữ nguyên. Từ sáng mai hệ thống thôi tìm bài mới trên tài khoản này${account.kind === 'card' ? ', và Hôm nay của bạn nhận ít hơn một bài từ kho chung' : ''}. Muốn dùng lại lúc nào cũng được.</p>
       <div class="actions"><button type="button" class="btn btn-ink sm" data-retire-yes>Ngừng dùng</button><button type="button" class="btn btn-line sm" data-retire-no>Thôi</button></div>
     </div></form>`;
 }
@@ -76,16 +75,16 @@ function addPanel(ctx, open) {
   return `<section class="panel add-acct${open ? ' open' : ''}" id="add">
     <button type="button" class="add-open" data-open aria-expanded="${open}" aria-controls="add-form">
       <span class="plus" aria-hidden="true"></span>
-      <span class="grow"><b>Thêm tài khoản Threads</b><span class="small muted">Mỗi tài khoản seeding nhận thêm ${CARDS_PER_ACCOUNT} bài mỗi tuần.</span></span></button>
+      <span class="grow"><b>Thêm tài khoản Threads</b><span class="small muted">Mỗi tài khoản seeding giữ một bài từ kho chung trên Hôm nay của bạn.</span></span></button>
     <form id="add-form" data-add-form${open ? '' : ' hidden'} novalidate>
       <label class="field"><span>Tên tài khoản Threads</span>
         <span class="at-input"><i>@</i><input name="handle" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="80" placeholder="ten.tai.khoan"></span></label>
       <p class="warn" data-handle-warn hidden>${icon('info')}Chỉ chữ thường, số, dấu chấm và gạch dưới, tối đa 30 ký tự.</p>
       <fieldset class="kind-pick"><legend>Tài khoản này có seeding không?</legend>
         <label class="kind-opt"><input type="radio" name="kind" value="card" checked>
-          <span><b>Có, seeding</b><span>Đăng bài có sẵn của nhóm, kèm Bình luận 2 có link tải app. Nhận thêm ${CARDS_PER_ACCOUNT} bài mỗi tuần.</span></span></label>
+          <span><b>Có, seeding</b><span>Đăng bài có sẵn của nhóm, kèm Bình luận 2 có link tải app. Nhận thêm một bài từ kho chung.</span></span></label>
         <label class="kind-opt"><input type="radio" name="kind" value="creative">
-          <span><b>Không, sáng tạo</b><span>Bạn tự viết bài. Số bài nhận mỗi tuần giữ nguyên.</span></span></label>
+          <span><b>Không, sáng tạo</b><span>Bạn tự viết bài. Số bài trên Hôm nay giữ nguyên.</span></span></label>
       </fieldset>
       <p class="tiny muted add-note" data-note data-seeding="${seeding}"></p>
       <div class="save"><button class="btn btn-ink" type="submit">Thêm tài khoản</button><button type="button" class="btn btn-line" data-cancel>Huỷ</button></div>
@@ -152,7 +151,7 @@ function wireAdd(ctx, panel, main) {
     f.querySelector('[data-handle-warn]').hidden = !handle || HANDLE.test(handle);
     const card = f.elements.kind.value === 'card';
     note.textContent = card
-      ? `${home && isActive(home) ? 'Dùng chung Bình luận 2 và mã link của bạn. ' : ''}Bạn nhận ngay ${CARDS_PER_ACCOUNT} bài cho tài khoản này, rồi ${(seeding + 1) * CARDS_PER_ACCOUNT} bài mỗi tuần thay vì ${seeding * CARDS_PER_ACCOUNT}. Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.`
+      ? `${home && isActive(home) ? 'Dùng chung Bình luận 2 và mã link của bạn. ' : ''}Hôm nay của bạn nhận ngay thêm một bài từ kho chung, thành ${seeding + 1} bài một lượt thay vì ${seeding}. Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.`
       : 'Sáng mai hệ thống bắt đầu đọc số liệu của tài khoản này.';
   };
   toggle.onclick = () => setOpen(f.hidden);
@@ -185,8 +184,8 @@ function wireAdd(ctx, panel, main) {
         await saveSettings({ account_id: account.id, r2_template: settingsFor(ctx, source).r2_template, account_code: freshCode(ctx, handle) });
         ctx.team.settings = (await loadTeam()).settings;
       }
-      // A seeding account brings its cards now (Nam, 2026-10-17; migration card_top_up).
-      const dealt = kind === 'card' ? await topUpCards().catch((error) => { console.error(error); return null; }) : null;
+      // A seeding account brings its card from the pool now (Nam, 2026-10-27; migration card_pool).
+      const dealt = kind === 'card' ? await nextCards().catch((error) => { console.error(error); return null; }) : null;
       toast(addedToast(handle, dealt));
       await renderSettings(main, ctx);
       const added = main.querySelector(`form[data-account="${CSS.escape(account.id)}"]`);
