@@ -89,6 +89,8 @@ const PATHS = {
   up: '<path d="M6 15l6-6 6 6"/>',
   down: '<path d="M6 9l6 6 6-6"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  bookmark: '<path d="M7 3.5h10a1.5 1.5 0 0 1 1.5 1.5v16l-6.5-4.3L5.5 21V5A1.5 1.5 0 0 1 7 3.5z"/>',
+  stack: '<rect x="4" y="9" width="16" height="11.5" rx="2.5"/><path d="M6.5 5.8h11M9 2.8h6"/>',
 };
 export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] ?? ''}</svg>`;
 

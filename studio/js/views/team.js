@@ -1,9 +1,13 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestOps, loadPool } from '../data.js?v=20261027b';
-import { poolNotice } from '../lib/pool.js?v=20261027b';
+import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261028a';
+import { poolNotice } from '../lib/pool.js?v=20261028a';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
-import { teamItems, teamWeek, teamWeekIds } from '../lib/team.js';
+import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261028a';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { esc, icon, initial } from '../ui.js?v=20261027b';
+import { liveNotes } from '../lib/feed.js?v=20261028a';
+import { PART_LABEL } from '../lib/edits.js';
+import { esc, icon, initial, cardTags } from '../ui.js?v=20261028a';
+import { diffHtml } from './shared.js';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261028a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -43,23 +47,31 @@ function statusTag(it) {
   return '<span class="tag line">Đã chọn, chưa bấm đăng</span>';
 }
 
-function postRow(it, observations, ops) {
+// One post as the feed shows a card (Nam, 2026-10-27): the text as she posted it on the left, the card's Góp ý nội dung
+// on the right. An edited post opens the card as written beside what went out.
+function postCard(ctx, it, observations, versions, copies) {
   const o = it.post ? observations.get(it.post.id) : null;
-  const text = it.assignment?.card.op ?? (it.post ? ops.get(it.post.id) : null) ?? 'Bài tự viết (chưa đọc được nội dung).';
+  const t = postedText(it, versions, copies);
+  const card = it.assignment?.card ?? null;
   const nums = o ? `<span class="num"><b>${num(o.views)}</b> lượt xem · <b>${num(o.other_replies ?? o.replies)}</b> trả lời · <b>${num(o.reposts)}</b> đăng lại</span>`
     : it.status === 'confirmed' ? '<span>Số liệu có sau lần đọc đầu tiên.</span>' : '';
   const link = it.post?.source_url ? `<a class="linkish tm-out" href="${esc(it.post.source_url)}" target="_blank" rel="noopener">Mở trên Threads${icon('out')}</a>` : '';
-  const railMark = it.status === 'confirmed' ? icon('check') : '';
-  return `<li class="led ${it.status === 'chosen' ? 'open' : it.status}"><span class="led-rail"><i>${railMark}</i></span>
-    <div class="led-body">
-      <div class="led-top"><span class="tm-who"><i class="av sm">${esc(initial(it.member.name))}</i><b>${esc(firstName(it.member.name))}</b>${it.account ? `<span class="tm-handle">@${esc(it.account.handle)}</span>` : ''}${it.kind === 'creative' ? '<span class="tag gold">Tự viết</span>' : ''}</span>
+  const edited = t.changed.length ? `<details class="tm-orig"><summary>${icon('feedback')}<span>Đã sửa ${esc(t.changed.map((p) => PART_LABEL[p].toLowerCase()).join(' và '))} · xem bản viết sẵn</span><span class="plus"></span></summary>
+      ${t.changed.map((p) => `<p class="fc-lbl">${esc(PART_LABEL[p])}</p>${diffHtml(card[p], t[p], { from: 'Bản viết sẵn', to: 'Bản đã đăng' })}`).join('')}</details>` : '';
+  return `<li class="fc tm-card no-enter${card ? '' : ' solo'}">
+    <article class="fc-post">
+      <div class="fc-top"><span class="tm-who"><i class="av sm">${esc(initial(it.member.name))}</i><b>${esc(firstName(it.member.name))}</b>${it.account ? `<span class="tm-handle">@${esc(it.account.handle)}</span>` : ''}${it.kind === 'creative' ? '<span class="tag gold">Tự viết</span>' : ''}</span>
         <span class="led-when">${esc(vnTime(it.at))}</span></div>
-      <p class="led-op">${esc(text)}</p>
-      <div class="led-foot">${statusTag(it)}${nums}${link}</div>
-    </div></li>`;
+      <p class="fc-op">${esc(t.op ?? 'Bài tự viết (chưa đọc được nội dung).')}</p>
+      ${t.r1 ? `<div class="fc-r1"><span class="fc-lbl">Bình luận 1</span><p>${esc(t.r1)}</p></div>` : ''}
+      ${edited}
+      <div class="led-foot">${statusTag(it)}${card ? cardTags(card) : ''}${nums}${link}</div>
+    </article>
+    ${card ? talkHtml(ctx, card, threads.get(card.id) ?? []) : ''}
+  </li>`;
 }
 
-function dayHtml(day, today, observations, ops) {
+function dayHtml(ctx, day, today, observations, versions, copies) {
   const posted = day.perMember.reduce((n, p) => n + p.posted, 0);
   const who = day.perMember.map((p) => p.posted
     ? `<span class="tag ok">${esc(firstName(p.member.name))} · ${p.posted}</span>`
@@ -69,7 +81,7 @@ function dayHtml(day, today, observations, ops) {
     <div class="section-head"><div><p class="eyebrow">${esc(eyebrow)}</p><h2 class="section-title">${esc(weekday(day.date))}, ${dm(day.date)}</h2></div>
       <span class="count">${posted} bài đã đăng</span></div>
     <div class="tags tm-sum">${who}</div>
-    ${day.items.length ? `<ol class="ledger">${day.items.map((it) => postRow(it, observations, ops)).join('')}</ol>`
+    ${day.items.length ? `<ol class="feed">${day.items.map((it) => postCard(ctx, it, observations, versions, copies)).join('')}</ol>`
     : `<div class="ledger-empty"><p>${day.when === 'today' ? 'Chưa ai đăng hôm nay.' : 'Không ai đăng ngày này.'}</p></div>`}
   </section>`;
 }
@@ -105,10 +117,15 @@ export async function renderTeam(main, ctx) {
   ctx.teamWeek = weekId;
   const week = teamWeek({ weekId, today, members, items });
   const inWeek = week.days.flatMap((d) => d.items).filter((it) => it.post);
-  const [observations, ops] = await Promise.all([
+  const shownItems = week.days.flatMap((d) => d.items);
+  const cardIds = [...new Set(shownItems.filter((it) => it.assignment).map((it) => it.assignment.card.id))];
+  const [observations, versions, copies, notes] = await Promise.all([
     loadLatestObservations(inWeek.map((it) => it.post.id)),
-    loadLatestOps(inWeek.filter((it) => it.kind === 'creative').map((it) => it.post.id)),
+    loadLatestVersions(inWeek.map((it) => it.post.id)),
+    loadCopies(shownItems.filter((it) => it.assignment).map((it) => it.assignment.id)),
+    loadComments(cardIds).catch((error) => { console.error(error); return []; }),
   ]);
+  for (const id of cardIds) threads.set(id, liveNotes(notes.filter((n) => n.card_id === id)));
   const shown = week.days.filter((d) => d.when !== 'future').reverse();
   const total = week.totals.reduce((n, t) => n + t.posted, 0);
   const isCurrent = weekId === current;
@@ -126,11 +143,12 @@ export async function renderTeam(main, ctx) {
     </section>
     ${low ? `<p class="notice warn">${icon('info')}<span>${esc(low)}</span></p>` : ''}
     ${ratioHtml(feedbackRatio({ events, questions, members }))}
-    <div class="tm-days">${shown.length ? shown.map((d) => dayHtml(d, today, observations, ops)).join('')
+    <div class="tm-days">${shown.length ? shown.map((d) => dayHtml(ctx, d, today, observations, versions, copies)).join('')
     : '<div class="ledger-empty" style="margin-top:32px"><p>Tuần này chưa bắt đầu.</p></div>'}</div>`;
 
   main.querySelectorAll('.tg-cell[data-day]').forEach((b) => { b.onclick = () => {
     main.querySelector(`#ngay-${b.dataset.day}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }; });
   main.querySelector('#team-week')?.addEventListener('change', (e) => { ctx.teamWeek = e.target.value; renderTeam(main, ctx); });
+  wireTalk(main.querySelector('.tm-days'), ctx);
 }

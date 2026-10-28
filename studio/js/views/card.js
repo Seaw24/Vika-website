@@ -1,12 +1,13 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent } from '../data.js?v=20261027b';
+import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard } from '../data.js?v=20261028a';
 import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261027b';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261028a';
 import { memberR2 } from './shared.js';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261027b';
 import { SKIP_REASONS } from '../lib/feedback.js';
+import { liveNotes } from '../lib/feed.js?v=20261028a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261028a';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';
@@ -22,16 +23,17 @@ const TABS = [['why', 'Vì sao chọn'], ['src', 'Bài gốc'], ['keep', 'Ý c�
 export async function renderCard(main, ctx, assignmentId) {
   const a = await loadAssignment(assignmentId);
   if (!a) {
-    main.innerHTML = `<a class="linkish" href="#/">${icon('left')}Hôm nay</a><div class="empty" style="margin-top:16px"><h2>Không tìm thấy bài này</h2><p>Bài có thể đã được đổi tuần.</p></div>`;
+    main.innerHTML = `<a class="linkish" href="#/">${icon('left')}Kho bài</a><div class="empty" style="margin-top:16px"><h2>Không tìm thấy bài này</h2><p>Bài có thể đã được đổi tuần.</p></div>`;
     return;
   }
-  const [events, posts] = await Promise.all([loadEvents([a.id]), loadPosts([a.id])]);
+  const [events, posts, notes] = await Promise.all([loadEvents([a.id]), loadPosts([a.id]), loadComments([a.card.id])]);
+  threads.set(a.card.id, liveNotes(notes));
   const view = {
     main,
     ctx,
     a,
     card: a.card,
-    // A card released to the shared pool (migration card_pool) is nobody's until next_cards() deals it again.
+    // A card released to the shared pool (migration card_pool) is nobody's until a member takes it again.
     released: Boolean(a.released_at),
     mine: a.member_id === ctx.me.id && !a.released_at,
     cardAccounts: ctx.team.accounts.filter((x) => x.member_id === a.member_id && x.kind === 'card'),
@@ -44,6 +46,7 @@ export async function renderCard(main, ctx, assignmentId) {
   // first seeding account. She posts on any of her accounts; the daily read finds it.
   view.r2 = memberR2(ctx, a.member_id);
   view.home = view.r2?.account ?? null;
+  ctx.onLeave = () => askLeave(view);
   paint(view);
 }
 
@@ -121,19 +124,19 @@ function pickBlock(view) {
     return `<section class="pick" id="pick"><div class="posted-banner">${icon('check')}<span>Đã đăng trên <b>@${esc(postedOn(view)?.handle ?? '')}</b>. Lần đọc Threads đã xác nhận bài này.</span></div></section>`;
   }
   if (view.released) {
-    return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài này đã về kho chung. Bài kế tiếp của bạn nằm trên Hôm nay.</span></p></section>`;
+    return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài này đã về kho chung. Muốn đăng thì lấy lại trong kho, nếu chưa bạn nào lấy.</span></p></section>`;
   }
   if (!view.mine) {
     return `<section class="pick" id="pick"><p class="notice">${icon('info')}<span>Bài của thành viên khác. Bạn xem và sao chép được, nhưng không đánh dấu đã đăng.</span></p></section>`;
   }
   if (k?.status === 'claimed') {
     return `<section class="pick" id="pick"><div class="claim-banner">${icon('check')}<span class="grow"><b>Đã đăng</b> lúc ${esc(whenPosted(k.posted_at))}.
-      <small>Máy đọc Threads tìm bài trên các tài khoản của bạn lúc ${nextRead()}. Bài kế tiếp đã lên Hôm nay. Bạn vẫn sửa được bên dưới cho đến lúc đó.</small></span>
+      <small>Máy đọc Threads tìm bài trên các tài khoản của bạn lúc ${nextRead()}. Bạn vẫn sửa được bên dưới cho đến lúc đó.</small></span>
       <button class="linkish" data-unpost>${icon('undo')}Chưa đăng, bỏ đánh dấu</button></div></section>`;
   }
   const missing = k?.status === 'missing';
   return `<section class="pick" id="pick">${missing ? `<p class="notice warn">${icon('info')}<span>Lần đọc Threads chưa thấy bài này trên tài khoản nào của bạn sau khi bạn đánh dấu đã đăng. Kiểm tra link ở bình luận 2, rồi bấm Đã đăng xong khi bài đã lên.</span></p>` : ''}
-    <div class="pick-foot"><span class="tiny muted">Đăng trên tài khoản nào của bạn cũng được. Máy đọc Threads tự tìm bài.</span><span class="pick-acts"><button class="linkish strong" data-posted>${icon('check')}Đã đăng xong</button></span></div></section>`;
+    <div class="pick-foot"><span class="tiny muted">Đăng trên tài khoản nào của bạn cũng được. Máy đọc Threads tự tìm bài.</span><span class="pick-acts"><button class="linkish" data-release>${icon('bookmark')}Bỏ giữ bài này</button><button class="linkish strong" data-posted>${icon('check')}Đã đăng xong</button></span></div></section>`;
 }
 
 function introHtml(view) {
@@ -153,7 +156,7 @@ function dockInner(view, next) {
     : next
     ? `<button class="btn btn-gold main-act" data-dock="${next}">${icon('copy')}<span>Sao chép ${esc(label.toLowerCase())}</span></button>`
     : `<button class="btn btn-gold main-act" data-dock="posted">${icon('check')}<span>Đã đăng xong</span></button>`;
-  return `<a class="icon-btn" href="#/" aria-label="Về Hôm nay">${icon('left')}</a>${act}
+  return `<a class="icon-btn" href="#/" aria-label="Về Kho bài">${icon('left')}</a>${act}
     <a class="icon-btn" href="${THREADS_URL}" target="_blank" rel="noopener noreferrer" aria-label="Mở Threads">${icon('out')}</a>`;
 }
 
@@ -178,31 +181,25 @@ function tabPanel(view) {
     ${card.engine ? `<dt>Cách kéo tương tác</dt><dd>${esc(ENGINE_LABEL[card.engine])}</dd>` : ''}</dl>`;
 }
 
-// Không dùng bài này (Nam, 2026-09-28): she says why, the card leaves Hôm nay for Đã bỏ qua and the next
-// card takes its slot. Dùng lại brings it back. Hidden once she has said she posted it.
+// Không dùng bài này (Nam, 2026-09-28) is gone since the pool became a feed (Nam, 2026-10-27): a card she does not want
+// gets a note in Góp ý nội dung, or goes back with Trả về kho chung. A card she set aside before keeps its Dùng lại.
 const setAside = (view) => skippedIds(view.events).has(view.a.id);
 const reasonLabels = (e) => (e?.payload?.reasons ?? []).map((r) => SKIP_REASONS.find(([code]) => code === r)?.[1]).filter(Boolean);
 
 function flagCard(view) {
-  if (['claimed', 'confirmed'].includes(claim(view)?.status)) return '';
-  if (setAside(view)) {
-    const last = view.events.filter((e) => e.type === 'skipped').at(-1);
-    const why = [...reasonLabels(last), last?.payload?.words].filter(Boolean);
-    return `<section class="flag-card" id="flag">
-      <div class="flag-head"><span class="flag-ic">${icon('check')}</span>
-        <div><h3>Bạn đã bỏ bài này</h3><p>Bài nằm ở mục Bạn đã bỏ qua trên Hôm nay.${why.length ? ` Lý do: ${esc(why.join(' · '))}.` : ''}</p></div></div>
-      <div><button class="btn btn-ink" data-take-back>${icon('undo')}Dùng lại</button></div></section>`;
-  }
+  if (['claimed', 'confirmed'].includes(claim(view)?.status) || !setAside(view)) return '';
+  const last = view.events.filter((e) => e.type === 'skipped').at(-1);
+  const why = [...reasonLabels(last), last?.payload?.words].filter(Boolean);
   return `<section class="flag-card" id="flag">
-    <div class="flag-head"><span class="flag-ic">${icon('flag')}</span>
-      <div><h3>Không muốn dùng bài này?</h3><p>Cho nhóm biết vì sao. Bài rời Hôm nay và rời kho chung, không ai nhận lại bài này; bài đầu kho lên thay. Bạn lấy lại được ở mục Bạn đã bỏ qua.</p></div></div>
-    <div data-flag-body><button class="btn btn-ink" data-flag-open>${icon('flag')}Không dùng bài này</button></div></section>`;
+    <div class="flag-head"><span class="flag-ic">${icon('check')}</span>
+      <div><h3>Bạn đã bỏ bài này</h3><p>Bài nằm ở mục Bạn đã bỏ qua trong Kho bài.${why.length ? ` Lý do: ${esc(why.join(' · '))}.` : ''}</p></div></div>
+    <div><button class="btn btn-ink" data-take-back>${icon('undo')}Dùng lại</button></div></section>`;
 }
 
 function paint(view) {
   const o = originals(view);
   view.main.innerHTML = `<div class="post-layout"><div class="post-main">
-      <div class="post-top"><a class="linkish" href="#/">${icon('left')}Hôm nay</a><span class="tags">${cardTags(view.card)}</span></div>
+      <div class="post-top"><a class="linkish" href="#/">${icon('left')}Kho bài</a><span class="tags">${cardTags(view.card)}</span></div>
       <div class="post-intro">${introHtml(view)}</div>
       ${pickBlock(view)}
       <ol class="thread">${PARTS.map((p, i) => partBlock(view, p, i, o)).join('')}</ol>
@@ -210,7 +207,8 @@ function paint(view) {
     <aside class="post-aside"><section class="backstage"><p class="eyebrow">Hậu trường</p>
       <div class="seg" role="tablist" aria-label="Thông tin về bài">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-pressed="${view.tab === k}" aria-selected="${view.tab === k}">${l}</button>`).join('')}</div>
       <div class="panel bs-panel" role="tabpanel" data-tab-panel>${tabPanel(view)}</div></section>
-      ${view.mine ? flagCard(view) : ''}</aside></div>`;
+      ${view.mine ? flagCard(view) : ''}
+      ${talkHtml(view.ctx, view.card, threads.get(view.card.id) ?? [], { place: 'card' })}</aside></div>`;
   view.root = view.main.querySelector('.post-layout');
   view.root.querySelectorAll('[data-edit]').forEach(autoGrow);
   wire(view);
@@ -267,19 +265,24 @@ function restore(view, part) {
   toast('Đã về bản viết sẵn.');
 }
 
-// The member's word that the post is up. The next card comes up on Hôm nay at once; the daily read confirms later.
-// A card she edited sends her to Hôm nay, where the feedback chat opens for it (Nam, 2026-10-12).
-async function markPosted(view) {
-  if (view.post || isClaimed(view) || !view.mine || !view.home) return;
+// The member's word that the post is up; the daily read confirms later. Returns true when a feedback chat waits for
+// the card she edited, which opens on Hôm nay (Nam, 2026-10-12).
+async function recordPosted(view) {
   view.events.push(await recordEvent({ ...base(view), type: 'posted', payload: { ct: ctOf(view), from: 'card' } }));
   const own = view.events.map((e) => ({ ...e, member_id: e.member_id ?? view.ctx.me.id }));
-  if (pendingCards({ events: own, questions: [], memberId: view.ctx.me.id }).length) {
-    try { sessionStorage.setItem('studio.chatFor', view.a.id); } catch { /* storage blocked: the card still waits on Hôm nay */ }
+  if (!pendingCards({ events: own, questions: [], memberId: view.ctx.me.id }).length) return false;
+  try { sessionStorage.setItem('studio.chatFor', view.a.id); } catch { /* storage blocked: the card still waits on Hôm nay */ }
+  return true;
+}
+
+async function markPosted(view) {
+  if (view.post || isClaimed(view) || !view.mine || !view.home) return;
+  if (await recordPosted(view)) {
     toast('Đã ghi: đã đăng. Kể nhanh vì sao bạn sửa nhé.');
     location.hash = '#/';
     return;
   }
-  toast('Đã ghi: đã đăng. Bài kế tiếp đã lên Hôm nay.');
+  toast('Đã ghi: đã đăng.');
   afterChoice(view);
   q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -340,27 +343,75 @@ async function copyAlt(view) {
   sync(view);
 }
 
-function openFlag(view) {
-  const body = q(view, '[data-flag-body]');
-  const before = body.innerHTML;
-  body.innerHTML = feedbackForm({ submit: 'Bỏ bài này', cancel: 'Thôi' });
-  const form = body.querySelector('form');
-  wireFeedback(form, async (payload) => {
-    if (!payload.reasons.length && !payload.words) { toast('Chọn một lý do hoặc viết vài chữ nhé.'); form.querySelector('[type=submit]').disabled = false; return; }
-    view.events.push(await recordEvent({ ...base(view), type: 'skipped', payload: { kind: 'dismiss', ...payload } }));
-    toast('Đã bỏ bài. Bài kế tiếp đã lên thay.');
+// Bỏ giữ: the card goes back to the pool for the others, and she picks another in Kho bài.
+async function release(view, button) {
+  if (!view.mine || view.post || isClaimed(view)) return;
+  button.disabled = true;
+  try {
+    await releaseCard(view.a.id);
+    view.released = true;
+    toast('Đã bỏ giữ. Bài về kho chung cho cả nhóm.');
     location.hash = '#/';
-  }, () => { body.innerHTML = before; });
-  form.querySelector('button')?.focus({ preventScroll: true });
+  } catch (error) { console.error(error); toast('Chưa trả được. Thử lại nhé.'); button.disabled = false; }
 }
 
 async function takeBack(view, button) {
   button.disabled = true;
   try {
     view.events.push(await recordEvent({ ...base(view), type: 'skip_undo' }));
-    toast('Đã đưa bài về Hôm nay.');
+    toast('Bài đã về mục Bạn đang giữ.');
     q(view, '#flag').outerHTML = flagCard(view);
   } catch { toast('Chưa lưu được. Thử lại nhé.'); button.disabled = false; }
+}
+
+/* ---------- Leaving a card she started ---------- */
+
+// She leaves a card she holds after she copied or changed a part, and has not tapped Đã đăng xong: Studio asks whether
+// it went out (Nam, 2026-10-27), because members took card after card and never marked one posted. A card she only
+// read leaves without a question.
+function started(view) {
+  const o = originals(view);
+  return copiedParts(view).size > 0 || PARTS.some(([part]) => o[part] != null && isEdited(o[part], textOf(view, part, o)));
+}
+const mustAsk = (view) => view.mine && !view.post && !isClaimed(view) && !view.released && started(view);
+
+function askLeave(view) {
+  if (!mustAsk(view)) return Promise.resolve(true);
+  const copied = copiedParts(view).size > 0;
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sheet leave-sheet';
+    dialog.setAttribute('aria-labelledby', 'leave-title');
+    dialog.innerHTML = `<div class="sheet-grip"></div>
+      <h2 id="leave-title">Bạn đã đăng bài này lên Threads chưa?</h2>
+      <p class="muted small">${copied ? 'Bạn đã sao chép bài này' : 'Bạn đã sửa bài này'} nhưng chưa bấm Đã đăng xong.</p>
+      <p class="leave-op"><span>${esc(view.card.op)}</span></p>
+      <div class="leave-acts">
+        <button type="button" class="btn btn-gold" data-leave="posted">${icon('check')}Đã đăng xong</button>
+        <button type="button" class="btn btn-line" data-leave="keep">Chưa đăng, giữ bài này</button>
+        <button type="button" class="btn btn-line" data-leave="release">Không đăng, bỏ giữ bài này</button>
+        <button type="button" class="linkish" data-leave="stay">${icon('left')}Ở lại bài này</button>
+      </div>`;
+    document.body.append(dialog);
+    let done = false;
+    async function finish(choice) {
+      if (done) return;
+      done = true;
+      dialog.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      let go = choice !== 'stay';
+      try {
+        if (choice === 'posted') toast(await recordPosted(view) ? 'Đã ghi: đã đăng. Kể nhanh vì sao bạn sửa nhé.' : 'Đã ghi: đã đăng.');
+        else if (choice === 'release') { await releaseCard(view.a.id); view.released = true; toast('Đã bỏ giữ. Bài về kho chung cho cả nhóm.'); }
+        else if (choice === 'keep') toast('Bài vẫn ở mục Bạn đang giữ.');
+      } catch (error) { console.error(error); toast('Chưa lưu được. Thử lại nhé.'); go = false; }
+      dialog.close();
+      dialog.remove();
+      resolve(go);
+    }
+    dialog.addEventListener('click', (e) => { const b = e.target.closest('[data-leave]'); if (b) finish(b.dataset.leave); });
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); finish('stay'); });
+    dialog.showModal();
+  });
 }
 
 /* ---------- One set of listeners for the whole page ---------- */
@@ -384,7 +435,8 @@ function wire(view) {
       view.tab = d.tab;
       root.querySelectorAll('[data-tab]').forEach((x) => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-selected', String(x === b)); });
       q(view, '[data-tab-panel]').innerHTML = tabPanel(view);
-    } else if ('flagOpen' in d) openFlag(view);
+    } else if ('release' in d) release(view, b);
     else if ('takeBack' in d) takeBack(view, b);
   });
+  wireTalk(root, view.ctx);
 }

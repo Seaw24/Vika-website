@@ -246,6 +246,50 @@ export function loadPool() {
   return cached('pool', 30000, async () => (must(await supabase.rpc('card_pool')) ?? []).sort((a, b) => a.ord - b.ord));
 }
 
+/* ---------- Kho chung as a feed, and Góp ý nội dung (Nam, 2026-10-27; migration card_feed) ---------- */
+
+// One chunk of the pool in deal order, each card with its notes, so a chunk is one request. Her own held cards stay in
+// it with held set to their assignment id. like_mine marks a card whose look-alike she posted or holds this week or last
+// week. Returns { cards, total }.
+export async function loadPoolPage({ offset = 0, limit = 12, filter = 'all' } = {}) {
+  const rows = must(await supabase.rpc('pool_feed', { p_filter: filter, p_offset: offset, p_limit: limit })) ?? [];
+  return { cards: rows, total: rows[0]?.total ?? (offset ? offset : 0) };
+}
+
+// Giữ bài: she holds a card, at most 3 unposted at once. Returns { assignment_id } or { error: 'taken' | 'limit', by }.
+export async function takeCard(cardId) {
+  const result = must(await supabase.rpc('take_card', { p_card: cardId }));
+  if (result?.assignment_id) clearReadCache();
+  return result;
+}
+
+// Bỏ giữ: a card she holds and has not posted goes back to the pool for the others.
+export async function releaseCard(assignmentId) {
+  const released = must(await supabase.rpc('release_card', { p_assignment: assignmentId }));
+  clearReadCache();
+  if (released === false) throw Object.assign(new Error('not held'), { code: 'not_held' });
+}
+
+const COMMENT = 'id,client_id,card_id,member_id,body,tags,created_at';
+// client_id is unique, so a retry after a lost answer returns the row it already wrote.
+export async function addComment({ client_id, card_id, body, tags }) {
+  const { data, error } = await supabase.from('card_comments').insert({ client_id, card_id, body, tags }).select(COMMENT).single();
+  if (!error) return data;
+  if (error.code !== '23505') throw error;
+  return must(await supabase.from('card_comments').select(COMMENT).eq('client_id', client_id).single());
+}
+
+// Only her own notes. A deleted note keeps its row with deleted_at set, and Studio stops showing it.
+export async function deleteComment(id) {
+  const rows = must(await supabase.from('card_comments').update({ deleted_at: new Date().toISOString() }).eq('id', id).select('id'));
+  if (!rows.length) throw Object.assign(new Error('not yours'), { code: '42501' });
+}
+
+export async function loadComments(cardIds) {
+  if (!cardIds.length) return [];
+  return inChunks(cardIds, (part) => supabase.from('card_comments').select(COMMENT).in('card_id', part).is('deleted_at', null).order('created_at').order('id'));
+}
+
 /* ---------- The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md) ---------- */
 
 // Her edits and answers of the last weeks, from any card week, for the Kể lý do sửa list on Hôm nay.
@@ -328,6 +372,25 @@ export async function loadLatestOps(postIds) {
     for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, r.op);
     return latest;
   });
+}
+
+// The newest capture of each post as the daily read saw it on Threads: Map post_id → { op, r1 }.
+export async function loadLatestVersions(postIds) {
+  if (!postIds.length) return new Map();
+  return cached(`versions:${idsKey(postIds)}`, 30000, async () => {
+    const rows = await inChunks(postIds, (part) => supabase.from('post_versions').select('post_id,op,r1,captured_at,id')
+      .in('post_id', part).order('captured_at', { ascending: false }).order('id', { ascending: false }));
+    const latest = new Map();
+    for (const r of rows) if (!latest.has(r.post_id)) latest.set(r.post_id, { op: r.op, r1: r.r1 });
+    return latest;
+  });
+}
+
+// The parts members copied or edited on these cards, for the text a claimed post went out with (lib/team.js postedText).
+export async function loadCopies(assignmentIds) {
+  if (!assignmentIds.length) return [];
+  return cached(`copies:${idsKey(assignmentIds)}`, 15000, () => inChunks(assignmentIds, (part) => supabase.from('events')
+    .select('id,at,type,assignment_id,payload').in('assignment_id', part).in('type', ['copied', 'edited']).order('id')));
 }
 
 /* ---------- TikTok (Nam, 2026-10-09): only members with members.tiktok on read these rows and files ---------- */

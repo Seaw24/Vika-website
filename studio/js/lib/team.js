@@ -1,4 +1,5 @@
 import { addDays, mondayOf, postingState, vnDate } from './week.js';
+import { isEdited } from './edits.js';
 
 const dayOf = (iso) => (iso ? vnDate(new Date(iso)) : null);
 const POSTED = ['claimed', 'confirmed'];
@@ -27,6 +28,26 @@ export function teamItems({ members, accounts, assignments, events, posts }) {
     if (member) items.push({ kind: 'creative', status: 'confirmed', at: p.published_at, day: dayOf(p.published_at), member, account, assignment: null, post: p });
   }
   return items;
+}
+
+// The post as it went out (Nam, 2026-10-27: Nhóm shows what she posted, not the card as written). Part by part, the
+// daily read's newest capture wins; before the read, the text she last copied or edited in Studio; else the card.
+//   versions Map post_id → { op, r1 } (data.js loadLatestVersions); copies are copied and edited events (loadCopies).
+// Returns { op, r1, read, changed } where read says the read has seen the post and changed lists the parts that differ
+// from the card.
+export function postedText(item, versions = new Map(), copies = []) {
+  const card = item.assignment?.card ?? null;
+  const seen = item.post ? versions.get(item.post.id) ?? null : null;
+  const mine = copies.filter((e) => item.assignment && e.assignment_id === item.assignment.id)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.id - b.id);
+  const studio = (part) => {
+    const e = mine.filter((x) => x.payload?.part === part && (x.type === 'copied' ? x.payload.text : x.payload.after) != null).at(-1);
+    return e ? (e.type === 'copied' ? e.payload.text : e.payload.after) : null;
+  };
+  const text = (part) => seen?.[part] ?? studio(part) ?? card?.[part] ?? null;
+  const out = { op: text('op'), r1: text('r1'), read: Boolean(seen) };
+  out.changed = card ? ['op', 'r1'].filter((p) => out[p] != null && card[p] != null && isEdited(card[p], out[p])) : [];
+  return out;
 }
 
 // Calendar weeks (their Mondays) from the first item to this week, newest first.

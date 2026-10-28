@@ -1,25 +1,23 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, nextCards, loadPool } from '../data.js?v=20261027b';
-import { emptyMessage } from '../lib/pool.js?v=20261027b';
-import { vnDate, mondayOf, addDays, postingState, remaining, todayPlan, postedToday, postedDay, weekStrip, skippedIds, heldIds } from '../lib/week.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261027b';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard } from '../data.js?v=20261028a';
+import { vnDate, mondayOf, addDays, postingState, remaining, postedToday, postedDay, weekStrip, skippedIds, heldIds } from '../lib/week.js';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261028a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261027b';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261028a';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261028a';
 import { settingsFor, isActive, memberR2 } from './shared.js';
-import { openChat } from './chat.js?v=20261027b';
+import { openChat } from './chat.js?v=20261028a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261028a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-const FILTERS = [['all', 'Tất cả'], ['ask', 'Hỏi'], ['line', 'Một câu'], ['strong', 'Lan mạnh']];
 const VN = 'Asia/Ho_Chi_Minh';
-let filter = 'all';
 
 function formatDay(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   return `${DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${d}/${m}`;
 }
 const shortWeek = (iso) => { const [, m, d] = iso.split('-').map(Number); return `${d}/${m}`; };
-const shortDate = (iso) => { const [, m, d] = iso.split('-').map(Number); return `${d}/${m}`; };
 const vnTime = (at) => new Intl.DateTimeFormat('vi-VN', { timeZone: VN, hour: '2-digit', minute: '2-digit' }).format(new Date(at));
 const vnHour = () => Number(new Intl.DateTimeFormat('en-US', { timeZone: VN, hour: 'numeric', hour12: false }).format(new Date())) % 24;
 const num = (v) => new Intl.NumberFormat('vi-VN').format(v);
@@ -38,7 +36,7 @@ function whenLabel(at, today) {
 // The daily read of Threads runs at 06:00 Vietnam time.
 const nextRead = () => (vnHour() < 6 ? '06:00 sáng nay' : '06:00 sáng mai');
 
-/* ---------- Hero: the week strip and the tickets ---------- */
+/* ---------- Hero: the week strip and the cards she holds ---------- */
 
 // One row per daily slot: that day's first post, second post …
 function stripHtml(strip, slots) {
@@ -54,23 +52,22 @@ function stripHtml(strip, slots) {
   </div>`;
 }
 
-// A ticket is the next card to post, not an account: she posts it on whichever of her accounts she likes.
-function ticket(p, i) {
-  const label = `<span class="handle"><span>Bài ${i + 1}</span></span>`;
-  const status = p.status === 'open' ? '<span class="tag line">Chưa đăng</span>' : '';
-  if (!p.assignment) {
-    return `<article class="ticket is-empty"><div class="ticket-top">${label}${status}</div>
-      <p class="ticket-op">Hết bài.</p></article>`;
-  }
-  const c = p.assignment.card;
-  const href = `#/bai/${esc(p.assignment.id)}`;
-  const kicker = '';
-  const act = `<a class="go" href="${href}">Mở bài${icon('right')}</a>`;
-  return `<article class="ticket is-${p.status}">
-    <div class="ticket-top">${label}${status}</div>
-    ${kicker}
-    <a class="ticket-link" href="${href}"><span class="ticket-op">${esc(c.op)}</span></a>
-    <div class="ticket-foot"><span class="tags">${cardTags(c)}</span><span class="acts">${act}</span></div></article>`;
+/* ---------- Giữ bài: the bookmark (Nam, 2026-10-27) ---------- */
+
+// She holds at most HOLD_LIMIT cards she has not posted. A held card leaves the pool for the others and stays in her
+// feed with its bookmark filled, so the same tap gives it back.
+const holdButton = (c, { small = false } = {}) => `<button type="button" class="hold${small ? ' sm' : ''}" data-hold="${esc(c.id)}"${c.held ? ` data-assignment="${esc(c.held)}"` : ''}
+  aria-pressed="${Boolean(c.held)}" aria-label="${c.held ? 'Bỏ giữ bài này' : 'Giữ bài này'}">${icon('bookmark')}${small ? '' : `<span>${c.held ? 'Đang giữ' : 'Giữ bài'}</span>`}</button>`;
+const actsHtml = (c) => `${c.held ? `<a class="btn btn-ink sm fc-open" href="#/bai/${esc(c.held)}">Đăng bài này${icon('right')}</a>` : ''}${holdButton(c)}`;
+const countHtml = (n) => `${icon('bookmark')}<span>Đang giữ <b>${n}/${HOLD_LIMIT}</b></span>`;
+
+// A card she holds and has not posted. She posts it on whichever of her accounts she likes.
+function heldTicket(a, s) {
+  const href = `#/bai/${esc(a.id)}`;
+  return `<article class="ticket is-open">
+    <div class="ticket-top"><span class="handle"><span>Đang giữ</span></span>${s?.status === 'missing' ? '<span class="tag warn">Chưa thấy trên Threads</span>' : ''}${holdButton({ id: a.card.id, held: a.id }, { small: true })}</div>
+    <a class="ticket-link" href="${href}"><span class="ticket-op">${esc(a.card.op)}</span></a>
+    <div class="ticket-foot"><span class="tags">${cardTags(a.card)}</span><span class="acts"><a class="go" href="${href}">Đăng bài này${icon('right')}</a></span></div></article>`;
 }
 
 /* ---------- The ledger: this week's posts and where the read of Threads stands ---------- */
@@ -82,7 +79,6 @@ function ledgerRow(item, today, observation) {
   const dot = s.status === 'confirmed' ? icon('check') : '';
   let foot;
   if (s.status === 'claimed') foot = `<span class="tag gold">Chờ xác nhận</span><span>Máy đọc Threads lúc ${nextRead()}</span>`;
-  else if (s.status === 'missing') foot = `<span class="tag warn">Chưa thấy trên Threads</span><span>Bài đã về kho. Kiểm tra link ở bình luận 2, rồi mở bài để đăng lại.</span>`;
   else foot = `<span class="tag ok">${icon('check')}Đã xác nhận</span>${observation
     ? `<span class="num"><b>${num(observation.views ?? 0)}</b> lượt xem · <b>${num(observation.other_replies ?? observation.replies ?? 0)}</b> trả lời · <b>${num(observation.reposts ?? 0)}</b> đăng lại</span>`
     : '<span>Số liệu có sau lần đọc đầu tiên.</span>'}`;
@@ -92,20 +88,12 @@ function ledgerRow(item, today, observation) {
       <div class="led-foot">${foot}</div></div></li>`;
 }
 
-/* ---------- Library, hint, creative ---------- */
-
 const row = (a, i, { note = null, after = '' } = {}) => `<li${after ? ' class="has-action"' : ''}><a class="lib-row${note ? ' is-used' : ''}" href="#/bai/${esc(a.id)}">
   <span class="n">${note ? '•' : String(i + 1).padStart(2, '0')}</span>
   <span><span class="t">${esc(a.card.op)}</span><span class="tags">${note ? `<span class="tag ${note[1]}">${esc(note[0])}</span>` : ''}${cardTags(a.card)}</span></span>
   <span class="arrow">${icon('right')}</span></a>${after}</li>`;
 
-// A pool card is read-only until next_cards() deals it to someone.
-const poolRow = (c, i) => `<li><div class="lib-row is-pool">
-  <span class="n">${String(i + 1).padStart(2, '0')}</span>
-  <span><span class="t">${esc(c.op)}</span><span class="tags">${cardTags(c)}</span></span><span></span></div></li>`;
-const POOL_FIRST = 12;
-
-const matches = (c) => filter === 'all' || c.engine === filter || c.pull === filter;
+/* ---------- Hint and the self-written post link ---------- */
 
 // The portal sends no reminders, so it asks once to be added to the home screen. It hides for good after
 // "Đã hiểu", and never shows inside the home-screen app itself.
@@ -125,30 +113,25 @@ function linkSource(ctx, creative) {
   return creative ? { account: creative, ...settingsFor(ctx, creative) } : memberR2(ctx, ctx.me.id);
 }
 
-function creativeTile(creative) {
-  return `<section class="stage gold tile"><p class="eyebrow">${creative ? `Tài khoản sáng tạo · @${esc(creative.handle)}` : 'Bài tự viết · tài khoản nào cũng được'}</p>
-    <h3>Bài tự viết cũng có link tải app riêng.</h3>
-    <p class="muted small">Tạo link cho từng bài mới rồi dán vào bình luận 2, để biết bài nào mang về lượt cài.</p>
-    <div class="foot"><button class="btn btn-ink" id="mint">${icon('link')}Tạo link cho bài mới</button></div>
-    <div id="minted"></div></section>`;
+function creativeBody(creative) {
+  return `<p class="small muted">${creative ? `Tài khoản sáng tạo @${esc(creative.handle)}. ` : 'Tài khoản nào cũng được. '}Tạo link cho từng bài mới rồi dán vào bình luận 2, để biết bài nào mang về lượt cài.</p>
+    <div class="row-actions"><button class="btn btn-ink sm" id="mint">${icon('link')}Tạo link cho bài mới</button></div>
+    <div id="minted"></div>`;
 }
 
-function wireCreative(main, s) {
-  const { account } = s;
-  main.querySelector('#mint').onclick = async () => {
-    const code = mintCreativeCode();
-    const ct = buildCt(s.account_code, code);
-    const text = fillTemplate(s.r2_template, appLink(ct));
-    await recordEvent({ type: 'creative_link', account_id: account.id, payload: { ct, code, settings_at: s.created_at } });
-    main.querySelector('#minted').innerHTML = `<div class="minted"><p class="eyebrow">Bình luận 2 · link mới</p><p class="plain">${esc(text)}</p>
-      <button class="btn btn-ink sm" id="copy-creative">${icon('copy')}Sao chép</button></div>`;
-    main.querySelector('#copy-creative').onclick = async (e) => {
-      const button = e.currentTarget;
-      if (await copyText(text)) {
-        button.innerHTML = `${icon('check')}Đã sao chép`;
-        toast('Đã sao chép. Dán vào Threads nhé.');
-      }
-    };
+async function mint(main, s) {
+  const code = mintCreativeCode();
+  const ct = buildCt(s.account_code, code);
+  const text = fillTemplate(s.r2_template, appLink(ct));
+  await recordEvent({ type: 'creative_link', account_id: s.account.id, payload: { ct, code, settings_at: s.created_at } });
+  main.querySelector('#minted').innerHTML = `<div class="minted"><p class="eyebrow">Bình luận 2 · link mới</p><p class="plain">${esc(text)}</p>
+    <button class="btn btn-ink sm" id="copy-creative">${icon('copy')}Sao chép</button></div>`;
+  main.querySelector('#copy-creative').onclick = async (e) => {
+    const button = e.currentTarget;
+    if (await copyText(text)) {
+      button.innerHTML = `${icon('check')}Đã sao chép`;
+      toast('Đã sao chép. Dán vào Threads nhé.');
+    }
   };
 }
 
@@ -172,7 +155,7 @@ async function paintFeedback(main, ctx, questions) {
   host.innerHTML = `<section class="panel sand fb-list" aria-labelledby="fb-title">
     <p class="eyebrow">Kể lý do sửa · còn ${list.length}</p>
     <h2 id="fb-title">${list.length === 1 ? 'Bạn đã sửa một bài' : `Bạn đã sửa ${list.length} bài`}</h2>
-    <p class="small muted">Nói nhanh vì sao bạn sửa, để bài sau viết đúng hơn. Mỗi bài chừng một phút.</p>
+    <p class="small muted">Nói nhanh vì sao bạn sửa câu chữ, để bài sau viết đúng hơn. Mỗi bài chừng một phút.</p>
     <ol class="fb-rows">${list.map((e) => `<li><span class="fb-t"><span class="t">${esc(firstLine(op(e), 90))}</span><span class="tiny muted">Đã sửa ${esc(changedWhat(e))}</span></span>
       <button type="button" class="btn sm btn-ink" data-talk="${esc(e.assignment_id)}">Nói về bài này</button></li>`).join('')}</ol></section>`;
   const talk = (entry) => openChat({ entry, card: cards.get(entry.card_id) ?? null, entries: list, cards, done, onSaved: () => paintFeedback(main, ctx, questions) });
@@ -181,21 +164,16 @@ async function paintFeedback(main, ctx, questions) {
   if (asked) talk(asked);
 }
 
-/* ---------- The page ---------- */
+/* ---------- Her cards: what she holds, this week's posts, the strip ---------- */
 
-export async function renderToday(main, ctx) {
+async function loadMine(ctx) {
   const today = vnDate();
   const mine = ctx.team.accounts.filter((a) => a.member_id === ctx.me.id);
   // A retired account still names its old posts, but holds no slot and no creative tile.
   const cardAccounts = mine.filter((a) => a.kind === 'card');
   const creative = mine.find((a) => a.kind === 'creative' && isActive(a)) ?? null;
-  const linkFrom = linkSource(ctx, creative);
-  // One shared pool (Nam, 2026-10-27; migration card_pool): before the page reads her cards, her empty slots,
-  // one per seeding account, take the top cards of the pool.
   const seeding = cardAccounts.filter(isActive).length;
-  const dealt = seeding ? await nextCards().catch((error) => { console.error(error); return null; }) : null;
-  const [assignments, questions, pool] = await Promise.all([loadMyCards(ctx.me.id), loadQuestions(ctx.me.id),
-    loadPool().catch((error) => { console.error(error); return []; })]);
+  const [assignments, questions] = await Promise.all([loadMyCards(ctx.me.id), loadQuestions(ctx.me.id)]);
   const current = mondayOf(today);
   const ids = assignments.map((a) => a.id);
   const cardIds = [...new Set(assignments.map((a) => a.card.id))];
@@ -210,16 +188,8 @@ export async function renderToday(main, ctx) {
   const held = heldIds(assignments, holders, cardPosts);
   const available = assignments.filter((a) => held.has(a.id) && !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
-
-  // One slot per card account is the daily target; which account each post goes on is hers to pick. The panel
-  // shows one card per slot, as before the pool (Nam, 2026-10-27). A card she started before the pool (copied or
-  // edited) and that does not fit waits behind and comes up when she posts, before the pool's next card.
+  // The daily target stays one post per seeding account; which cards and which account are hers to pick.
   const slots = Math.max(1, seeding);
-  const queue = remaining(available, states);
-  const plan = todayPlan({ assignments: available, slots, states });
-  // The strip and the ledger follow the calendar week, whatever week a card came from.
-  const strip = weekStrip({ weekId: current, today, slots, states });
-  // Only the daily read knows the account, so a claim shows none until it is confirmed.
   const ledger = assignments.map((a) => ({ a, s: states.get(a.id) }))
     .filter(({ s }) => s && (s.status === 'claimed' || postedDay(s) >= current))
     .map((it) => ({ ...it, account: it.s.status === 'confirmed' ? accountOf(it.s.account_id) : null }));
@@ -227,90 +197,414 @@ export async function renderToday(main, ctx) {
   const stamp = (s) => Date.parse(s.posted_at ?? s.published_at ?? s.at ?? 0);
   ledger.sort((x, y) => rank[x.s.status] - rank[y.s.status] || stamp(y.s) - stamp(x.s));
   const observations = await loadLatestObservations(ledger.filter(({ s }) => s.status === 'confirmed').map(({ s }) => s.post.id));
-  // A card she skipped left the pool for good; Dùng lại makes it hers again.
-  const elsewhere = assignments.filter((a) => held.has(a.id) && skipped.has(a.id) && !states.has(a.id)).map((a) => ({ a, note: ['Đã bỏ qua', 'line'] }));
+  return {
+    today, current, seeding, slots, creative, questions, assignments, states, observations,
+    linkFrom: linkSource(ctx, creative),
+    holding: remaining(available, states).map((a) => ({ a, s: states.get(a.id) })),
+    // Cards she copied or edited: one may be up on Threads already, so giving it back asks first.
+    started: new Set(events.filter((e) => ['copied', 'edited'].includes(e.type)).map((e) => e.assignment_id)),
+    ledger: ledger.filter(({ s }) => s.status !== 'missing'),
+    // Cards she set aside before the pool became a feed; Dùng lại makes one hers again.
+    elsewhere: assignments.filter((a) => held.has(a.id) && skipped.has(a.id) && !states.has(a.id)),
+    strip: weekStrip({ weekId: current, today, slots, states }),
+    doneToday: postedToday(assignments, states, today),
+  };
+}
 
-  const due = plan.filter((p) => p.status === 'open').length;
-  const doneToday = postedToday(assignments, states, today);
-  const waiting = ledger.filter(({ s }) => s.status === 'claimed').length;
-  const confirmed = ledger.filter(({ s }) => s.status === 'confirmed').length;
-  const waitNote = plan[0].status === 'empty' ? emptyMessage({ seeding, short: dealt?.short ?? 0 }) : null;
-  const headline = waitNote ? waitNote.headline
-    : plan[0].status === 'empty' ? 'Chưa có bài cho bạn.'
-    : doneToday >= slots ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>. Nghỉ thôi.`
-    : doneToday ? `Hôm nay đã đăng <span class="gold">${doneToday}&nbsp;bài</span>.`
-    : `Hôm nay có <span class="gold">${slots}&nbsp;bài</span> cho bạn.`;
-  const lede = waitNote ? waitNote.lede
-    : plan[0].status === 'empty' ? 'Mở lại trang sau ít phút để nhận bài từ kho chung.'
-    : doneToday < slots && due ? 'Mở bài, sao chép ba phần rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Đăng xong thì bấm Đã đăng xong: bài chuyển xuống mục chờ xác nhận và bài đầu kho chung lên thay.'
+function topHtml(ctx, m) {
+  const waiting = m.ledger.filter(({ s }) => s.status === 'claimed').length;
+  const confirmed = m.ledger.filter(({ s }) => s.status === 'confirmed').length;
+  const headline = !m.seeding ? 'Thêm một tài khoản seeding để đăng bài.'
+    : m.doneToday >= m.slots ? `Hôm nay đã đăng đủ <span class="gold">${m.doneToday}&nbsp;bài</span>. Nghỉ thôi.`
+    : m.doneToday ? `Hôm nay đã đăng <span class="gold">${m.doneToday}/${m.slots}&nbsp;bài</span>.`
+    : `Hôm nay chọn <span class="gold">${m.slots}&nbsp;bài</span> để đăng.`;
+  const lede = !m.seeding ? 'Vào Cài đặt, bấm Thêm tài khoản Threads và chọn Có, seeding. Trước đó bạn vẫn xem và góp ý được mọi bài trong kho chung.'
+    : m.doneToday < m.slots ? (m.holding.length
+      ? `Mở bài bạn đang giữ để đăng, hoặc giữ thêm trong kho chung, tối đa ${HOLD_LIMIT} bài. Đăng trên tài khoản nào của bạn cũng được.`
+      : `Bấm dấu giữ trên bài bạn thích trong kho chung, tối đa ${HOLD_LIMIT} bài, rồi mở bài để đăng. Đăng trên tài khoản nào của bạn cũng được.`)
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
     : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';
-
-  main.innerHTML = `${ctx.me.is_demo ? `<p class="notice">${icon('info')}<span>Tài khoản mẫu để thử portal. Bài là nội dung đã chuẩn bị; các tên @vika.demo chưa phải tài khoản Threads thật.</span></p>` : ''}
-    <section class="stage today-hero">
+  return `${ctx.me.is_demo ? `<p class="notice">${icon('info')}<span>Tài khoản mẫu để thử portal. Bài là nội dung đã chuẩn bị; các tên @vika.demo chưa phải tài khoản Threads thật.</span></p>` : ''}
+    <section class="stage today-hero pool-hero">
       <div class="hero-grid">
         <div class="hero-lead">
-          <p class="eyebrow">${esc(formatDay(today))} · Tuần ${esc(shortWeek(current))} – ${esc(shortWeek(addDays(current, 6)))}</p>
+          <p class="eyebrow">${esc(formatDay(m.today))} · Tuần ${esc(shortWeek(m.current))} – ${esc(shortWeek(addDays(m.current, 6)))}</p>
           <h1>${headline}</h1>
           <p class="lede">${esc(lede)}</p>
+          <button type="button" class="btn btn-gold sm jump" data-jump>${icon('down')}Xem kho chung</button>
         </div>
-        ${stripHtml(strip, slots)}
+        ${stripHtml(m.strip, m.slots)}
       </div>
-      ${seeding || queue.length ? `<div class="tickets">${plan.map((p, i) => ticket(p, i)).join('')}</div>` : ''}
+      ${m.holding.length ? `<div class="holding"><p class="eyebrow">Bạn đang giữ ${m.holding.length}/${HOLD_LIMIT} bài</p><div class="tickets">${m.holding.map(({ a, s }) => heldTicket(a, s)).join('')}</div></div>` : ''}
     </section>
     <div id="questions"></div>
-    <div class="today-board">
-      <section class="section ledger-sec">
-        <div class="section-head"><div><p class="eyebrow">Bài đã đăng</p><h2 class="section-title">${waiting ? 'Chờ Threads xác nhận' : 'Tuần này đã đăng'}</h2></div>
-          <span class="count">${waiting ? `${waiting} chờ · ` : ''}${confirmed} đã xác nhận</span></div>
-        ${ledger.length ? `<ol class="ledger">${ledger.map((it) => ledgerRow(it, today, it.s.post ? observations.get(it.s.post.id) : null)).join('')}</ol>`
-    : `<div class="ledger-empty"><p>Chưa có bài nào tuần này. Bài đầu tiên bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận lúc 06:00 mỗi sáng.</p></div>`}
-      </section>
-      <section class="section">
-        <div class="section-head"><div><p class="eyebrow">Kho chung · cả nhóm</p><h2 class="section-title">Còn ${pool.length} bài trong kho chung</h2>
-          <p class="sub">Bạn đăng xong một bài thì bài đầu kho lên Hôm nay của bạn. Bài ai đó bỏ qua thì rời kho.</p></div></div>
-        <div class="library-tools"><div class="seg" role="group" aria-label="Lọc bài">${FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${filter === v}">${l}</button>`).join('')}</div></div>
-        <ol class="library" id="library"></ol>
-        <div id="pool-more"></div>
-        ${elsewhere.length ? `<details class="fold"><summary>Bạn đã bỏ qua · ${elsewhere.length}<span class="plus"></span></summary><div class="fold-body"><ol class="library">${elsewhere.map(({ a, note }, i) => row(a, i, { note, after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
-      </section>
-    </div>
-    <div class="duo">
-      ${linkFrom ? creativeTile(creative) : ''}
+    <div class="today-folds">
+      <details class="fold"><summary><span>Đã đăng tuần này <span class="muted">· ${confirmed} đã xác nhận${waiting ? `, ${waiting} chờ` : ''}</span></span><span class="plus"></span></summary>
+        <div class="fold-body">${m.ledger.length ? `<ol class="ledger">${m.ledger.map((it) => ledgerRow(it, m.today, it.s.post ? m.observations.get(it.s.post.id) : null)).join('')}</ol>`
+          : '<p class="muted small" style="padding:4px 0 10px">Chưa có bài nào tuần này. Bài bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận lúc 06:00 mỗi sáng.</p>'}</div></details>
+      ${m.linkFrom ? `<details class="fold"><summary><span>Bài tự viết <span class="muted">· tạo link tải app</span></span><span class="plus"></span></summary><div class="fold-body">${creativeBody(m.creative)}</div></details>` : ''}
+      ${m.elsewhere.length ? `<details class="fold"><summary><span>Bạn đã bỏ qua <span class="muted">· ${m.elsewhere.length}</span></span><span class="plus"></span></summary><div class="fold-body"><ol class="library">${m.elsewhere.map((a, i) => row(a, i, { note: ['Đã bỏ qua', 'line'], after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
     </div>
     ${homeHint()}`;
+}
 
-  // The pool in deal order, the first cards only until she asks for all of them.
-  let showAll = false;
-  const paintLibrary = () => {
-    const list = pool.filter(matches);
-    const shownRows = showAll ? list : list.slice(0, POOL_FIRST);
-    main.querySelector('#library').innerHTML = shownRows.length ? shownRows.map((c) => poolRow(c, pool.indexOf(c))).join('')
-      : `<li class="muted small" style="padding:18px 4px">${pool.length ? 'Không có bài nào khớp bộ lọc này.' : 'Kho chung đã hết bài.'}</li>`;
-    main.querySelector('#pool-more').innerHTML = list.length > shownRows.length
-      ? `<button type="button" class="btn btn-line sm" id="pool-all" style="margin-top:14px">Xem tất cả ${list.length} bài</button>` : '';
-    main.querySelector('#pool-all')?.addEventListener('click', () => { showAll = true; paintLibrary(); });
-  };
-  paintLibrary();
-  main.querySelectorAll('[data-filter]').forEach((b) => { b.onclick = () => {
-    filter = b.dataset.filter;
-    main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    paintLibrary();
-  }; });
-  main.querySelector('#a2hs-ok')?.addEventListener('click', () => {
-    try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
-    main.querySelector('#a2hs')?.remove();
+/* ---------- Kho chung: the whole pool as a feed ---------- */
+
+// The feed outlives the page, so a trip to a card and back lands on the same chunks, filter and notes, and main.js
+// puts her back where she was. After FRESH_MS the page reads the pool again from the top.
+const FRESH_MS = 5 * 60_000;
+const feed = { member: null, filter: 'all', cards: [], total: 0, allTotal: 0, done: false, at: 0, token: 0, next: null, mine: null, holdCount: 0, refreshing: null };
+
+// A card keeps what she did to it (c.cut once measured, c.full, c.open, c.showOld), so a feed painted again from
+// memory has the same heights and main.js lands her on the same card.
+function feedCard(ctx, c, i) {
+  const stats = [[shortCount(c.source_likes), 'thích'], [shortCount(c.source_reposts), 'đăng lại']].filter(([v]) => v && v !== '0');
+  const cut = c.cut === true && !c.full;
+  return `<li class="fc${c.full ? ' is-full' : ''}${c.held ? ' is-held' : ''}" data-card="${esc(c.id)}" style="--i:${i}">
+    <article class="fc-post">
+      <div class="fc-top"><span class="tags">${cardTags(c)}</span>${c.source_url ? `<a class="fc-src" href="${esc(c.source_url)}" target="_blank" rel="noopener noreferrer">Bài gốc${stats.length ? ` · ${stats.map(([v, l]) => `${v} ${l}`).join(' · ')}` : ''}${icon('out')}</a>` : ''}</div>
+      <div class="fc-text${cut ? ' is-cut' : ''}" data-clamp>
+        <p class="fc-op">${esc(c.op)}</p>
+        ${c.r1 ? `<div class="fc-r1"><span class="fc-lbl">Bình luận 1</span><p>${esc(c.r1)}</p></div>` : ''}
+      </div>
+      <button type="button" class="fc-more" data-more${cut ? '' : ' hidden'}>Xem cả bài${icon('down')}</button>
+      <div class="fc-foot">
+        ${c.like_mine ? `<span class="fc-note">${icon('info')}Giống một bài bạn đã đăng tuần này. Vẫn đăng được, tuỳ bạn.</span>` : '<span></span>'}
+        <span class="fc-acts" data-acts>${actsHtml(c)}</span>
+      </div>
+    </article>
+    ${talkHtml(ctx, c, threads.get(c.id) ?? [], { open: c.open, showOld: c.showOld })}
+  </li>`;
+}
+
+const skeletons = (n = 2) => Array.from({ length: n }, (_, i) => `<div class="fc fc-sk" style="--sk-index:${i}" aria-hidden="true">
+  <div class="fc-post"><span class="sk-line" style="--sk-width:30%"></span><span class="sk-line" style="--sk-width:92%"></span><span class="sk-line" style="--sk-width:84%"></span><span class="sk-line" style="--sk-width:58%"></span><span class="sk-pill"></span></div>
+  <div class="talk"></div></div>`).join('');
+
+const poolTitle = (n) => `${num(n)} bài trong kho chung`;
+
+// A bottom sheet with a few choices. Resolves with the data-choice she taps, or null when she closes it.
+function ask(inner) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sheet';
+    dialog.innerHTML = `<div class="sheet-grip"></div>${inner}`;
+    document.body.append(dialog);
+    const done = (choice) => { dialog.close(); dialog.remove(); resolve(choice); };
+    dialog.addEventListener('click', (e) => { const b = e.target.closest('[data-choice]'); if (b) done(b.dataset.choice); });
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); done(null); });
+    dialog.showModal();
   });
-  // Dùng lại puts a card she set aside back on her Hôm nay (Nam, 2026-09-28); it never goes back to the pool.
-  main.querySelectorAll('[data-take-back]').forEach((b) => { b.onclick = async () => {
-    const a = assignments.find((x) => x.id === b.dataset.takeBack);
-    b.disabled = true;
+}
+
+function paintCount(main) {
+  const el = main.querySelector('[data-hold-count]');
+  if (!el) return;
+  el.innerHTML = countHtml(feed.holdCount);
+  el.classList.toggle('is-full', feed.holdCount >= HOLD_LIMIT);
+}
+
+// Her cards again after a hold, an unhold or a return from a card. The top repaints in place only when it changed.
+function refreshTop(main, ctx) {
+  feed.refreshing = loadMine(ctx).then((fresh) => {
+    const before = feed.mine;
+    feed.mine = fresh;
+    feed.holdCount = fresh.holding.length;
+    paintCount(main);
+    const top = main.querySelector('#today-top');
+    const html = topHtml(ctx, fresh);
+    if (!top || (before && html === topHtml(ctx, before))) return;
+    top.innerHTML = html;
+    wireTop(main, ctx, fresh);
+  }).catch((error) => console.error(error));
+  return feed.refreshing;
+}
+
+function wireFeed(main, ctx, { seeding }) {
+  const list = main.querySelector('#feed');
+  const end = main.querySelector('#feed-end');
+  const title = main.querySelector('#pool-title');
+  const count = main.querySelector('#feed-count');
+  let busy = false;
+
+  // A card's text opens fully on a tap. Whether it is cut is measured once per card, a whole chunk in one frame.
+  const cardOf = (li) => feed.cards.find((c) => c.id === li.dataset.card);
+  function measure(lis) {
+    const fresh = lis.filter((li) => cardOf(li)?.cut === undefined);
+    if (!fresh.length) return;
+    requestAnimationFrame(() => {
+      const cuts = fresh.map((li) => { const text = li.querySelector('[data-clamp]'); return text.scrollHeight > text.clientHeight + 4; });
+      fresh.forEach((li, i) => {
+        const card = cardOf(li);
+        if (card) card.cut = cuts[i];
+        li.querySelector('[data-clamp]').classList.toggle('is-cut', cuts[i]);
+        li.querySelector('[data-more]').hidden = !cuts[i];
+      });
+    });
+  }
+
+  // The first chunk loads before the router puts the page on screen; once she has left the page, nothing more loads.
+  let shown = false;
+  const gone = () => { if (main.isConnected) shown = true; return shown && !main.isConnected; };
+  const near = () => main.isConnected && end.getBoundingClientRect().top < window.innerHeight + 1600;
+  const pageKey = () => `${feed.filter}:${feed.cards.length}`;
+  const fetchNext = () => {
+    if (feed.next?.key !== pageKey()) feed.next = { key: pageKey(), promise: loadPoolPage({ offset: feed.cards.length, limit: FEED_CHUNK, filter: feed.filter }) };
+    return feed.next.promise;
+  };
+
+  function append(cards, { animate = true } = {}) {
+    const start = list.children.length;
+    list.insertAdjacentHTML('beforeend', cards.map((c, i) => feedCard(ctx, c, animate ? i : 0)).join(''));
+    const added = [...list.children].slice(start);
+    if (!animate) added.forEach((li) => li.classList.add('no-enter'));
+    measure(added);
+  }
+  function paintEnd() {
+    end.innerHTML = feed.done
+      ? `<p class="feed-done">${feed.cards.length ? (feed.filter === 'all' ? `Hết kho. Bạn đã xem cả ${num(feed.cards.length)} bài.` : `Hết bài khớp bộ lọc này · ${num(feed.cards.length)} bài.`)
+        : feed.filter === 'all' ? 'Kho chung đã hết bài. Admin sẽ thêm bài mới.' : 'Không có bài nào khớp bộ lọc này.'}</p>`
+      : skeletons(feed.cards.length ? 1 : 3);
+  }
+
+  async function more() {
+    if (busy || feed.done || gone()) return;
+    busy = true;
+    const token = feed.token;
+    paintEnd();
     try {
-      await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
-      toast('Đã đưa bài về Hôm nay.');
-      renderToday(main, ctx);
-    } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
-  }; });
-  if (linkFrom) wireCreative(main, linkFrom);
-  paintFeedback(main, ctx, questions).catch(() => { /* the list returns on the next visit */ });
+      const page = await fetchNext();
+      if (token !== feed.token || gone()) return;
+      feed.next = null;
+      // Someone may have taken a card since the last chunk, so the offsets move; a card already shown stays once.
+      const seen = new Set(feed.cards.map((c) => c.id));
+      const fresh = page.cards.filter((c) => !seen.has(c.id));
+      for (const c of fresh) threads.set(c.id, c.comments ?? []);
+      feed.cards.push(...fresh);
+      feed.total = page.total;
+      feed.done = page.cards.length < FEED_CHUNK;
+      feed.at = Date.now();
+      if (feed.filter === 'all') { feed.allTotal = page.total; title.textContent = poolTitle(page.total); }
+      count.textContent = feed.filter === 'all' ? '' : `${num(page.total)} bài`;
+      append(fresh);
+      paintEnd();
+      if (!feed.done) fetchNext().catch(() => { feed.next = null; });
+    } catch (error) {
+      console.error(error);
+      feed.next = null;
+      end.innerHTML = '<p class="feed-done">Chưa tải được thêm bài. <button type="button" class="linkish strong" data-feed-retry>Thử lại</button></p>';
+    } finally {
+      if (token === feed.token) busy = false;
+    }
+    if (near()) more();
+  }
+
+  const watch = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) more(); }, { rootMargin: '0px 0px 1600px 0px' });
+  watch.observe(end);
+
+  // A card that left the pool folds away where it stood.
+  function dropRow(id) {
+    feed.cards = feed.cards.filter((c) => c.id !== id);
+    const li = list.querySelector(`[data-card="${CSS.escape(id)}"]`);
+    if (!li) return;
+    li.style.height = `${li.offsetHeight}px`;
+    requestAnimationFrame(() => li.classList.add('is-leaving'));
+    setTimeout(() => li.remove(), 380);
+  }
+
+  function setHeld(id, assignmentId) {
+    const card = feed.cards.find((c) => c.id === id);
+    if (card) card.held = assignmentId;
+    const li = list.querySelector(`[data-card="${CSS.escape(id)}"]`);
+    if (!card || !li) return;
+    li.classList.toggle('is-held', Boolean(assignmentId));
+    li.querySelector('[data-acts]').innerHTML = actsHtml(card);
+  }
+  const waiting = (button, on) => { if (!button) return; button.disabled = on; button.classList.toggle('is-busy', on); };
+
+  async function hold(id, button) {
+    waiting(button, true);
+    button?.setAttribute('aria-pressed', 'true');
+    let result;
+    try { result = await takeCard(id); } catch (error) { console.error(error); result = { error: 'failed' }; }
+    if (result?.assignment_id) {
+      feed.holdCount += 1;
+      setHeld(id, result.assignment_id);
+      paintCount(main);
+      toast(feed.holdCount >= HOLD_LIMIT ? `Đã giữ bài. Bạn đang giữ đủ ${HOLD_LIMIT} bài.` : `Đã giữ bài. Bạn đang giữ ${feed.holdCount}/${HOLD_LIMIT} bài.`);
+      refreshTop(main, ctx);
+      return true;
+    }
+    waiting(button, false);
+    button?.setAttribute('aria-pressed', 'false');
+    if (result?.error === 'limit') { await refreshTop(main, ctx); limitSheet(id); return false; }
+    toast(takeMessage(result));
+    if (result?.error === 'taken') dropRow(id);
+    return false;
+  }
+
+  async function unhold(id, assignmentId, button) {
+    waiting(button, true);
+    try { await releaseCard(assignmentId); } catch (error) {
+      console.error(error);
+      toast('Chưa bỏ giữ được. Thử lại nhé.');
+      waiting(button, false);
+      return false;
+    }
+    feed.holdCount = Math.max(0, feed.holdCount - 1);
+    setHeld(id, null);
+    paintCount(main);
+    refreshTop(main, ctx);
+    return true;
+  }
+
+  // A fourth card: the sheet says the limit plainly and lets her swap one of her three for it in one tap.
+  async function limitSheet(id) {
+    await feed.refreshing;
+    const held = feed.mine?.holding ?? [];
+    const choice = await ask(`<h2>Bạn đang giữ đủ ${HOLD_LIMIT} bài</h2>
+      <p class="muted small">Mỗi bạn giữ tối đa ${HOLD_LIMIT} bài chưa đăng, để kho còn bài cho cả nhóm. Đăng một bài trước, hoặc đổi một bài dưới đây lấy bài vừa chọn.</p>
+      <ol class="limit-list">${held.map(({ a }) => `<li><span class="t">${esc(firstLine(a.card.op, 90))}${feed.mine.started.has(a.id) ? '<span class="tag gold">Đang làm dở</span>' : ''}</span>
+        <button type="button" class="btn btn-line sm" data-choice="${esc(a.id)}">Đổi</button></li>`).join('')}</ol>
+      <div class="row-actions"><button type="button" class="btn btn-ink" data-choice="later">Để sau</button></div>`);
+    const old = held.find(({ a }) => a.id === choice)?.a;
+    if (!old || !(await unhold(old.card.id, old.id))) return;
+    if (await hold(id, list.querySelector(`[data-card="${CSS.escape(id)}"] [data-hold]`))) toast('Đã đổi. Bài cũ về kho chung, bài mới là của bạn.');
+  }
+
+  async function toggleHold(button) {
+    const id = button.dataset.hold;
+    const assignmentId = button.dataset.assignment;
+    if (assignmentId) {
+      // A card she copied or edited may be up on Threads already: ask before it goes back.
+      if (feed.mine?.started.has(assignmentId)) {
+        const choice = await ask(`<h2>Bỏ giữ bài bạn đang làm dở?</h2>
+          <p class="muted small">Bạn đã sao chép hoặc sửa bài này. Nếu bạn đã đăng rồi, mở bài và bấm Đã đăng xong.</p>
+          <div class="leave-acts"><button type="button" class="btn btn-ink" data-choice="open">Mở bài</button>
+            <button type="button" class="btn btn-line" data-choice="release">Bỏ giữ, trả về kho chung</button>
+            <button type="button" class="linkish" data-choice="keep">Giữ lại</button></div>`);
+        if (choice === 'open') { location.hash = `#/bai/${encodeURIComponent(assignmentId)}`; return; }
+        if (choice !== 'release') return;
+      }
+      if (await unhold(id, assignmentId, button)) toast('Đã bỏ giữ. Bài về kho chung cho cả nhóm.');
+      return;
+    }
+    if (!seeding) { toast('Thêm một tài khoản seeding trong Cài đặt rồi giữ bài nhé.'); return; }
+    if (feed.holdCount >= HOLD_LIMIT) { limitSheet(id); return; }
+    hold(id, button);
+  }
+
+  function expand(button) {
+    const li = button.closest('.fc');
+    const text = li.querySelector('[data-clamp]');
+    text.style.maxHeight = `${text.clientHeight}px`;
+    text.classList.remove('is-cut');
+    requestAnimationFrame(() => { text.style.maxHeight = `${text.scrollHeight}px`; });
+    text.addEventListener('transitionend', () => { text.style.maxHeight = 'none'; li.classList.add('is-full'); }, { once: true });
+    button.hidden = true;
+    const card = cardOf(li);
+    if (card) card.full = true;
+  }
+
+  function setFilter(button) {
+    if (feed.filter === button.dataset.filter) return;
+    feed.filter = button.dataset.filter;
+    feed.token += 1;
+    feed.cards = [];
+    feed.done = false;
+    feed.next = null;
+    busy = false;
+    main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === button)));
+    // The list starts again at the top of the pool, and so does she if she had scrolled past it.
+    const top = main.querySelector('#pool').getBoundingClientRect().top + window.scrollY - 70;
+    if (window.scrollY > top) window.scrollTo({ top, behavior: 'instant' });
+    list.innerHTML = '';
+    more();
+  }
+
+  main.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || !main.contains(b)) return;
+    if (b.dataset.hold) toggleHold(b);
+    else if ('holdCount' in b.dataset) main.querySelector('#today-top').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else if ('more' in b.dataset) expand(b);
+    else if (b.dataset.filter) setFilter(b);
+    else if ('feedRetry' in b.dataset) more();
+    else if ('talkToggle' in b.dataset || 'talkOlder' in b.dataset) {
+      // talk.js has already opened the thread; the card remembers it for the way back.
+      const li = b.closest('.fc');
+      const card = li && cardOf(li);
+      if (card) Object.assign(card, { open: li.querySelector('.talk').classList.contains('is-open'), showOld: card.showOld || 'talkOlder' in b.dataset });
+    }
+    else if ('jump' in b.dataset) main.querySelector('#pool').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // The chunks already in memory come back at once and without the entry motion; otherwise the first chunk loads.
+  if (feed.cards.length) {
+    append(feed.cards, { animate: false });
+    paintEnd();
+  } else more();
+
+  wireTalk(list, ctx, {
+    onChange(cardId, notes) {
+      const card = feed.cards.find((c) => c.id === cardId);
+      if (card) card.comments = notes;
+    },
+  });
+}
+
+/* ---------- The page ---------- */
+
+function wireTop(main, ctx, m) {
+  const top = main.querySelector('#today-top');
+  top.onclick = async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'a2hs-ok') {
+      try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
+      main.querySelector('#a2hs')?.remove();
+    } else if (b.id === 'mint') mint(main, m.linkFrom);
+    else if (b.dataset.takeBack) {
+      // Dùng lại puts a card she set aside back among the cards she holds (Nam, 2026-09-28).
+      const a = m.assignments.find((x) => x.id === b.dataset.takeBack);
+      b.disabled = true;
+      try {
+        await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
+        toast('Đã đưa bài về mục Bạn đang giữ.');
+        renderToday(main, ctx);
+      } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
+    }
+  };
+  paintFeedback(main, ctx, m.questions).catch(() => { /* the list returns on the next visit */ });
+}
+
+export async function renderToday(main, ctx) {
+  if (feed.member !== ctx.me.id || Date.now() - feed.at > FRESH_MS) {
+    Object.assign(feed, { member: ctx.me.id, cards: [], total: 0, allTotal: 0, done: false, next: null, mine: null, token: feed.token + 1 });
+    threads.clear();
+  }
+  const reuse = Boolean(feed.mine && feed.cards.length);
+  // Coming back from a card, the page paints from memory at once and main.js restores her place; her cards load
+  // behind it and the top repaints in place. A first visit waits for her cards and the first chunk together.
+  if (!feed.cards.length) feed.next = { key: `${feed.filter}:0`, promise: loadPoolPage({ offset: 0, limit: FEED_CHUNK, filter: feed.filter }) };
+  const m = reuse ? feed.mine : await loadMine(ctx);
+  if (!reuse && feed.next) await feed.next.promise.catch(() => null);
+  feed.mine = m;
+  feed.holdCount = m.holding.length;
+
+  main.innerHTML = `<div id="today-top">${topHtml(ctx, m)}</div>
+    <section class="pool-sec" id="pool" aria-labelledby="pool-title">
+      <div class="feed-head"><div><p class="eyebrow">Kho chung · cả nhóm</p><h2 class="section-title" id="pool-title">${feed.allTotal ? poolTitle(feed.allTotal) : 'Kho chung'}</h2>
+        <p class="sub">Bấm dấu giữ để giữ bài cho bạn, tối đa ${HOLD_LIMIT} bài; bài bạn giữ rời kho của cả nhóm. Thấy ý bài có vấn đề thì viết vào Góp ý nội dung, bài vẫn ở kho cho bạn khác.</p></div></div>
+      <div class="feed-tools"><div class="seg" role="group" aria-label="Lọc bài">${FEED_FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${feed.filter === v}">${l}</button>`).join('')}</div>
+        <span class="feed-count" id="feed-count">${feed.filter !== 'all' && feed.total ? `${num(feed.total)} bài` : ''}</span>
+        <button type="button" class="hold-count${feed.holdCount >= HOLD_LIMIT ? ' is-full' : ''}" data-hold-count aria-label="Bài bạn đang giữ">${countHtml(feed.holdCount)}</button></div>
+      <ol class="feed" id="feed"></ol>
+      <div class="feed-end" id="feed-end" aria-live="polite"></div>
+    </section>`;
+  if (reuse) main.dataset.keepScroll = '1';
+  wireTop(main, ctx, m);
+  wireFeed(main, ctx, { seeding: m.seeding });
+
+  if (reuse) refreshTop(main, ctx);
 }

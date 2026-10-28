@@ -1,6 +1,6 @@
 import { SKIP_REASONS } from '../lib/feedback.js';
 import { NEXT_TIME } from '../lib/edits.js';
-import { esc, toast } from '../ui.js?v=20261027b';
+import { esc, toast } from '../ui.js?v=20261028a';
 
 // The reason chips used to set a card aside, in the Sunday review, and as the feedback chat's fallback.
 

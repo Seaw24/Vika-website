@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261027b';
-import { renderSignIn } from './views/signin.js?v=20261027b';
-import { esc, toast, icon, initial } from './ui.js?v=20261027b';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261028a';
+import { renderSignIn } from './views/signin.js?v=20261028a';
+import { esc, toast, icon, initial } from './ui.js?v=20261028a';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
@@ -9,7 +9,7 @@ import { esc, toast, icon, initial } from './ui.js?v=20261027b';
 // Nhóm: every member sees the whole team's posts, by day (Nam, 2026-09-27).
 const SPACES = {
   threads: { label: 'Threads', icon: 'threads', home: '#/',
-    tabs: [['#/', 'Hôm nay', 'today'], ['#/so-lieu', 'Số liệu', 'stats'], ['#/nhom', 'Nhóm', 'team'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']] },
+    tabs: [['#/', 'Kho bài', 'stack'], ['#/so-lieu', 'Số liệu', 'stats'], ['#/nhom', 'Nhóm', 'team'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']] },
   tiktok: { label: 'TikTok', icon: 'tiktok', home: '#/tiktok',
     tabs: [['#/tiktok', 'Chờ đăng', 'tiktok'], ['#/tiktok/da-dang', 'Đã đăng', 'check'], ['#/tiktok/bo-qua', 'Đã bỏ qua', 'flag']] },
 };
@@ -27,17 +27,23 @@ if (!location.hash) history.replaceState(null, '', '#/');
 let ctx = null;
 let booting = null;
 let routeId = 0;
+// Where she was on each page. A page that paints from memory (Hôm nay's feed, back from a card) sets
+// main.dataset.keepScroll, and the route puts her back there; every other page opens at the top.
+const scrollMemo = new Map();
+let shownHash = null;
+// The browser's own restore would jump before the page is painted, so the route alone sets the scroll.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261027b').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261027b').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261027b').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js?v=20261027b').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261027b').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261027b').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261027b').then((m) => m.renderTeam),
-  tiktok: () => import('./views/tiktok.js?v=20261027b').then((m) => m.renderTikTok),
+  today: () => import('./views/today.js?v=20261028a').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261028a').then((m) => m.renderCard),
+  answers: () => import('./views/answers.js?v=20261028a').then((m) => m.renderAnswers),
+  settings: () => import('./views/settings.js?v=20261028a').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261028a').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261028a').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261028a').then((m) => m.renderTeam),
+  tiktok: () => import('./views/tiktok.js?v=20261028a').then((m) => m.renderTikTok),
 };
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
@@ -104,14 +110,29 @@ function routeSkeleton(hash) {
     : skCard(i)).join('');
   return `<div class="route-skeleton${feedback ? ' sk-narrow' : ''}" role="status">
     <span class="sr-only">Đang tải trang</span><div aria-hidden="true">
-    ${today ? `<div class="sk-stage">${head}<div class="sk-tickets">${cards}</div></div>`
+    ${today ? `<div class="sk-stage sk-band">${head}</div><div class="sk-list" style="margin-top:28px">${cards}</div>`
       : `${head}<div class="sk-list">${cards}</div>`}</div></div>`;
 }
 
+// A page may ask before she leaves it (ctx.onLeave; the card page asks whether she posted it). The old page stays on
+// screen while it asks, and a false answer keeps her on it.
+let asking = false;
 async function route() {
+  if (asking) return;
+  const guard = ctx?.onLeave;
+  if (ctx) ctx.onLeave = null;
+  if (guard && shownHash && (location.hash || '#/') !== shownHash) {
+    asking = true;
+    let go = true;
+    try { go = await guard(); } catch (error) { console.error(error); }
+    asking = false;
+    if (!go) { ctx.onLeave = guard; history.replaceState(null, '', shownHash); return; }
+  }
   const started = performance.now();
   const id = ++routeId;
   const hash = location.hash || '#/';
+  if (shownHash !== null) scrollMemo.set(shownHash, window.scrollY);
+  shownHash = hash;
   const nextMain = document.createElement('main');
   nextMain.id = 'main';
   nextMain.tabIndex = -1;
@@ -175,7 +196,7 @@ async function route() {
   main.querySelectorAll('textarea').forEach((area) => area.dispatchEvent(new Event('input')));
   main.classList.add('enter');
   main.focus({ preventScroll: true });
-  window.scrollTo(0, 0);
+  window.scrollTo(0, main.dataset.keepScroll ? scrollMemo.get(hash) ?? 0 : 0);
 }
 
 // The team (members, accounts, settings) is kept on the device, so a return visit opens at once from it while a

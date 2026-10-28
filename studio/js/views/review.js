@@ -1,8 +1,8 @@
-import { loadAssignments, loadCardHolders, loadCardPosts, loadEvents, recordEvent } from '../data.js?v=20261027b';
+import { loadAssignments, loadCardHolders, loadCardPosts, loadEvents, recordEvent } from '../data.js?v=20261028a';
 import { reviewable } from '../lib/feedback.js';
 import { heldIds } from '../lib/week.js';
-import { esc, toast, icon, cardTags } from '../ui.js?v=20261027b';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261027b';
+import { esc, toast, icon, cardTags } from '../ui.js?v=20261028a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261028a';
 
 export async function renderReview(main, ctx, week) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('bad week');
@@ -20,7 +20,7 @@ export async function renderReview(main, ctx, week) {
   function paint() {
     const a = pending[index];
     const pct = pending.length ? Math.round((index / pending.length) * 100) : 100;
-    main.innerHTML = `<a class="linkish" href="#/">${icon('left')}Hôm nay</a>
+    main.innerHTML = `<a class="linkish" href="#/">${icon('left')}Kho bài</a>
       <div class="page-head" style="margin-top:6px"><div><p class="eyebrow">Tuần ${d}/${m} · nhìn lại</p><h1 class="page-title">${a ? 'Vì sao chưa dùng bài này?' : 'Đã xem hết.'}</h1>
         <p class="sub">${a ? `Bài ${index + 1} trên ${pending.length}. Lưu thì bài rời kho của bạn; Để sau thì bài vẫn ở lại. Mọi câu hỏi đều không bắt buộc.` : 'Góp ý đã lưu ở tab Góp ý.'}</p></div></div>
       <div class="review-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>

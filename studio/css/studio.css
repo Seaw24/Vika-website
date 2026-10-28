@@ -313,6 +313,179 @@ details[open] > summary .plus::after{transform:translate(-50%,-50%) rotate(90deg
 .diff-key del{background:var(--warn-bg);color:var(--warn)}
 .diff-key ins{background:rgba(229,179,58,.34);color:var(--ink)}
 
+/* ---------- Kho chung as a feed (2026-10-27): every card of the pool, its post beside its content notes ---------- */
+.pool-hero h1{font-size:clamp(30px,5.4vw,52px);max-width:16ch}
+.pool-hero .jump{margin-top:20px}
+.pool-hero .jump svg{width:16px;height:16px}
+.holding{margin-top:clamp(20px,3.5vw,30px)}
+.holding .tickets{margin-top:0}
+.today-folds{display:grid;gap:10px;margin-top:14px}
+.today-folds .fold{margin-top:0}
+.today-folds .fold > summary .muted{font-weight:400}
+@media (min-width:900px){
+  .pool-hero .jump{display:none}
+  .today-folds{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start}
+}
+.pool-sec{margin-top:clamp(30px,5vw,48px);scroll-margin-top:72px}
+.feed-head{margin-bottom:10px}
+.feed-head .sub{margin-top:6px;font-size:14px;color:var(--muted);max-width:62ch}
+.feed-tools{position:sticky;top:64px;z-index:12;display:flex;align-items:center;gap:12px;margin:0 calc(var(--gutter) * -1) 8px;padding:8px var(--gutter);
+  background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.feed-count{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (min-width:900px){.feed-tools{top:84px;margin-inline:0;padding-inline:0}}
+
+.feed{display:grid;gap:14px}
+.fc{position:relative;display:grid;grid-template-columns:minmax(0,1fr);border-radius:var(--card-r);background:var(--raised);border:1px solid var(--line);overflow:hidden;
+  animation:fc-in .55s var(--ease) both;animation-delay:calc(min(var(--i,0),8) * 40ms);
+  transition:height .38s var(--ease),opacity .3s,transform .38s var(--ease),margin .38s var(--ease)}
+.fc.no-enter{animation:none}
+.fc.is-leaving{height:0!important;opacity:0;transform:scale(.98);margin-top:-14px;border-width:0}
+@keyframes fc-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.fc-post{display:flex;flex-direction:column;gap:12px;padding:18px 20px;min-width:0}
+.fc-top{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.fc-src{display:inline-flex;align-items:center;gap:5px;min-height:32px;font-size:12.5px;color:var(--muted);text-decoration:none;font-variant-numeric:tabular-nums}
+.fc-src:hover{color:var(--ink)}
+.fc-src svg{width:13px;height:13px}
+.fc-text{position:relative;max-height:19.5em;overflow:hidden;transition:max-height .45s var(--ease)}
+.fc-text.is-cut{-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.fc.is-full .fc-text{max-height:none}
+.fc-op{font-size:17.5px;line-height:1.58;letter-spacing:-.01em;white-space:pre-wrap}
+.fc-r1{margin-top:12px;padding:2px 0 2px 14px;border-left:2px solid var(--line-2)}
+.fc-r1 p{font-size:15.5px;line-height:1.55;white-space:pre-wrap;color:color-mix(in srgb,var(--ink) 80%,var(--muted))}
+.fc-lbl{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;color:var(--gold-text);margin-bottom:2px}
+.fc-more{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:36px;margin-top:-8px;font-size:13.5px;font-weight:500;color:var(--gold-text)}
+.fc-more svg{width:15px;height:15px}
+.fc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.fc-note{display:inline-flex;align-items:center;gap:6px;font-size:13px;line-height:1.4;color:var(--gold-text);max-width:36ch}
+.fc-note svg{width:16px;height:16px;flex:none}
+/* Giữ bài: the bookmark on each card, and how many she holds */
+.fc-acts{display:flex;align-items:center;gap:8px;margin-left:auto}
+.fc-open{min-height:44px}
+.fc-open svg{transition:transform .35s var(--ease)}
+.fc-open:hover svg{transform:translateX(3px)}
+.hold{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 16px 0 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--raised);
+  font-size:14px;font-weight:500;color:var(--ink);transition:background .2s,border-color .2s,color .2s,transform .3s var(--ease)}
+.hold svg{width:18px;height:18px}
+.hold:hover:not(:disabled){border-color:var(--muted)}
+.hold:active:not(:disabled){transform:scale(.95)}
+.hold[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--dark)}
+.hold[aria-pressed="true"] svg{fill:currentColor;animation:hold-pop .45s var(--ease)}
+.hold.is-busy{opacity:.75}
+.hold.sm{position:relative;z-index:1;width:38px;min-height:38px;padding:0;margin-left:auto}
+@keyframes hold-pop{40%{transform:scale(1.28)}}
+.fc.is-held{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.hold-count{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:36px;margin-left:auto;padding:0 12px;border-radius:999px;background:var(--raised);
+  box-shadow:inset 0 0 0 1px var(--line-2);font-size:13px;color:var(--muted);white-space:nowrap;transition:background .25s,color .25s}
+.hold-count svg{width:15px;height:15px}
+.hold-count b{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.hold-count.is-full{background:var(--warn-bg);box-shadow:none;color:var(--warn)}
+.hold-count.is-full b{color:var(--warn)}
+.feed-tools .seg{min-width:0}
+.holding > .eyebrow{margin-bottom:12px}
+.limit-list{display:grid;gap:8px;margin-top:16px}
+.limit-list li{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 14px;border-radius:14px;background:var(--paper)}
+.limit-list .t{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px;font-size:14.5px;line-height:1.45}
+.fc-sk{animation:none}
+.fc-sk .sk-line{height:14px}
+.fc-sk .sk-line:nth-child(n+2){height:17px}
+.feed-end{display:grid;gap:14px;min-height:40px;margin-top:14px}
+.feed-done{padding:18px 4px 6px;text-align:center;color:var(--muted);font-size:14px}
+
+/* Góp ý nội dung: on a phone a bar under the post that opens the notes in place */
+.talk{min-width:0;background:color-mix(in srgb,var(--sand) 45%,var(--raised));border-top:1px solid var(--line)}
+.talk-bar{display:flex;align-items:center;gap:10px;width:100%;min-height:54px;padding:0 14px 0 20px;text-align:left;font-size:14px}
+.talk-bar > svg{width:18px;height:18px;flex:none;color:var(--gold-text)}
+.talk-title{flex:none;font-weight:500}
+.talk-n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--dark);color:var(--gold);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.talk-n:empty{display:none}
+.talk-prev{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px;transition:opacity .25s}
+.talk-prev b{font-weight:500;color:var(--ink)}
+.talk.is-open .talk-prev{opacity:0}
+.chev{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1px solid var(--line-2);transition:transform .35s var(--ease)}
+.chev svg{width:15px;height:15px}
+.talk.is-open .chev{transform:rotate(180deg)}
+.talk-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .42s var(--ease)}
+.talk.is-open .talk-fold{grid-template-rows:1fr}
+.talk-inner{min-height:0;overflow:hidden}
+.talk-head{display:none;padding:18px 18px 0}
+.talk-head h3{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500;letter-spacing:-.01em}
+.talk-head h3 svg{width:18px;height:18px;color:var(--gold-text)}
+.talk-head p{margin-top:4px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+/* On a phone the bar is the title, so the open thread shows only the line that says what the notes are for */
+.talk.is-feed .talk-head{display:block;padding:0 20px}
+.talk.is-feed .talk-head h3{display:none}
+.talk.is-feed .talk-head p{margin-top:0}
+.talk-older{align-self:flex-start;margin:12px 18px 0;min-height:30px;font-size:13px;font-weight:500;color:var(--gold-text);text-align:left}
+.notes{display:grid;gap:14px;padding:12px 18px 2px}
+.notes:empty{display:none}
+.note{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start;animation:rise .35s var(--ease);transition:opacity .22s,transform .22s}
+.note.is-old{display:none}
+.talk.show-old .note.is-old{display:grid}
+.note.is-pending{opacity:.6}
+.note.is-leaving{opacity:0;transform:translateX(8px)}
+.note-body{min-width:0}
+.note-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px;line-height:1.4}
+.note-top b{font-weight:500}
+.note-top span{font-size:12px;color:var(--muted)}
+.note-act{margin-left:auto;min-height:28px;font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.note-act.warn{color:var(--warn);text-decoration:none;font-weight:500}
+.note-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.note-tags .tag{min-height:22px;padding:0 8px;font-size:11.5px}
+.note p{margin-top:3px;font-size:14.5px;line-height:1.5;white-space:pre-wrap}
+.talk-empty{padding:12px 18px 0;font-size:13.5px;color:var(--muted)}
+.talk-form{padding:12px 14px 14px}
+.talk-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.talk-chips button{min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);background:var(--raised);font-size:13px;transition:background .2s,border-color .2s,color .2s}
+.talk-chips button[aria-pressed="true"]{background:var(--dark);border-color:var(--dark);color:var(--on-dark)}
+.talk-compose{display:flex;align-items:flex-end;gap:8px;padding:5px 5px 5px 16px;border-radius:24px;border:1px solid var(--line-2);background:var(--raised);transition:border-color .2s,box-shadow .2s}
+.talk-compose:focus-within{border-color:var(--gold-text);box-shadow:0 0 0 4px var(--gold-wash)}
+.talk-compose textarea{flex:1;min-width:0;min-height:38px;max-height:168px;padding:8px 0;border:0;background:transparent;resize:none;font-size:16px;line-height:1.4;outline:none}
+.talk-send{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--dark);color:var(--gold);transition:background .2s,color .2s,transform .3s var(--ease)}
+.talk-send svg{width:18px;height:18px;stroke-width:2.2}
+.talk-send:disabled{background:var(--sand);color:var(--muted);opacity:1}
+.talk-send:active:not(:disabled){transform:scale(.92)}
+/* On the card page the notes are always open, under the backstage */
+.talk.is-card{margin-top:16px;border:1px solid var(--line);border-radius:var(--card-r);overflow:hidden}
+.talk.is-card .talk-bar{display:none}
+.talk.is-card .talk-fold{grid-template-rows:1fr}
+.talk.is-card .talk-head{display:block}
+/* On a computer the notes sit beside the post, always open. They never scroll inside the row, which would catch the
+   wheel and stop the feed; older notes open in place instead. The tags float over the notes while she writes, so focus
+   never changes the row's height and moves the cards under the pointer. */
+@media (min-width:960px){
+  .fc{grid-template-columns:minmax(0,1fr) minmax(300px,380px)}
+  .fc .talk{display:flex;flex-direction:column;border-top:0;border-left:1px solid var(--line)}
+  .fc .talk-bar{display:none}
+  .fc .talk-fold{flex:1;grid-template-rows:1fr}
+  .fc .talk-inner{display:flex;flex-direction:column;overflow:visible}
+  .fc .talk-head{display:block;padding:18px 18px 0}
+  .fc .talk.is-feed .talk-head h3{display:flex}
+  .fc .talk.is-feed .talk-head p{margin-top:4px}
+  .fc .talk-form{position:relative;margin-top:auto}
+  .fc .talk-chips{position:absolute;z-index:2;left:10px;right:10px;bottom:calc(100% - 6px);margin:0;padding:10px;border-radius:16px;background:var(--raised);
+    box-shadow:0 14px 34px -14px rgba(23,18,14,.45),inset 0 0 0 1px var(--line);opacity:0;visibility:hidden;transform:translateY(6px);
+    transition:opacity .2s,transform .3s var(--ease),visibility 0s .3s}
+  .fc .talk-form:focus-within .talk-chips,.fc .talk-form.has-draft .talk-chips{opacity:1;visibility:visible;transform:none;transition:opacity .2s,transform .3s var(--ease)}
+}
+
+/* Leaving a card she started: did it go out? */
+.leave-op{margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--paper);font-size:15px;line-height:1.5;white-space:pre-wrap}
+.leave-op span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.leave-acts{display:grid;gap:8px;margin-top:18px}
+.leave-acts .linkish{justify-self:center}
+
+/* Nhóm: each post as the feed shows a card, the text as she posted it */
+.tm-days .feed{margin-top:4px}
+.fc.solo{grid-template-columns:minmax(0,1fr)!important}
+.tm-card .led-foot{margin-top:auto;padding-top:4px}
+.tm-orig{border-top:1px dashed var(--line-2)}
+.tm-orig > summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:46px;font-size:13.5px;font-weight:500;color:var(--gold-text);cursor:pointer}
+.tm-orig > summary::-webkit-details-marker{display:none}
+.tm-orig > summary svg{width:16px;height:16px;flex:none}
+.tm-orig > summary .plus{margin-left:auto;width:24px;height:24px}
+.tm-orig .fc-lbl{margin:6px 0 6px}
+.tm-orig .diff{font-size:14.5px}
+
 /* ---------- Bài: the copy flow ---------- */
 .post-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
 .post-intro h1{font-size:clamp(28px,5vw,40px);letter-spacing:-.035em;line-height:1.08}
@@ -891,7 +1064,7 @@ button.tg-cell:hover{background:rgba(244,238,226,.06)}
 .tg-cell.confirmed i{background:var(--gold);color:var(--dark);box-shadow:0 0 0 3px rgba(229,179,58,.16)}
 .tm-hero .strip-sum{margin-top:12px}
 /* Days */
-.tm-days{max-width:820px}
+.tm-days{max-width:none}
 .tm-day{scroll-margin-top:90px}
 .tm-sum{margin:-4px 0 6px}
 .tm-who{display:inline-flex;align-items:center;gap:8px;font-size:14px;min-width:0;flex-wrap:wrap}

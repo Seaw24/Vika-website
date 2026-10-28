@@ -1,10 +1,10 @@
-import { loadAnalytics } from '../data.js?v=20261027b';
+import { loadAnalytics } from '../data.js?v=20261028a';
 import { DAY, enrichPosts, summarize, breakdown, weeklySeries, weekOverWeek, indexReadings, lifecycleBand, rankAtAge, themeCounts, logScale, movement, viewsAt, MIN_BAND, MIN_COMPARE, RESULT_DAY } from '../lib/stats.js';
 import { mondayOf, vnDate } from '../lib/week.js';
 import { LC, lifecycleChart, weekColumns, stripAxis, stripRow, barList, sparkline, meter, heatGrid, shortWeek } from '../lib/charts.js';
 import { demoAnalytics } from '../lib/demo.js';
 import { ENGINE_LABEL, PULL_LABEL } from '../lib/edits.js';
-import { esc, firstLine, toast, icon } from '../ui.js?v=20261027b';
+import { esc, firstLine, toast, icon } from '../ui.js?v=20261028a';
 
 const number = (v) => v == null ? 'Chưa có' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(v);
 const int = (v) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(v);
@@ -110,8 +110,8 @@ function head({ s, ctx, weeks, laneAccounts, readLine, rows }) {
 function emptyStage({ s }) {
   return `<section class="stage empty-stage"><p class="eyebrow">Chưa có bài trong lựa chọn này</p>
       <h2>Số liệu hiện ở đây sau lần đọc Threads đầu tiên.</h2>
-      <p class="muted">Sao chép bài ở Hôm nay rồi đăng trên Threads. Lần đọc hằng ngày trên máy Nam ghi nhận bài và số liệu.</p>
-      <div class="actions"><a class="btn btn-gold" href="#/">Mở Hôm nay${icon('right')}</a>${s.sample ? '' : `<button class="btn btn-ghost" data-sample>${icon('eye')}Xem số liệu mẫu</button>`}</div></section>`;
+      <p class="muted">Giữ bài trong Kho bài, sao chép rồi đăng trên Threads. Lần đọc hằng ngày trên máy Nam ghi nhận bài và số liệu.</p>
+      <div class="actions"><a class="btn btn-gold" href="#/">Mở Kho bài${icon('right')}</a>${s.sample ? '' : `<button class="btn btn-ghost" data-sample>${icon('eye')}Xem số liệu mẫu</button>`}</div></section>`;
 }
 
 // Three medians, each with the previous week beneath it, and the weekly columns beside.
