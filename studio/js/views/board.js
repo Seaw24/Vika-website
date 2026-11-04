@@ -3,12 +3,12 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Hoạt động (each member's days against her
 // plan, with a tick or a cross). Every member sees all of it except Cần để ý, which only managers see. Charts answer a
 // tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104a';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104b';
 import { vnDate, mondayOf, addDays } from '../lib/week.js';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104a';
-import { esc, icon, initial } from '../ui.js?v=20261104a';
-import { FOCUS_KEY } from './targets.js?v=20261104a';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104b';
+import { esc, icon, initial } from '../ui.js?v=20261104b';
+import { FOCUS_KEY } from './targets.js?v=20261104b';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -98,7 +98,7 @@ export async function renderBoard(main, ctx, memberId = null, again = false) {
   const was = before?.state.period;
   const period = was && !(was.from <= before.today && before.today <= was.to) ? was : periodOf(was?.kind ?? kind, today);
   const state = before ? Object.assign(before.state, { period, open: null }) : { period, view: store.get('studio.board.view') === 'activity' ? 'activity' : 'game',
-    filter: 'all', who: '', sort: 'new', shown: PAGE, chart: 'views', open: null, folded: store.get('studio.board.dash') === 'folded',
+    filter: 'all', who: '', sort: 'new', shown: PAGE, chart: 'views', open: null, folded: store.get('studio.board.dashOpen') !== '1',
     dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all' };
   states.set(main, { state, today });
   paintBoard(main, model, state, !before);
@@ -787,7 +787,8 @@ function paintBoard(main, m, s, first = false) {
     repaint({ view: b.dataset.view, open: null });
   }));
   main.querySelector('[data-fold]').addEventListener('click', () => {
-    store.set('studio.board.dash', s.folded ? 'open' : 'folded');
+    // Folded is the default (Nam, 2026-11-04); a new key, so a dashboard opened before starts folded once.
+    store.set('studio.board.dashOpen', s.folded ? '1' : '0');
     repaint({ folded: !s.folded });
   });
   main.querySelectorAll('[data-chart]').forEach((b) => b.addEventListener('click', () => repaint({ chart: b.dataset.chart })));

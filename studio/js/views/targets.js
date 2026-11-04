@@ -2,10 +2,10 @@
 // 2026-11-03: "Monday could have a KPI of one seeding, one creative, but Tuesday can have like two seeding, one
 // creative"). Bảng vàng ticks a day she meets it. A new plan starts today; past days keep theirs. Đặt mục tiêu on
 // Bảng vàng and Đổi mục tiêu on a profile land here.
-import { isManager, loadTargets, setMemberTarget } from '../data.js?v=20261104a';
-import { planOn } from '../lib/board.js?v=20261104a';
+import { isManager, loadTargets, setMemberTarget } from '../data.js?v=20261104b';
+import { planOn } from '../lib/board.js?v=20261104b';
 import { vnDate } from '../lib/week.js';
-import { esc, toast, initial } from '../ui.js?v=20261104a';
+import { esc, toast, initial } from '../ui.js?v=20261104b';
 
 export const FOCUS_KEY = 'studio.targets.focus';
 const MAX = 20;
