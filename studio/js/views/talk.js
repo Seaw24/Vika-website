@@ -1,6 +1,6 @@
-import { addComment, deleteComment } from '../data.js?v=20261104b';
-import { NOTE_TAGS, tagLabel, noteReady, timeAgo } from '../lib/feed.js?v=20261104b';
-import { esc, icon, initial, toast, firstLine } from '../ui.js?v=20261104b';
+import { addComment, deleteComment } from '../data.js?v=20261104c';
+import { NOTE_TAGS, tagLabel, noteReady, timeAgo } from '../lib/feed.js?v=20261104c';
+import { esc, icon, initial, toast, firstLine } from '../ui.js?v=20261104c';
 
 // Góp ý nội dung (Nam, 2026-10-27): one thread per card that the whole team reads and writes, beside the card in the
 // feed and on the card page. It replaces Không dùng bài này: a note says what is wrong or right with the idea, and the

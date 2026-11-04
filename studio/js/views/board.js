@@ -3,12 +3,12 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Hoạt động (each member's days against her
 // plan, with a tick or a cross). Every member sees all of it except Cần để ý, which only managers see. Charts answer a
 // tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104b';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104c';
 import { vnDate, mondayOf, addDays } from '../lib/week.js';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104b';
-import { esc, icon, initial } from '../ui.js?v=20261104b';
-import { FOCUS_KEY } from './targets.js?v=20261104b';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104c';
+import { esc, icon, initial } from '../ui.js?v=20261104c';
+import { FOCUS_KEY } from './targets.js?v=20261104c';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -99,7 +99,7 @@ export async function renderBoard(main, ctx, memberId = null, again = false) {
   const period = was && !(was.from <= before.today && before.today <= was.to) ? was : periodOf(was?.kind ?? kind, today);
   const state = before ? Object.assign(before.state, { period, open: null }) : { period, view: store.get('studio.board.view') === 'activity' ? 'activity' : 'game',
     filter: 'all', who: '', sort: 'new', shown: PAGE, chart: 'views', open: null, folded: store.get('studio.board.dashOpen') !== '1',
-    dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all' };
+    dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all', feedPeriod: null };
   states.set(main, { state, today });
   paintBoard(main, model, state, !before);
 }
@@ -693,9 +693,13 @@ function fameHtml(m) {
       <b>${k(r.views)}</b><span>${esc(r.op)}</span><small>${esc(firstName(r.member.name))} · ${dm(r.day)}</small></a></li>`).join('')}</ol></section>`;
 }
 
+// The feed's period: its own once she steps it in the feed's toolbar, else the page's (Nam, 2026-11-04: changing the
+// week meant scrolling all the way up).
+const feedPeriod = (s) => s.feedPeriod ?? s.period;
+
 function feedRows(m, s) {
-  let list = m.rows.filter((r) => r.day >= s.period.from && r.day <= s.period.to);
-  list = ofKind(list, s.feedKind);
+  const p = feedPeriod(s);
+  let list = ofKind(m.rows.filter((r) => r.day >= p.from && r.day <= p.to), s.feedKind);
   if (s.who) list = list.filter((r) => r.member.id === s.who);
   if (s.filter === 'hit') list = list.filter((r) => r.views >= HIT);
   if (s.filter === 'win') list = list.filter((r) => r.tier);
@@ -703,25 +707,81 @@ function feedRows(m, s) {
     : [...list].sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
 }
 
+// The title, the count and the order head the feed; a two-row bar stays pinned over the posts while she scrolls (Nam,
+// 2026-11-04: the filters stacked five rows high). Its first row holds the period, its second every filter: the kind,
+// Nổi bật and Hit as toggles, a person as a picker, and Xoá lọc once anything is set.
 function feedHtml(m, s) {
+  const p = feedPeriod(s);
   const list = feedRows(m, s);
-  const inPeriod = m.rows.filter((r) => r.day >= s.period.from && r.day <= s.period.to);
-  const people = m.members.filter((x) => ofKind(inPeriod, s.feedKind).some((r) => r.member.id === x.id));
-  const seg = (key, value, label) => `<button type="button" data-${key}="${value}" aria-pressed="${s[key] === value}">${label}</button>`;
-  const prev = prevPeriod(s.period);
+  const inPeriod = m.rows.filter((r) => r.day >= p.from && r.day <= p.to);
+  const ofK = ofKind(inPeriod, s.feedKind);
+  const people = m.members.map((x) => ({ x, count: ofK.filter((r) => r.member.id === x.id).length })).filter((o) => o.count || o.x.id === s.who);
+  const who = m.members.find((x) => x.id === s.who);
+  const prev = prevPeriod(p);
+  const next = nextPeriod(p);
+  const span = (kind) => `<button type="button" data-fd-span="${kind}" aria-pressed="${p.kind === kind}">${KIND[kind][0]}</button>`;
+  const chip = (value, label) => `<button type="button" class="fd-chip" data-fd-filter="${value}" aria-pressed="${s.filter === value}">${label}</button>`;
+  const set = s.feedKind !== 'all' || s.filter !== 'all' || s.who;
   return `<section class="bv-feed" aria-label="Bài của cả nhóm">
-    <div class="bv-feed-tools"><h2 class="bv-h">Bài của nhóm</h2>
-      <div class="seg" role="group" aria-label="Sắp xếp">${seg('sort', 'new', 'Mới nhất')}${seg('sort', 'views', 'Xem nhiều')}</div></div>
-    <div class="bv-kindbar">${kindSwitch('feed-kind', s.feedKind, { counts: kindCounts(inPeriod) })}</div>
-    <div class="bv-chips" role="group" aria-label="Lọc bài">${seg('filter', 'all', 'Tất cả')}${seg('filter', 'win', 'Nổi bật')}${seg('filter', 'hit', 'Hit')}</div>
-    <div class="bv-people" role="group" aria-label="Lọc theo người">
-      <button type="button" data-who="" aria-pressed="${!s.who}">Cả nhóm</button>
-      ${people.map((x) => `<button type="button" data-who="${esc(x.id)}" aria-pressed="${s.who === x.id}"><i>${esc(initial(x.name))}</i>${esc(firstName(x.name))}</button>`).join('')}
+    <header class="fd-head"><h2 class="bv-h">Bài của nhóm<small>${list.length} bài</small></h2>
+      <label class="fd-pick"><select data-fd-sort aria-label="Sắp xếp"><option value="new"${s.sort === 'new' ? ' selected' : ''}>Mới nhất</option><option value="views"${s.sort === 'views' ? ' selected' : ''}>Xem nhiều</option></select>${icon('down')}</label></header>
+    <div class="fd-bar">
+      <div class="fd-period">
+        <div class="seg sm" role="group" aria-label="Xem bài theo">${span('week')}${span('month')}${span('quarter')}</div>
+        <div class="fd-step" role="group" aria-label="Chọn kỳ">
+          <button type="button" data-fd-go="${prev.from}" ${prev.to >= m.first ? '' : 'disabled'} aria-label="${KIND[p.kind][0]} trước">${icon('left')}</button>
+          <span>${periodName(p)}</span>
+          <button type="button" data-fd-go="${next.from}" ${next.from <= m.today ? '' : 'disabled'} aria-label="${KIND[p.kind][0]} sau">${icon('right')}</button>
+        </div>
+      </div>
+      <div class="fd-filters" role="toolbar" aria-label="Lọc bài">
+        ${kindSwitch('fd-type', s.feedKind, { counts: kindCounts(inPeriod) })}
+        <span class="fd-sep" aria-hidden="true"></span>
+        ${chip('win', 'Nổi bật')}${chip('hit', 'Hit')}
+        <label class="fd-pick${s.who ? ' on' : ''}"><span class="fd-av" aria-hidden="true">${who ? esc(initial(who.name)) : icon('team')}</span>
+          <select data-fd-who aria-label="Lọc theo người"><option value="">Cả nhóm</option>${people.map(({ x, count }) => `<option value="${esc(x.id)}"${s.who === x.id ? ' selected' : ''}>${esc(firstName(x.name))} · ${count}</option>`).join('')}</select>${icon('down')}</label>
+        ${set ? '<button type="button" class="fd-clear" data-fd-clear>Xoá lọc</button>' : ''}
+      </div>
     </div>
     <div class="tp-list">${list.length ? list.slice(0, s.shown).map((r) => postHtml(m, r)).join('') : '<p class="bv-none">Không có bài nào khớp bộ lọc trong kỳ này.</p>'}</div>
-    ${list.length > s.shown ? `<p class="bv-more"><button class="btn btn-line sm" type="button" data-more>Xem thêm · còn ${list.length - s.shown}</button></p>`
-      : prev.to >= m.first ? `<p class="bv-more"><button class="btn btn-line sm" type="button" data-go="${prev.from}" data-to-feed>${icon('left')}Sang ${KIND[prev.kind][1]} ${periodName(prev)}</button></p>` : ''}
+    ${list.length > s.shown ? `<p class="bv-more"><button class="btn btn-line sm" type="button" data-fd-more>Xem thêm · còn ${list.length - s.shown}</button></p>`
+      : prev.to >= m.first ? `<p class="bv-more"><button class="btn btn-line sm" type="button" data-fd-go="${prev.from}">${icon('left')}Sang ${KIND[prev.kind][1]} ${periodName(prev)}</button></p>` : ''}
   </section>`;
+}
+
+// A feed change redraws the feed alone. Made from the pinned toolbar down in the list, it shows the results from their
+// top; made above the list, the page stays where it is. The control she used keeps the focus.
+function paintFeed(main, m, s, patch, { top = true } = {}) {
+  Object.assign(s, patch);
+  const old = main.querySelector('.bv-feed');
+  if (!old) return;
+  const active = document.activeElement && old.contains(document.activeElement)
+    ? [...document.activeElement.attributes].find((a) => a.name.startsWith('data-fd-')) : null;
+  const key = active ? `[${active.name}${active.value ? `="${CSS.escape(active.value)}"` : ''}]` : null;
+  const y = window.scrollY;
+  const below = old.getBoundingClientRect().top < 0;
+  old.outerHTML = feedHtml(m, s);
+  const feed = main.querySelector('.bv-feed');
+  wireFeed(main, m, s);
+  if (top && below) feed.scrollIntoView({ block: 'start' }); else window.scrollTo(0, y);
+  if (key) feed.querySelector(key)?.focus({ preventScroll: true });
+}
+
+function wireFeed(main, m, s) {
+  const feed = main.querySelector('.bv-feed');
+  if (!feed) return;
+  const p = feedPeriod(s);
+  const go = (patch, opts) => paintFeed(main, m, s, patch, opts);
+  feed.querySelectorAll('[data-fd-span]').forEach((b) => { b.onclick = () => go({ feedPeriod: periodOf(b.dataset.fdSpan, min(p.to, m.today)), shown: PAGE }); });
+  feed.querySelectorAll('[data-fd-go]').forEach((b) => { b.onclick = () => go({ feedPeriod: periodOf(p.kind, b.dataset.fdGo), shown: PAGE }); });
+  feed.querySelectorAll('[data-fd-type]').forEach((b) => { b.onclick = () => go({ feedKind: b.dataset.fdType, shown: PAGE }); });
+  feed.querySelectorAll('[data-fd-filter]').forEach((b) => { b.onclick = () => go({ filter: s.filter === b.dataset.fdFilter ? 'all' : b.dataset.fdFilter, shown: PAGE }); });
+  feed.querySelector('[data-fd-who]').onchange = (e) => go({ who: e.target.value, shown: PAGE });
+  feed.querySelector('[data-fd-sort]').onchange = (e) => go({ sort: e.target.value, shown: PAGE });
+  const clear = feed.querySelector('[data-fd-clear]');
+  if (clear) clear.onclick = () => go({ feedKind: 'all', filter: 'all', who: '', shown: PAGE });
+  const more = feed.querySelector('[data-fd-more]');
+  if (more) more.onclick = () => go({ shown: s.shown + PAGE }, { top: false });
 }
 
 function gameHtml(m, s) {
@@ -775,11 +835,10 @@ function paintBoard(main, m, s, first = false) {
   };
   main.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => {
     store.set('studio.board.kind', b.dataset.kind);
-    repaint({ period: periodOf(b.dataset.kind, min(s.period.to, m.today)), shown: PAGE, open: null, lbKind: null });
+    repaint({ period: periodOf(b.dataset.kind, min(s.period.to, m.today)), shown: PAGE, open: null, lbKind: null, feedPeriod: null });
   }));
   main.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => {
-    repaint({ period: periodOf(s.period.kind, b.dataset.go), shown: PAGE, who: '', open: null, lbKind: null });
-    if (b.hasAttribute('data-to-feed')) main.querySelector('.bv-feed')?.scrollIntoView({ block: 'start' });
+    repaint({ period: periodOf(s.period.kind, b.dataset.go), shown: PAGE, open: null, lbKind: null, feedPeriod: null });
   }));
   wireBoardSwitch(main, m, s);
   main.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
@@ -796,11 +855,7 @@ function paintBoard(main, m, s, first = false) {
     store.set('studio.board.dashKind', b.dataset.dashKind);
     repaint({ dashKind: b.dataset.dashKind });
   }));
-  main.querySelectorAll('[data-feed-kind]').forEach((b) => b.addEventListener('click', () => repaint({ feedKind: b.dataset.feedKind, who: '', shown: PAGE })));
-  main.querySelectorAll('[data-filter]').forEach((b) => b.addEventListener('click', () => repaint({ filter: b.dataset.filter, shown: PAGE })));
-  main.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => repaint({ sort: b.dataset.sort, shown: PAGE })));
-  main.querySelectorAll('[data-who]').forEach((b) => b.addEventListener('click', () => repaint({ who: b.dataset.who, shown: PAGE })));
-  main.querySelector('[data-more]')?.addEventListener('click', () => repaint({ shown: s.shown + PAGE }));
+  wireFeed(main, m, s);
   main.querySelectorAll('[data-cell]').forEach((b) => b.addEventListener('click', () => {
     const member = b.closest('[data-member]').dataset.member;
     const same = s.open?.member === member && s.open?.day === b.dataset.cell;

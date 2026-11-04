@@ -439,7 +439,48 @@
 /* ---------- The feed, in Threads' column ---------- */
 .bv-feed-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 .bv-h{font-size:clamp(22px,3vw,28px)!important;letter-spacing:-.035em!important}
-.bv-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+/* The team feed's toolbar (2026-11-04): pinned under the top bar while she scrolls the posts, the period on its first
+   row and every filter on its second, so nothing stacks and nothing needs a trip to the top of the page. */
+.bv-feed{scroll-margin-top:64px}
+.fd-head{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin-bottom:4px}
+.fd-head .bv-h{display:flex;align-items:baseline;gap:10px}
+.fd-head .bv-h small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);font-variant-numeric:tabular-nums}
+.fd-bar{position:sticky;top:64px;z-index:12;display:grid;gap:8px;margin:0 calc(var(--gutter) * -1) 12px;padding:8px var(--gutter) 10px;
+  background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 var(--line)}
+@media (min-width:900px){.bv-feed{scroll-margin-top:84px}.fd-bar{top:84px;margin-inline:-10px;padding-inline:10px;border-radius:0 0 18px 18px}}
+.fd-period{display:flex;align-items:center;gap:6px}
+.fd-period .seg.sm button{padding:0 11px}
+.fd-step{display:inline-flex;align-items:center;gap:2px;min-height:38px;padding:3px;border-radius:999px;background:var(--sand)}
+.fd-step span{min-width:88px;padding:0 2px;text-align:center;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fd-step button{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;color:var(--ink);transition:background .2s}
+.fd-step button:hover:not(:disabled){background:var(--raised)}
+.fd-step button:disabled{color:var(--line-2);cursor:default}
+.fd-step svg{width:16px;height:16px}
+.fd-filters{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 calc(var(--gutter) * -1);padding:2px var(--gutter)}
+.fd-filters::-webkit-scrollbar{display:none}
+@media (min-width:900px){.fd-filters{flex-wrap:wrap;overflow:visible;margin:0;padding:0}}
+.fd-filters>*{flex:none}
+.fd-filters .kind-seg{padding:3px}
+.fd-filters .kind-seg button{min-height:32px;padding:0 12px;font-size:13px}
+.fd-sep{width:1px;height:22px;margin:0 4px;background:var(--line-2)}
+.fd-chip{min-height:36px;padding:0 14px;border-radius:999px;font-size:13px;font-weight:500;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-2);transition:background .2s,color .2s,box-shadow .2s}
+.fd-chip:hover{color:var(--ink)}
+.fd-chip[aria-pressed="true"]{background:var(--gold);color:var(--dark);box-shadow:none}
+.fd-pick{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px 0 6px;border-radius:999px;
+  box-shadow:inset 0 0 0 1px var(--line-2);color:var(--ink);font-size:13px;font-weight:500;cursor:pointer;transition:background .2s,box-shadow .2s}
+.fd-pick:not(:has(.fd-av)){padding-left:14px}
+.fd-pick:hover{box-shadow:inset 0 0 0 1px var(--muted)}
+.fd-pick:focus-within{box-shadow:0 0 0 3px var(--gold-wash),inset 0 0 0 1px var(--gold-text)}
+.fd-pick.on{background:var(--dark);color:var(--on-dark);box-shadow:none}
+.fd-pick select{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:inherit;font:inherit;padding:0 16px 0 0;margin:0;min-height:34px;cursor:pointer;outline:none}
+.fd-pick select option{color:var(--ink);background:var(--raised)}
+.fd-pick>svg{position:absolute;right:10px;width:13px;height:13px;pointer-events:none;opacity:.7}
+.fd-av{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--sand);color:var(--ink);font:700 11.5px/1 var(--font)}
+.fd-av svg{width:14px;height:14px}
+.fd-pick.on .fd-av{background:var(--gold);color:var(--dark)}
+.fd-clear{min-height:36px;padding:0 8px;font-size:13px;font-weight:500;color:var(--gold-text);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-2)}
+.fd-clear:hover{text-decoration-color:currentColor}
 /* Seeding and creative apart (2026-11-04): one switch of three kinds on the dashboard, the team feed and each profile. */
 .kind-seg button{display:inline-flex;align-items:center;gap:7px}
 .kind-seg small{font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;opacity:.6}
@@ -447,19 +488,8 @@
 .kind-seg .kg{width:8px;height:8px}.kind-seg .kg.cre{width:7px;height:7px}
 .seg.dark.kind-seg .kg.cre{background:var(--on-dark)}
 .seg.dark.kind-seg button[aria-pressed="true"] .kg{background:var(--dark)}
-.bv-kindbar{margin-bottom:10px}
-.bv-kindbar .seg{max-width:100%}
 .bv-pro-kind{margin-top:20px}
 @media (max-width:620px){.dash-ctl{width:100%}.dash-ctl .kind-seg{order:-1;width:100%}.dash-ctl .kind-seg button{flex:1;justify-content:center}}
-.bv-chips button{min-height:36px;padding:0 14px;border-radius:999px;font-size:13.5px;font-weight:500;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-2);transition:background .25s,color .25s}
-.bv-chips button[aria-pressed="true"]{background:var(--gold);color:var(--dark);box-shadow:none}
-.bv-people{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 calc(var(--gutter) * -1) 14px;padding:2px var(--gutter)}
-.bv-people button{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px 0 6px;border-radius:999px;font-size:14px;font-weight:500;
-  white-space:nowrap;box-shadow:inset 0 0 0 1px var(--line-2);color:var(--muted);transition:background .25s,color .25s}
-.bv-people button:first-child{padding-left:14px}
-.bv-people button i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--sand);color:var(--ink);font:700 12px var(--font);font-style:normal}
-.bv-people button[aria-pressed="true"]{background:var(--dark);color:var(--on-dark);box-shadow:none}
-.bv-people button[aria-pressed="true"] i{background:var(--gold);color:var(--dark)}
 .tp-list{border-radius:var(--stage-r);background:var(--raised);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
 .tp{position:relative;padding:18px clamp(16px,2.4vw,24px) 16px}
 .tp-list .tp+.tp{border-top:1px solid var(--line)}
