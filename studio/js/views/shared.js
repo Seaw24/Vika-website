@@ -1,6 +1,6 @@
 import { cleanAccountCode } from '../lib/ct.js';
 import { wordDiff } from '../lib/diff.js';
-import { esc } from '../ui.js?v=20261028a';
+import { esc } from '../ui.js?v=20261104a';
 
 // The team's locked Bình luận 2 pitch (vika-ops tools/threads-writer/R2.txt, its App Store link as {link}), for a
 // member who never saved her own (Nam, 2026-10-17).
@@ -10,9 +10,15 @@ export function settingsFor(ctx, account) {
   const s = ctx.team.settings.find((x) => x.account_id === account.id);
   return {
     r2_template: s?.r2_template ?? DEFAULT_TEMPLATE,
-    account_code: s?.account_code ?? cleanAccountCode(account.handle),
+    account_code: linkCode(ctx, account),
     created_at: s?.created_at ?? null,
   };
+}
+
+// Each account's link code is its own: its handle, until someone changes it in Cài đặt (Nam, 2026-11-04: "default it
+// into the account name ... still the same R2"). A code never repeats another account's, hers or not.
+export function linkCode(ctx, account) {
+  return ctx.team.settings.find((x) => x.account_id === account.id)?.account_code ?? freshCode(ctx, account.handle, [account.id]);
 }
 
 // A member's first card account carries the Bình luận 2 template and the link code for all her card posts
@@ -28,7 +34,15 @@ export function homeAccount(ctx, memberId) {
   return pick(cards.filter(isActive)) ?? pick(cards);
 }
 
-// A new link code from a name, never one another account already uses. Her own accounts' codes do not count.
+// The accounts she can post a card on, oldest first: her live seeding accounts with a real handle, or the setup slots
+// while she has nothing else.
+export function postAccounts(ctx, memberId) {
+  const live = ctx.team.accounts.filter((a) => a.member_id === memberId && a.kind === 'card' && isActive(a)).sort(byAge);
+  const real = live.filter((a) => !SETUP_NAME.test(a.handle));
+  return real.length ? real : live;
+}
+
+// A new link code from a name, never one another account already uses. The accounts in ownIds do not count.
 export function freshCode(ctx, name, ownIds = []) {
   const taken = new Set(ctx.team.settings.filter((s) => !ownIds.includes(s.account_id)).map((s) => s.account_code));
   const base = cleanAccountCode(name);
@@ -39,16 +53,14 @@ export function freshCode(ctx, name, ownIds = []) {
   }
 }
 
-// Her Bình luận 2 and link code belong to her, not to one Threads account (Nam, 2026-09-27: "nam_", not
-// "nganneez_"). They are stored on her first seeding account; until she saves them the code comes from her name.
+// Her Bình luận 2 text is hers, one for every seeding account, stored on her first seeding account (Nam,
+// 2026-09-27). Its link code is that account's own (Nam, 2026-11-04); a card's link takes the code of the account she
+// posts it on.
 export function memberR2(ctx, memberId) {
   const account = homeAccount(ctx, memberId);
   if (!account) return null;
   const row = ctx.team.settings.find((x) => x.account_id === account.id);
-  if (row) return { account, r2_template: row.r2_template, account_code: row.account_code, created_at: row.created_at };
-  const own = ctx.team.accounts.filter((a) => a.member_id === memberId).map((a) => a.id);
-  const name = ctx.team.members?.find((m) => m.id === memberId)?.name ?? account.handle;
-  return { account, r2_template: DEFAULT_TEMPLATE, account_code: freshCode(ctx, name, own), created_at: null };
+  return { account, r2_template: row?.r2_template ?? DEFAULT_TEMPLATE, account_code: linkCode(ctx, account), created_at: row?.created_at ?? null };
 }
 
 // One block that shows the change in place: removed words struck in rust, added words lit in gold.

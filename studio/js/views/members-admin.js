@@ -1,8 +1,8 @@
 // Cài đặt, for admins only: add a person to the team (Nam, 2026-10-21). The panel appears once the admin check
 // answers, so the rest of the page never waits on it.
-import { addMember, isAdmin } from '../data.js?v=20261028a';
+import { addMember, isAdmin } from '../data.js?v=20261104a';
 import { checkMember, cleanEmail, cleanName, failText, addedText, inviteText } from '../lib/members.js';
-import { esc, toast, icon, copyText } from '../ui.js?v=20261028a';
+import { esc, toast, icon, copyText } from '../ui.js?v=20261104a';
 
 function panelHtml() {
   return `<section class="panel add-acct" id="add-member">
@@ -68,11 +68,11 @@ function wire(ctx, panel) {
   };
 }
 
-// Adds the panel to the end of Cài đặt when the signed-in member is an admin.
-export async function showMemberPanel(main, ctx) {
+// Fills its slot in Cài đặt's Quản lý section when the signed-in member is an admin.
+export async function showMemberPanel(host, ctx) {
   const admin = await isAdmin().catch((error) => { console.error(error); return false; });
   // She may have left Cài đặt while the check ran.
-  if (!admin || !main.querySelector('#profile') || main.querySelector('#add-member')) return;
-  main.insertAdjacentHTML('beforeend', panelHtml());
-  wire(ctx, main.querySelector('#add-member'));
+  if (!admin || !host?.isConnected || host.querySelector('#add-member')) return;
+  host.insertAdjacentHTML('beforeend', panelHtml());
+  wire(ctx, host.querySelector('#add-member'));
 }

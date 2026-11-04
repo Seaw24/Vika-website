@@ -1,13 +1,13 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261028a';
-import { poolNotice } from '../lib/pool.js?v=20261028a';
+import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261104a';
+import { poolNotice } from '../lib/pool.js?v=20261104a';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
-import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261028a';
+import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261104a';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { liveNotes } from '../lib/feed.js?v=20261028a';
+import { liveNotes } from '../lib/feed.js?v=20261104a';
 import { PART_LABEL } from '../lib/edits.js';
-import { esc, icon, initial, cardTags } from '../ui.js?v=20261028a';
+import { esc, icon, initial, cardTags } from '../ui.js?v=20261104a';
 import { diffHtml } from './shared.js';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261028a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -135,7 +135,7 @@ export async function renderTeam(main, ctx) {
         <div class="hero-lead">
           <p class="eyebrow">Cả nhóm · Tuần ${dm(weekId)} – ${dm(addDays(weekId, 6))}</p>
           <h1>${isCurrent ? 'Tuần này' : `Tuần ${dm(weekId)}`} nhóm đăng <span class="gold">${total}&nbsp;bài.</span></h1>
-          <p class="lede">Mỗi ngày một mục, mới nhất ở trên. Chờ xác nhận là thành viên đã bấm Đã đăng xong; đã xác nhận là máy đọc Threads lúc 06:00 đã thấy bài.</p>
+          <p class="lede">Mỗi ngày một mục, mới nhất ở trên. Chờ xác nhận là thành viên đã bấm Đã đăng xong; đã xác nhận là máy đọc Threads đã thấy bài (máy đọc 6 tiếng một lần).</p>
           ${weeks.length > 1 ? `<label class="tm-week"><span class="sr-only">Tuần</span><select id="team-week">${weeks.map((w) => `<option value="${w}"${w === weekId ? ' selected' : ''}>Tuần ${dm(w)}${w === current ? ' · tuần này' : ''}</option>`).join('')}</select></label>` : ''}
         </div>
         <div class="strip">${gridHtml(week, members)}</div>

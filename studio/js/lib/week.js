@@ -3,6 +3,13 @@ const vnFormat = new Intl.DateTimeFormat('en-CA', { timeZone: VN, year: 'numeric
 
 export const vnDate = (date = new Date()) => vnFormat.format(date);
 
+// The Threads read starts every 6 hours, at 00:00, 06:00, 12:00 and 18:00 Vietnam time (Nam, 2026-11-04).
+const vnHourFormat = new Intl.DateTimeFormat('en-US', { timeZone: VN, hour: 'numeric', hour12: false });
+export function nextRead(date = new Date()) {
+  const hour = Number(vnHourFormat.format(date)) % 24;
+  return hour < 6 ? '06:00 sáng nay' : hour < 12 ? '12:00 trưa nay' : hour < 18 ? '18:00 chiều nay' : '00:00 đêm nay';
+}
+
 export function mondayOf(isoDate) {
   const d = new Date(`${isoDate}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
@@ -64,12 +71,15 @@ export function skippedIds(events) {
   return out;
 }
 
-// The link code a card already carries: the latest one the member copied or tapped under, if any.
-export function issuedCt(events, assignmentId) {
-  return events.filter((e) => e.assignment_id === assignmentId && e.payload?.ct
-    && (['chose_account', 'posted'].includes(e.type) || (e.type === 'copied' && e.payload.part === 'r2')))
-    .sort(byTime).at(-1)?.payload.ct ?? null;
+// The link a card already carries: the latest code the member copied or tapped under, with the account it was made
+// for, if any.
+export function issuedLink(events, assignmentId) {
+  const e = events.filter((x) => x.assignment_id === assignmentId && x.payload?.ct
+    && (['chose_account', 'posted'].includes(x.type) || (x.type === 'copied' && x.payload.part === 'r2')))
+    .sort(byTime).at(-1);
+  return e ? { ct: e.payload.ct, account_id: e.account_id ?? null } : null;
 }
+export const issuedCt = (events, assignmentId) => issuedLink(events, assignmentId)?.ct ?? null;
 
 // Hôm nay holds every card she has not used, from all her weeks (Nam, 2026-10-26: one queue). A card belongs to
 // the member with its newest assignment: an unused card goes back to the spare pool, and the next push or a

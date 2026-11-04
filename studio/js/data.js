@@ -186,6 +186,12 @@ export async function loadEvents(assignmentIds) {
   return [...rows, ...pending];
 }
 
+// Her posted taps since a moment (Vietnam midnight), for the account a new card should go on.
+export async function loadPostedSince(memberId, sinceIso) {
+  return cached(`posted:${memberId}:${sinceIso}`, 15000, () => allRows(() => supabase.from('events')
+    .select('assignment_id,account_id,type,at').eq('member_id', memberId).in('type', ['posted', 'posted_undo']).gte('at', sinceIso).order('id')));
+}
+
 export async function loadAnswers(memberIds, limit = 200) {
   if (!memberIds.length) return [];
   return must(await supabase.from('events')
@@ -331,6 +337,33 @@ export function isAdmin() {
     if (error) throw error;
     return data.user?.app_metadata?.studio_admin === true;
   });
+}
+
+// A manager (Nam and Thái Hà, Nam 2026-11-03) sees Bảng vàng's Cần để ý. The flag is app_metadata.studio_manager,
+// apart from studio_admin, which only lets a member add people.
+export function isManager() {
+  return cached(`manager.${email}`, 10 * 60_000, async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return data.user?.app_metadata?.studio_manager === true;
+  });
+}
+
+// Daily targets (migration member_targets): every row, oldest first; lib/board.js targetOn picks the one in force.
+export async function loadTargets() {
+  return cached('targets', 30000, async () => allRows(() => supabase.from('member_targets').select('*').order('id')));
+}
+// Only a manager may call it. seeding and creative are 7 counts each, Monday first; the row starts today in Vietnam.
+export async function setMemberTarget(memberId, seeding, creative) {
+  const { data, error } = await supabase.rpc('set_member_target', { p_member: memberId, p_seeding: seeding, p_creative: creative });
+  if (error) throw error;
+  readCache.delete('targets');
+  return data;
+}
+// Links members made for posts of their own: until the morning read finds the post, each counts as creative work.
+export async function loadCreativeLinks() {
+  return cached('creativeLinks', 30000, async () => allRows(() => supabase.from('events').select('id,at,member_id,type,payload')
+    .eq('type', 'creative_link').order('id')));
 }
 
 // Adds a person to the team. Returns { member, password }; throws an Error whose code the screen words.

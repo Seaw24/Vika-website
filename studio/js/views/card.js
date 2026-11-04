@@ -1,13 +1,13 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard } from '../data.js?v=20261028a';
-import { issuedCt, postingState, vnDate, skippedIds } from '../lib/week.js';
+import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261104a';
+import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261028a';
-import { memberR2 } from './shared.js';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261104a';
+import { memberR2, postAccounts, linkCode } from './shared.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { liveNotes } from '../lib/feed.js?v=20261028a';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261028a';
+import { liveNotes } from '../lib/feed.js?v=20261104a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104a';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';
@@ -26,7 +26,9 @@ export async function renderCard(main, ctx, assignmentId) {
     main.innerHTML = `<a class="linkish" href="#/">${icon('left')}Kho bài</a><div class="empty" style="margin-top:16px"><h2>Không tìm thấy bài này</h2><p>Bài có thể đã được đổi tuần.</p></div>`;
     return;
   }
-  const [events, posts, notes] = await Promise.all([loadEvents([a.id]), loadPosts([a.id]), loadComments([a.card.id])]);
+  const mine = a.member_id === ctx.me.id && !a.released_at;
+  const [events, posts, notes, today] = await Promise.all([loadEvents([a.id]), loadPosts([a.id]), loadComments([a.card.id]),
+    mine ? loadPostedSince(a.member_id, new Date(`${vnDate()}T00:00:00+07:00`).toISOString()).catch(() => []) : []]);
   threads.set(a.card.id, liveNotes(notes));
   const view = {
     main,
@@ -35,44 +37,75 @@ export async function renderCard(main, ctx, assignmentId) {
     card: a.card,
     // A card released to the shared pool (migration card_pool) is nobody's until a member takes it again.
     released: Boolean(a.released_at),
-    mine: a.member_id === ctx.me.id && !a.released_at,
+    mine,
     cardAccounts: ctx.team.accounts.filter((x) => x.member_id === a.member_id && x.kind === 'card'),
     events,
     post: posts[0] ?? null,
     tab: 'why',
     answered: new Set(events.filter((e) => e.type === 'answered' && ['edit', 'chat'].includes(e.payload?.kind)).map((e) => e.payload.part)),
   };
-  // Her link code and Bình luận 2 are hers, one for every seeding account (Nam, 2026-09-27), stored on her
-  // first seeding account. She posts on any of her accounts; the daily read finds it.
+  // Her Bình luận 2 text is hers, one for every seeding account (Nam, 2026-09-27); its link carries the code of the
+  // account she posts on (Nam, 2026-11-04), which she picks above Bình luận 2.
   view.r2 = memberR2(ctx, a.member_id);
   view.home = view.r2?.account ?? null;
+  view.accounts = postAccounts(ctx, a.member_id);
+  view.linkAccount = startAccount(view, today);
   ctx.onLeave = () => askLeave(view);
   paint(view);
 }
 
-const ctOf = (view) => view.post?.ct ?? issuedCt(view.events, view.a.id)
-  ?? (view.r2 ? buildCt(view.r2.account_code, view.card.card_code) : null);
+// The account a card starts on: where it was posted, else her last pick on this card, else the account its link was
+// made for, else the account with the fewest posted taps today (the oldest on a tie), so her posts spread over her
+// accounts.
+const PICK_KEY = 'studio.cardAccount.';
+function startAccount(view, today) {
+  const find = (id) => view.accounts.find((x) => x.id === id) ?? null;
+  if (view.post) return view.ctx.team.accounts.find((x) => x.id === view.post.account_id) ?? null;
+  let kept = null;
+  try { kept = localStorage.getItem(PICK_KEY + view.a.id); } catch { /* storage blocked */ }
+  const chosen = find(kept) ?? find(issuedLink(view.events, view.a.id)?.account_id);
+  if (chosen) return chosen;
+  const last = new Map();
+  for (const e of today) if (e.assignment_id !== view.a.id) last.set(e.assignment_id, e);
+  const used = new Map();
+  for (const e of last.values()) if (e.type === 'posted' && e.account_id) used.set(e.account_id, (used.get(e.account_id) ?? 0) + 1);
+  return [...view.accounts].sort((x, y) => (used.get(x.id) ?? 0) - (used.get(y.id) ?? 0))[0] ?? view.home;
+}
+
+// The card's link: the posted one, else the one already issued for the chosen account, else a new one from that
+// account's code. A link issued before codes were per account carries her first account, so it stays on that account.
+function ctOf(view) {
+  if (view.post?.ct) return view.post.ct;
+  const issued = issuedLink(view.events, view.a.id);
+  const account = view.linkAccount;
+  if (issued && (!account || issued.account_id === account.id)) return issued.ct;
+  return account ? buildCt(linkCode(view.ctx, account), view.card.card_code) : issued?.ct ?? null;
+}
 const postedOn = (view) => view.post ? view.ctx.team.accounts.find((x) => x.id === view.post.account_id) ?? null : null;
 // The member's own word: "posted" (claimed) until the daily read confirms it, or "missing" when that read found nothing.
 const claim = (view) => postingState(view.events, view.post ? [view.post] : []).get(view.a.id) ?? null;
 const isClaimed = (view) => claim(view)?.status === 'claimed';
 const VN = 'Asia/Ho_Chi_Minh';
 const vnTime = (at) => new Intl.DateTimeFormat('vi-VN', { timeZone: VN, hour: '2-digit', minute: '2-digit' }).format(new Date(at));
-const nextRead = () => (Number(new Intl.DateTimeFormat('en-US', { timeZone: VN, hour: 'numeric', hour12: false }).format(new Date())) % 24 < 6 ? '06:00 sáng nay' : '06:00 sáng mai');
 const whenPosted = (at) => `${vnTime(at)}${vnDate(new Date(at)) === vnDate() ? ' hôm nay' : ` ngày ${vnDate(new Date(at)).split('-').reverse().slice(0, 2).map(Number).join('/')}`}`;
 
 function originals(view) {
-  const account = view.home;
+  const account = view.linkAccount;
   const ct = ctOf(view);
   const r2 = account && ct ? fillTemplate(view.r2.r2_template, appLink(ct)) : null;
   return { op: view.card.op, r1: view.card.r1, r2, account };
 }
 
 const draftKey = (view, part, account) => `${view.a.id}.${part}${part === 'r2' && account ? `.${account.id}` : ''}`;
-const copiedParts = (view) => new Set(view.events.filter((e) => e.type === 'copied').map((e) => e.payload?.part));
+// Bình luận 2 counts as copied only with the link it carries now: after she switches account, she copies it again.
+const copiedParts = (view) => {
+  const ct = ctOf(view);
+  return new Set(view.events.filter((e) => e.type === 'copied' && (e.payload?.part !== 'r2' || !e.payload.ct || e.payload.ct === ct))
+    .map((e) => e.payload?.part));
+};
 const textOf = (view, part, o) => draftStore.get(draftKey(view, part, o.account)) ?? o[part];
 const lastEdit = (view, part) => view.events.filter((e) => e.type === 'edited' && e.payload?.part === part).at(-1) ?? null;
-const base = (view) => ({ assignment_id: view.a.id, card_id: view.card.id, account_id: view.post?.account_id ?? view.home?.id ?? null });
+const base = (view) => ({ assignment_id: view.a.id, card_id: view.card.id, account_id: view.post?.account_id ?? view.linkAccount?.id ?? view.home?.id ?? null });
 const q = (view, sel) => view.root.querySelector(sel);
 
 // The next thing to do: the first part not yet copied.
@@ -108,6 +141,7 @@ function partBlock(view, [part, label, where], i, o) {
     <span class="step">${i + 1}</span>
     <div class="part-card">
       ${head}<span class="count${[...text].length > THREADS_LIMIT ? ' over' : ''}" data-count="${part}">${countText(text)}</span></div>
+      ${part === 'r2' ? accountPick(view) : ''}
       <textarea rows="1" aria-label="${esc(label)}" data-edit="${part}" spellcheck="false"${view.mine ? '' : ' readonly'}>${esc(text)}</textarea>
       <div class="part-foot"><span class="state" data-state="${part}">${stateHtml(view, part, isEdited(o[part], text))}</span>
         <button class="btn copy btn-line" data-copy="${part}">${copyLabel(false)}</button></div>
@@ -117,7 +151,19 @@ function partBlock(view, [part, label, where], i, o) {
     </div></li>`;
 }
 
-// Where the card stands. There is no account to pick: the daily read finds the post on any of her accounts.
+// The account she posts on, picked above Bình luận 2 because its link carries that account's code. Fixed once she
+// marked the card posted or the read found it; a single account needs no pick.
+function accountPick(view) {
+  const on = view.linkAccount;
+  if (!on) return '';
+  if (view.post || isClaimed(view) || !view.mine || view.accounts.length < 2) {
+    return `<p class="acct-on">${icon('link')}<span>Link của <b>@${esc(on.handle)}</b>${view.post ? '' : ' · đăng bài trên tài khoản này'}</span></p>`;
+  }
+  return `<div class="acct-pick" role="radiogroup" aria-label="Đăng trên tài khoản nào"><span class="acct-pick-l">Đăng trên</span>
+    ${view.accounts.map((x) => `<button type="button" role="radio" aria-checked="${x.id === on.id}" data-acct="${esc(x.id)}">@${esc(x.handle)}</button>`).join('')}</div>`;
+}
+
+// Where the card stands. The daily read finds the post on any of her accounts.
 function pickBlock(view) {
   const k = claim(view);
   if (view.post) {
@@ -136,14 +182,14 @@ function pickBlock(view) {
   }
   const missing = k?.status === 'missing';
   return `<section class="pick" id="pick">${missing ? `<p class="notice warn">${icon('info')}<span>Lần đọc Threads chưa thấy bài này trên tài khoản nào của bạn sau khi bạn đánh dấu đã đăng. Kiểm tra link ở bình luận 2, rồi bấm Đã đăng xong khi bài đã lên.</span></p>` : ''}
-    <div class="pick-foot"><span class="tiny muted">Đăng trên tài khoản nào của bạn cũng được. Máy đọc Threads tự tìm bài.</span><span class="pick-acts"><button class="linkish" data-release>${icon('bookmark')}Bỏ giữ bài này</button><button class="linkish strong" data-posted>${icon('check')}Đã đăng xong</button></span></div></section>`;
+    <div class="pick-foot"><span class="tiny muted">Đăng trên tài khoản đã chọn ở Bình luận 2. Máy đọc Threads tự tìm bài.</span><span class="pick-acts"><button class="linkish" data-release>${icon('bookmark')}Bỏ giữ bài này</button><button class="linkish strong" data-posted>${icon('check')}Đã đăng xong</button></span></div></section>`;
 }
 
 function introHtml(view) {
   const k = claim(view);
   const [h, p] = view.post ? ['Bài đã đăng.', 'Nội dung bên dưới là bản viết sẵn.']
     : k?.status === 'claimed' ? ['Đã đăng, chờ xác nhận.', 'Máy đọc Threads sẽ tìm bài này trên các tài khoản của bạn và bắt đầu đếm số liệu.']
-    : ['Đăng bài này', 'Sao chép từng phần theo thứ tự rồi dán vào Threads, trên tài khoản nào của bạn cũng được. Sửa thẳng trong khung nếu cần.'];
+    : ['Đăng bài này', 'Chọn tài khoản ở Bình luận 2, rồi sao chép từng phần theo thứ tự và dán vào Threads trên tài khoản đó. Sửa thẳng trong khung nếu cần.'];
   return `<h1>${h}</h1><p class="muted" style="margin-top:8px">${p}</p>`;
 }
 
@@ -276,7 +322,7 @@ async function recordPosted(view) {
 }
 
 async function markPosted(view) {
-  if (view.post || isClaimed(view) || !view.mine || !view.home) return;
+  if (view.post || isClaimed(view) || !view.mine || !view.linkAccount) return;
   if (await recordPosted(view)) {
     toast('Đã ghi: đã đăng. Kể nhanh vì sao bạn sửa nhé.');
     location.hash = '#/';
@@ -285,6 +331,22 @@ async function markPosted(view) {
   toast('Đã ghi: đã đăng.');
   afterChoice(view);
   q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// A new account gives Bình luận 2 a new link; the copy step opens again until she copies it.
+function pickAccount(view, id) {
+  const account = view.accounts.find((x) => x.id === id);
+  if (!account || account.id === view.linkAccount?.id || view.post || isClaimed(view)) return;
+  view.linkAccount = account;
+  try { localStorage.setItem(PICK_KEY + view.a.id, account.id); } catch { /* storage blocked */ }
+  const li = q(view, '#part-r2');
+  const tpl = document.createElement('template');
+  tpl.innerHTML = partBlock(view, PARTS[2], 2, originals(view)).trim();
+  li.replaceWith(tpl.content.firstElementChild);
+  const area = q(view, '[data-edit="r2"]');
+  if (area) autoGrow(area);
+  q(view, `[data-acct="${CSS.escape(id)}"]`)?.focus();
+  sync(view);
 }
 
 async function unpost(view) {
@@ -431,6 +493,7 @@ function wire(view) {
     else if ('copyAlt' in d) copyAlt(view);
     else if (d.dock) copyPart(view, d.dock);
     else if (d.restore) restore(view, d.restore);
+    else if (d.acct) pickAccount(view, d.acct);
     else if (d.tab) {
       view.tab = d.tab;
       root.querySelectorAll('[data-tab]').forEach((x) => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-selected', String(x === b)); });

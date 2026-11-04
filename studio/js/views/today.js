@@ -1,13 +1,13 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard } from '../data.js?v=20261028a';
-import { vnDate, mondayOf, addDays, postingState, remaining, postedToday, postedDay, weekStrip, skippedIds, heldIds } from '../lib/week.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261028a';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard } from '../data.js?v=20261104a';
+import { vnDate, mondayOf, addDays, postingState, remaining, postedToday, postedDay, weekStrip, skippedIds, heldIds, nextRead } from '../lib/week.js';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261028a';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261028a';
-import { settingsFor, isActive, memberR2 } from './shared.js';
-import { openChat } from './chat.js?v=20261028a';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261028a';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104a';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104a';
+import { settingsFor, isActive, memberR2, postAccounts, linkCode } from './shared.js';
+import { openChat } from './chat.js?v=20261104a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -19,7 +19,6 @@ function formatDay(iso) {
 }
 const shortWeek = (iso) => { const [, m, d] = iso.split('-').map(Number); return `${d}/${m}`; };
 const vnTime = (at) => new Intl.DateTimeFormat('vi-VN', { timeZone: VN, hour: '2-digit', minute: '2-digit' }).format(new Date(at));
-const vnHour = () => Number(new Intl.DateTimeFormat('en-US', { timeZone: VN, hour: 'numeric', hour12: false }).format(new Date())) % 24;
 const num = (v) => new Intl.NumberFormat('vi-VN').format(v);
 // Accounts of one member differ by their last part (…a, …b), so that letter marks them.
 const mark = (handle) => String(handle).split(/[._]/).filter(Boolean).at(-1)?.charAt(0) ?? '@';
@@ -33,8 +32,6 @@ function whenLabel(at, today) {
   const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86400000);
   return diff === 1 ? `${vnTime(at)} · hôm qua` : `${vnTime(at)} · ${DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d}/${m}`;
 }
-// The daily read of Threads runs at 06:00 Vietnam time.
-const nextRead = () => (vnHour() < 6 ? '06:00 sáng nay' : '06:00 sáng mai');
 
 /* ---------- Hero: the week strip and the cards she holds ---------- */
 
@@ -107,14 +104,25 @@ function homeHint() {
     <button class="btn sm btn-line" id="a2hs-ok">Đã hiểu</button></div>`;
 }
 
-// Every member gets the tile (Nam, 2026-10-26). A creative account keeps its own Bình luận 2 and link code;
-// without one, the link takes the Bình luận 2 and code of her card posts, and she posts on any account of hers.
-function linkSource(ctx, creative) {
-  return creative ? { account: creative, ...settingsFor(ctx, creative) } : memberR2(ctx, ctx.me.id);
+// Every member gets the tile (Nam, 2026-10-26). A creative account keeps its own Bình luận 2 and link code. Without
+// one, the link takes her Bình luận 2 text and the code of the seeding account she picks (Nam, 2026-11-04).
+function linkSource(ctx, creative, account = null) {
+  if (creative) return { account: creative, ...settingsFor(ctx, creative) };
+  const r2 = memberR2(ctx, ctx.me.id);
+  const on = account ?? postAccounts(ctx, ctx.me.id)[0] ?? r2?.account;
+  return r2 && on ? { ...r2, account: on, account_code: linkCode(ctx, on) } : null;
 }
 
-function creativeBody(creative) {
-  return `<p class="small muted">${creative ? `Tài khoản sáng tạo @${esc(creative.handle)}. ` : 'Tài khoản nào cũng được. '}Tạo link cho từng bài mới rồi dán vào bình luận 2, để biết bài nào mang về lượt cài.</p>
+function linkPick(ctx, s) {
+  const list = postAccounts(ctx, ctx.me.id);
+  if (list.length < 2) return '';
+  return `<div class="acct-pick" role="radiogroup" aria-label="Đăng trên tài khoản nào"><span class="acct-pick-l">Đăng trên</span>
+    ${list.map((x) => `<button type="button" role="radio" aria-checked="${x.id === s.account.id}" data-link-acct="${esc(x.id)}">@${esc(x.handle)}</button>`).join('')}</div>`;
+}
+
+function creativeBody(ctx, creative, s) {
+  return `<p class="small muted">${creative ? `Tài khoản sáng tạo @${esc(creative.handle)}. ` : 'Link mang tên tài khoản bạn đăng bài. '}Tạo link cho từng bài mới rồi dán vào bình luận 2, để biết bài nào mang về lượt cài.</p>
+    ${creative ? '' : linkPick(ctx, s)}
     <div class="row-actions"><button class="btn btn-ink sm" id="mint">${icon('link')}Tạo link cho bài mới</button></div>
     <div id="minted"></div>`;
 }
@@ -223,7 +231,7 @@ function topHtml(ctx, m) {
       ? `Mở bài bạn đang giữ để đăng, hoặc giữ thêm trong kho chung, tối đa ${HOLD_LIMIT} bài. Đăng trên tài khoản nào của bạn cũng được.`
       : `Bấm dấu giữ trên bài bạn thích trong kho chung, tối đa ${HOLD_LIMIT} bài, rồi mở bài để đăng. Đăng trên tài khoản nào của bạn cũng được.`)
     : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
-    : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads buổi sáng.';
+    : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads, 6 tiếng một lần.';
   return `${ctx.me.is_demo ? `<p class="notice">${icon('info')}<span>Tài khoản mẫu để thử portal. Bài là nội dung đã chuẩn bị; các tên @vika.demo chưa phải tài khoản Threads thật.</span></p>` : ''}
     <section class="stage today-hero pool-hero">
       <div class="hero-grid">
@@ -241,8 +249,8 @@ function topHtml(ctx, m) {
     <div class="today-folds">
       <details class="fold"><summary><span>Đã đăng tuần này <span class="muted">· ${confirmed} đã xác nhận${waiting ? `, ${waiting} chờ` : ''}</span></span><span class="plus"></span></summary>
         <div class="fold-body">${m.ledger.length ? `<ol class="ledger">${m.ledger.map((it) => ledgerRow(it, m.today, it.s.post ? m.observations.get(it.s.post.id) : null)).join('')}</ol>`
-          : '<p class="muted small" style="padding:4px 0 10px">Chưa có bài nào tuần này. Bài bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận lúc 06:00 mỗi sáng.</p>'}</div></details>
-      ${m.linkFrom ? `<details class="fold"><summary><span>Bài tự viết <span class="muted">· tạo link tải app</span></span><span class="plus"></span></summary><div class="fold-body">${creativeBody(m.creative)}</div></details>` : ''}
+          : '<p class="muted small" style="padding:4px 0 10px">Chưa có bài nào tuần này. Bài bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận, 6 tiếng một lần.</p>'}</div></details>
+      ${m.linkFrom ? `<details class="fold"><summary><span>Bài tự viết <span class="muted">· tạo link tải app</span></span><span class="plus"></span></summary><div class="fold-body">${creativeBody(ctx, m.creative, m.linkFrom)}</div></details>` : ''}
       ${m.elsewhere.length ? `<details class="fold"><summary><span>Bạn đã bỏ qua <span class="muted">· ${m.elsewhere.length}</span></span><span class="plus"></span></summary><div class="fold-body"><ol class="library">${m.elsewhere.map((a, i) => row(a, i, { note: ['Đã bỏ qua', 'line'], after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
     </div>
     ${homeHint()}`;
@@ -564,6 +572,12 @@ function wireTop(main, ctx, m) {
       try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
       main.querySelector('#a2hs')?.remove();
     } else if (b.id === 'mint') mint(main, m.linkFrom);
+    else if (b.dataset.linkAcct) {
+      const account = ctx.team.accounts.find((x) => x.id === b.dataset.linkAcct);
+      m.linkFrom = linkSource(ctx, null, account);
+      b.parentElement.querySelectorAll('[data-link-acct]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      main.querySelector('#minted').innerHTML = '';
+    }
     else if (b.dataset.takeBack) {
       // Dùng lại puts a card she set aside back among the cards she holds (Nam, 2026-09-28).
       const a = m.assignments.find((x) => x.id === b.dataset.takeBack);
