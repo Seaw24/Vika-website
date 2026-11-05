@@ -1,14 +1,14 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261104f';
-import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261104f';
-import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, nextRead } from '../lib/week.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104f';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261104g';
+import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261104g';
+import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, deadIds, nextRead } from '../lib/week.js?v=20261104g';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104g';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104f';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104f';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104g';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104g';
 import { settingsFor, isActive, memberR2, postAccounts, linkCode } from './shared.js';
-import { openChat } from './chat.js?v=20261104f';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104f';
+import { openChat } from './chat.js?v=20261104g';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104g';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const VN = 'Asia/Ho_Chi_Minh';
@@ -62,11 +62,6 @@ function ledgerRow(item, today, observation) {
       <a class="led-op" href="#/bai/${esc(a.id)}">${esc(a.card.op)}</a>
       <div class="led-foot">${foot}</div></div></li>`;
 }
-
-const row = (a, i, { note = null, after = '' } = {}) => `<li${after ? ' class="has-action"' : ''}><a class="lib-row${note ? ' is-used' : ''}" href="#/bai/${esc(a.id)}">
-  <span class="n">${note ? '•' : String(i + 1).padStart(2, '0')}</span>
-  <span><span class="t">${esc(a.card.op)}</span><span class="tags">${note ? `<span class="tag ${note[1]}">${esc(note[0])}</span>` : ''}${cardTags(a.card)}</span></span>
-  <span class="arrow">${icon('right')}</span></a>${after}</li>`;
 
 /* ---------- Hint and the self-written post link ---------- */
 
@@ -168,6 +163,11 @@ async function loadMine(ctx) {
   const states = postingState(events, posts);
   const skipped = skippedIds(events);
   const held = heldIds(assignments, holders, cardPosts);
+  // An old copy of a card that someone else posted, or holds in a newer week, is hidden here but still counted by
+  // take_card's limit of 3 (Nam, 2026-11-04: "I can only save two posts"). Give such copies back, so the server counts
+  // what she sees.
+  const dead = [...deadIds(assignments, held, skipped, states)];
+  if (dead.length) await Promise.allSettled(dead.map((id) => releaseCard(id)));
   const available = assignments.filter((a) => held.has(a.id) && !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
   const ledger = assignments.map((a) => ({ a, s: states.get(a.id) }))
@@ -183,9 +183,8 @@ async function loadMine(ctx) {
     holding: remaining(available, states).map((a) => ({ a, s: states.get(a.id) })),
     // Cards she copied or edited: one may be up on Threads already, so giving it back asks first.
     started: new Set(events.filter((e) => ['copied', 'edited'].includes(e.type)).map((e) => e.assignment_id)),
+    // Cards she set aside before the pool became a feed stay skipped; Kho bài no longer lists them (Nam, 2026-11-04).
     ledger: ledger.filter(({ s }) => s.status !== 'missing'),
-    // Cards she set aside before the pool became a feed; Dùng lại makes one hers again.
-    elsewhere: assignments.filter((a) => held.has(a.id) && skipped.has(a.id) && !states.has(a.id)),
   };
 }
 
@@ -202,7 +201,6 @@ function actsBar(m) {
     ${fb.list.length ? act('fix', 'feedback', 'Kể lý do sửa', { alert: fb.list.length }) : ''}
     ${act('posted', 'check', waiting ? 'Chờ xác nhận' : 'Đã đăng tuần này', { count: waiting || m.ledger.length })}
     ${m.linkFrom ? act('link', 'link', 'Tạo link') : ''}
-    ${m.elsewhere.length ? act('skipped', 'undo', 'Đã bỏ qua', { count: m.elsewhere.length }) : ''}
     ${showHint() ? act('home', 'download', 'Mở nhanh') : ''}
   </nav>`;
 }
@@ -269,21 +267,6 @@ function sheetFor(main, ctx, key) {
         root.querySelectorAll('[data-link-acct]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
         root.querySelector('#minted').innerHTML = '';
       }
-    });
-  } else if (key === 'skipped') {
-    openSheet(`<h2>Bạn đã bỏ qua ${m.elsewhere.length} bài</h2><p class="small muted">Bấm Dùng lại để đưa bài về mục Bài bạn đang giữ.</p>
-      <ol class="library">${m.elsewhere.map((a, i) => row(a, i, { note: ['Đã bỏ qua', 'line'], after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol>`, async (e, close) => {
-      const b = e.target.closest('[data-take-back]');
-      if (!b) return;
-      // Dùng lại puts a card she set aside back among the cards she holds (Nam, 2026-09-28).
-      const a = m.assignments.find((x) => x.id === b.dataset.takeBack);
-      b.disabled = true;
-      try {
-        await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
-        toast('Đã đưa bài về mục Bài bạn đang giữ.');
-        close();
-        refreshTop(main, ctx);
-      } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
     });
   } else if (key === 'home') {
     // The portal sends no reminders, so it asks once to be added to the home screen; Đã hiểu hides the button for good.
@@ -679,7 +662,7 @@ const teamSkeleton = `<div class="bv-quests kb-team-sk" aria-hidden="true"><span
 async function paintTeam(main, ctx) {
   const host = main.querySelector('#team-week');
   try {
-    const { mountTeamWeek } = await import('./board.js?v=20261104f');
+    const { mountTeamWeek } = await import('./board.js?v=20261104g');
     if (!host.isConnected) return;
     const { day } = await mountTeamWeek(host, ctx, { still: Boolean(teamCache.html) });
     // Her day fills the hero's slot; refreshTop draws the hero again from this copy.

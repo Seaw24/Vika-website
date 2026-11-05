@@ -95,6 +95,11 @@ export function heldIds(assignments, holders, cardPosts = []) {
   return new Set(assignments.filter((a) => a.week_id >= newest.get(a.card.id) && !postedElsewhere.has(a.card.id)).map((a) => a.id));
 }
 
+// Her copies that heldIds hides (someone else posted the card, or holds it in a newer week) and nothing else explains:
+// not skipped, no post or claim. take_card still counts them toward the limit of 3, so Hôm nay gives them back.
+export const deadIds = (assignments, held, skipped, states) =>
+  new Set(assignments.filter((a) => !held.has(a.id) && !skipped.has(a.id) && !states.has(a.id)).map((a) => a.id));
+
 // Cards with no standing choice: the newest week first, then the picker's order. A missing card is free again.
 export const remaining = (assignments, states) =>
   assignments.filter((a) => !states.has(a.id) || states.get(a.id).status === 'missing')

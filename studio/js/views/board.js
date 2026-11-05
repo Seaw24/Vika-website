@@ -3,15 +3,15 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
 // plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
 // member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104f';
-import { vnDate, mondayOf, addDays } from '../lib/week.js';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104g';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261104g';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104f';
-import { esc, icon, faceInner, toast } from '../ui.js?v=20261104f';
-import { FOCUS_KEY } from './targets.js?v=20261104f';
-import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261104f';
-import { setPillar } from '../data.js?v=20261104f';
-import { POOL_PILLAR_KEY } from './today.js?v=20261104f';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104g';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261104g';
+import { FOCUS_KEY } from './targets.js?v=20261104g';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261104g';
+import { setPillar } from '../data.js?v=20261104g';
+import { POOL_PILLAR_KEY } from './today.js?v=20261104g';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -94,7 +94,9 @@ export async function renderBoard(main, ctx, memberId = null, again = false) {
     dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all', feedPeriod: null,
     // Nội dung (content pillars): its own window and kind, the list's order, the pillar opened in it and whether all its
     // posts show; pillar filters the feed.
-    pillar: '', plSpan: store.get('studio.board.plSpan') ?? '4w', plKind: 'all', plSort: 'posts', plSorts: (() => { try { return cleanSorts(JSON.parse(store.get('studio.board.plSorts') ?? 'null')); } catch { return cleanSorts(null); } })(), plOpen: null, plAll: false };
+    pillar: '', plSpan: store.get('studio.board.plSpan') ?? '4w', plKind: 'all', plSort: 'posts', plSorts: (() => { try { return cleanSorts(JSON.parse(store.get('studio.board.plSorts') ?? 'null')); } catch { return cleanSorts(null); } })(), plOpen: null, plAll: false,
+    // The pillar table's own period, remembered per device; null follows the hero's window.
+    plTbl: ['week', 'month', 'quarter'].includes(store.get('studio.board.plTbl')) ? store.get('studio.board.plTbl') : null };
   states.set(main, { state, today });
   paintBoard(main, model, state, !before);
 }
@@ -1245,7 +1247,14 @@ function plSortBar(rules) {
   </div>`;
 }
 
-function plTable(m, s, table, team, pool, mt) {
+// The table's own switch (Nam, 2026-11-04): the hero's window, or this week, month or quarter for the table alone.
+const PL_TBL = [['week', 'Tuần'], ['month', 'Tháng'], ['quarter', 'Quý']];
+function plTblSwitch(s, w) {
+  const b = (key, label) => `<button type="button" data-pl-tbl="${key}" aria-pressed="${(s.plTbl ?? 'span') === key}">${label}</button>`;
+  return `<div class="seg sm" role="group" aria-label="Khoảng thời gian của bảng">${b('span', w.key === 'all' ? 'Từ đầu' : w.label)}${PL_TBL.map(([key, label]) => b(key, label)).join('')}</div>`;
+}
+
+function plTable(m, s, table, team, pool, mt, { ctl = '', when = 'Chạm một dòng để xem bên trong dạng bài' } = {}) {
   const rules = cleanSorts(s.plSorts);
   const primary = rules[0].key;
   const plan = sortPillars(table.filter((p) => PLAN.includes(p.key)), rules, mt.key);
@@ -1259,7 +1268,8 @@ function plTable(m, s, table, team, pool, mt) {
     return `<span><button type="button" class="pl-sort${at === 0 ? ' on' : at > 0 ? ' also' : ''}" data-pl-col="${key}" aria-sort="${rl ? (rl.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${title}">${label}<i aria-hidden="true">${rl ? DIR[rl.dir][1] : '↕'}</i>${rl && rules.length > 1 ? `<sup>${at + 1}</sup>` : ''}</button></span>`;
   };
   return `<section class="bv-panel pl-list">
-    <header><div><h2>Từng dạng bài</h2><small>Chạm một dòng để xem bên trong dạng bài</small></div></header>
+    <header><div><h2>Từng dạng bài</h2><small>${when}</small></div>${ctl}</header>
+    ${table.length ? '' : '<p class="bv-calm">Chưa có bài nào trong khoảng này.</p>'}
     ${plSortBar(rules)}
     <div class="pl-head"><span>Dạng bài</span>${SORT_COLS.map(head).join('')}<span></span></div>
     <ol class="pl-rows">${rows(plan, 0)}</ol>
@@ -1269,6 +1279,19 @@ function plTable(m, s, table, team, pool, mt) {
 }
 
 /* ----- The page ----- */
+
+// The table follows the hero's window unless its own switch picks this week, month or quarter; then it reads that
+// period's posts and compares with the period before, when the data reaches back that far.
+function plTableFor(m, s, w, { table, team, pool, mt, inside }) {
+  const ctl = plTblSwitch(s, w);
+  if (!s.plTbl) return plTable(m, { ...s, plCmp: Boolean(w.prev) }, table, team, pool, mt, { ctl });
+  const p = periodOf(s.plTbl, m.today);
+  const before = prevPeriod(p);
+  const rows = ofKind(m.rows.filter(inside(p)), s.plKind);
+  const prev = before.from >= m.first ? ofKind(m.rows.filter(inside(before)), s.plKind) : [];
+  const when = `${KIND[p.kind][0]} này · ${periodName(p)} · chạm một dòng để xem bên trong`;
+  return plTable(m, { ...s, plCmp: before.from >= m.first }, pillarTable(rows, prev, { sort: 'posts' }), groupStats(rows), pool, mt, { ctl, when });
+}
 
 function pillarsHtml(m, s) {
   const w = plWindow(m, s);
@@ -1304,7 +1327,7 @@ function pillarsHtml(m, s) {
         : '<p class="pl-empty">Không có bài nào trong khoảng này. Chọn 12 tuần hoặc Từ đầu.</p>'}
     </section>
     ${rows.length ? `${plInsights(m, found, table)}
-    ${plTable(m, { ...s, plCmp: Boolean(w.prev) }, table, team, pool, mt)}
+    ${plTableFor(m, s, w, { table, team, pool, mt, inside })}
     <div class="pl-two">${plSupply(stock, table, m)}${plMembers(m, rows)}</div>` : ''}
   </section>`;
 }
@@ -1318,6 +1341,10 @@ function wirePillars(main, m, s, repaint) {
     repaint({ plSpan: b.dataset.plSpan, plOpen: null, plAll: false });
   }));
   root.querySelectorAll('[data-pl-kind]').forEach((b) => b.addEventListener('click', () => repaint({ plKind: b.dataset.plKind })));
+  root.querySelectorAll('[data-pl-tbl]').forEach((b) => b.addEventListener('click', () => {
+    store.set('studio.board.plTbl', b.dataset.plTbl);
+    repaint({ plTbl: b.dataset.plTbl === 'span' ? null : b.dataset.plTbl, plOpen: null, plAll: false });
+  }));
   // The sort rules live in the browser, so the table opens as she left it.
   const rules = cleanSorts(s.plSorts);
   const setRules = (next) => {

@@ -1,13 +1,13 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261104f';
-import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js';
+import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261104g';
+import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js?v=20261104g';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261104f';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261104g';
 import { memberR2, postAccounts, linkCode } from './shared.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { liveNotes } from '../lib/feed.js?v=20261104f';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104f';
+import { liveNotes } from '../lib/feed.js?v=20261104g';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104g';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';

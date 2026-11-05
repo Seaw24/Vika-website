@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261104f';
-import { renderSignIn } from './views/signin.js?v=20261104f';
-import { esc, toast, icon, face, setFaces } from './ui.js?v=20261104f';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261104g';
+import { renderSignIn } from './views/signin.js?v=20261104g';
+import { esc, toast, icon, face, setFaces } from './ui.js?v=20261104g';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
@@ -37,15 +37,15 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261104f').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261104f').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261104f').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js?v=20261104f').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261104f').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261104f').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261104f').then((m) => m.renderTeam),
-  board: () => import('./views/board.js?v=20261104f').then((m) => m.renderBoard),
-  tiktok: () => import('./views/tiktok.js?v=20261104f').then((m) => m.renderTikTok),
+  today: () => import('./views/today.js?v=20261104g').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261104g').then((m) => m.renderCard),
+  answers: () => import('./views/answers.js?v=20261104g').then((m) => m.renderAnswers),
+  settings: () => import('./views/settings.js?v=20261104g').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261104g').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261104g').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261104g').then((m) => m.renderTeam),
+  board: () => import('./views/board.js?v=20261104g').then((m) => m.renderBoard),
+  tiktok: () => import('./views/tiktok.js?v=20261104g').then((m) => m.renderTikTok),
 };
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
