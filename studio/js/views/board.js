@@ -1,14 +1,17 @@
 // Bảng vàng (Nam, 2026-11-03): in place of Số liệu and Nhóm. From the top: the team's dashboard for a week, a month or a
 // quarter (charts first; folded, it keeps the three tiles that matter most), then one switch: Thi đua (the period's
-// crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Hoạt động (each member's days against her
-// plan, with a tick or a cross). Every member sees all of it except Cần để ý, which only managers see. Charts answer a
-// tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104e';
+// crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
+// plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
+// member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104f';
 import { vnDate, mondayOf, addDays } from '../lib/week.js';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104e';
-import { esc, icon, faceInner } from '../ui.js?v=20261104e';
-import { FOCUS_KEY } from './targets.js?v=20261104e';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104f';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261104f';
+import { FOCUS_KEY } from './targets.js?v=20261104f';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261104f';
+import { setPillar } from '../data.js?v=20261104f';
+import { POOL_PILLAR_KEY } from './today.js?v=20261104f';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -18,7 +21,6 @@ const dm = (iso) => `${+iso.slice(8, 10)}/${+iso.slice(5, 7)}`;
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const WEEK = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const weekday = (iso) => DAYS[new Date(`${iso}T00:00:00Z`).getUTCDay()];
-const mondayGap = (iso) => (new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7;
 const firstName = (name) => String(name ?? '').trim().split(/\s+/).slice(-2).join(' ');
 const PAGE = 10;
 const TIER = { mega: ['Siêu hit', 'mega'], hit: ['Hit', 'hit'], beat: ['Vượt mức', 'beat'] };
@@ -74,18 +76,8 @@ document.addEventListener('visibilitychange', () => {
 
 export async function renderBoard(main, ctx, memberId = null, again = false) {
   shown = { main, ctx, memberId, at: Date.now() };
-  // Targets, links and the pool are extras: before migration member_targets the page runs on the default targets.
-  const [data, activity, manager, targets, links, pool] = await Promise.all([loadAnalytics(), loadTeamActivity(),
-    isManager().catch(() => false), loadTargets().catch(() => []), loadCreativeLinks().catch(() => []), loadPool().catch(() => null)]);
-  const now = Date.now();
-  const today = vnDate();
-  const members = ctx.team.members.filter((m) => !m.is_demo);
-  const team = { members, accounts: ctx.team.accounts };
-  const rows = postRows({ team, posts: data.posts, observations: data.observations, versions: data.versions, cards: data.cards, events: activity.events }, now);
-  const pending = pendingWork({ events: [...activity.events, ...links], posts: data.posts }, now);
-  const quests = makeQuests({ rows, pending, targets, accounts: ctx.team.accounts, today });
-  const model = { ctx, rows, members, team, activity, manager, now, today, quests, pool, first: rows[0]?.day ?? today,
-    profiles: profiles(rows, members, today, quests) };
+  const model = await loadModel(ctx);
+  const { today } = model;
   if (memberId) {
     // A redraw keeps her sort and how many posts show; only opening the page animates (Nam, 2026-11-04).
     const kept = again ? profileViews.get(main) : null;
@@ -97,11 +89,30 @@ export async function renderBoard(main, ctx, memberId = null, again = false) {
   // A period that held the old today moves with the day; a period she stepped back to stays.
   const was = before?.state.period;
   const period = was && !(was.from <= before.today && before.today <= was.to) ? was : periodOf(was?.kind ?? kind, today);
-  const state = before ? Object.assign(before.state, { period, open: null }) : { period, view: store.get('studio.board.view') === 'activity' ? 'activity' : 'game',
-    filter: 'all', who: '', sort: 'new', shown: PAGE, chart: 'views', open: null, folded: store.get('studio.board.dashOpen') !== '1',
-    dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all', feedPeriod: null };
+  const state = before ? Object.assign(before.state, { period }) : { period, view: store.get('studio.board.view') === 'pillars' ? 'pillars' : 'game',
+    filter: 'all', who: '', sort: 'new', shown: PAGE, chart: 'views', folded: store.get('studio.board.dashOpen') !== '1',
+    dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all', feedPeriod: null,
+    // Nội dung (content pillars): its own window and kind, the list's order, the pillar opened in it and whether all its
+    // posts show; pillar filters the feed.
+    pillar: '', plSpan: store.get('studio.board.plSpan') ?? '4w', plKind: 'all', plSort: 'posts', plSorts: (() => { try { return cleanSorts(JSON.parse(store.get('studio.board.plSorts') ?? 'null')); } catch { return cleanSorts(null); } })(), plOpen: null, plAll: false };
   states.set(main, { state, today });
   paintBoard(main, model, state, !before);
+}
+
+// Every read Bảng vàng and Kho bài's team week draw from.
+async function loadModel(ctx) {
+  // Targets, links and the pool are extras: before migration member_targets the page runs on the default targets.
+  const [data, activity, manager, targets, links, pool] = await Promise.all([loadAnalytics(), loadTeamActivity(),
+    isManager().catch(() => false), loadTargets().catch(() => []), loadCreativeLinks().catch(() => []), loadPool().catch(() => null)]);
+  const now = Date.now();
+  const today = vnDate();
+  const members = ctx.team.members.filter((m) => !m.is_demo);
+  const team = { members, accounts: ctx.team.accounts };
+  const rows = postRows({ team, posts: data.posts, observations: data.observations, versions: data.versions, cards: data.cards, events: activity.events }, now);
+  const pending = pendingWork({ events: [...activity.events, ...links], posts: data.posts }, now);
+  const quests = makeQuests({ rows, pending, targets, accounts: ctx.team.accounts, today });
+  return { ctx, rows, members, team, activity, manager, now, today, quests, pool, cards: data.cards, first: rows[0]?.day ?? today,
+    profiles: profiles(rows, members, today, quests) };
 }
 
 /* ---------- Shared pieces ---------- */
@@ -147,6 +158,7 @@ function postHtml(m, r, { feature = false } = {}) {
       <span class="tp-badges">${tierTag(r)}<span class="bv-xp" title="${esc(xp)}">+${r.xp} XP</span></span>
     </div>
     <p class="tp-text${feature ? '' : ' cut'}">${esc(r.op || 'Bài sáng tạo')}</p>
+    <p class="tp-pillar">${pillarTag(pillarOf(r), { edit: `post:${r.id}` })}</p>
     <ul class="tp-nums" aria-label="Số liệu">
       <li title="Lượt xem">${icon('eye')}<b>${k(r.views)}</b></li>
       <li title="Lượt thích">${icon('line')}<b>${k(r.likes)}</b></li>
@@ -536,22 +548,70 @@ function needLine(m, x, days) {
     : `<small class="qw-need ok">${x.of ? 'Đủ bài mọi ngày' : 'Chưa có dữ liệu'} ${extra(t.extra)}</small>`;
 }
 
-const sumCell = (x) => `<span class="qw-sum" role="cell"><span><b>${x.met}</b><small>/${x.of}<span class="qw-unit"> ngày</span></small></span>${x.extra ? `<em>+${x.extra} bài</em>` : ''}</span>`;
+// A week not started yet has no counted day, so its column shows a dash.
+const sumCell = (x) => `<span class="qw-sum" role="cell"><span>${x.of ? `<b>${x.met}</b><small>/${x.of}<span class="qw-unit"> ngày</span></small>` : '<b>–</b>'}</span>${x.extra ? `<em>+${x.extra} bài</em>` : ''}</span>`;
+
+// A day still to come shows its plan in outline, so anyone reads the next days' posts from the table (Nam, 2026-11-04).
+function planCell(mem, q) {
+  const t = q.target;
+  const parts = KINDS.filter(([key]) => t[key]).map(([key, , cls]) => `<span class="kc plan">${glyph(cls)}${t[key]}</span>`).join('');
+  const say = t.seeding + t.creative ? `cần ${[t.seeding && `${t.seeding} seeding`, t.creative && `${t.creative} sáng tạo`].filter(Boolean).join(' và ')}` : 'ngày nghỉ';
+  return `<span class="qw-plan" role="img" aria-label="${esc(`${mem.name}, ${weekday(q.day)} ${dm(q.day)}: ${say}`)}"><span class="kcs">${parts || '<span class="kc rest">nghỉ</span>'}</span></span>`;
+}
+
+// The viewer's day, the top of Kho bài's dark hero above the team week (Nam, 2026-11-04): what today still asks of her,
+// by kind, where each kind is posted from and a button to start it (seeding: the pool; creative: today.js's link sheet).
+// today.js puts it above the cards she holds; the next days and the rules live with the team week.
+const KIND_HOW = { seeding: 'Giữ bài trong kho chung, đăng trên Threads, rồi bấm Đã đăng xong.', creative: 'Bài bạn tự viết. Tạo link rồi dán vào bình luận 2.' };
+const KIND_GO = { seeding: '<button type="button" class="kt-go" data-jump>Chọn bài</button>', creative: '<button type="button" class="kt-go" data-sheet="link">Tạo link</button>' };
+function myDayHtml(m) {
+  const me = m.members.find((x) => x.id === m.ctx.me?.id);
+  if (!me) return '';
+  const q = m.quests.day(me.id, m.today);
+  if (q.status === 'before') return '';
+  const head = q.status === 'met' ? `Hôm nay bạn đã đủ bài${q.extra ? `, thêm ${q.extra} bài` : ''}.`
+    : q.status === 'rest' ? `Hôm nay bạn nghỉ${q.extra ? `, vẫn đăng ${q.extra} bài` : ''}.`
+      : `Hôm nay bạn cần đăng thêm ${kindList(q.short)}`;
+  const kinds = KINDS.filter(([key]) => q.target[key] || q[key]).map(([key, label, cls]) => {
+    const got = q[key];
+    const want = q.target[key];
+    const done = got >= want;
+    return `<li class="kt-k ${cls}${done ? ' is-done' : ''}"><span class="kt-n">${glyph(cls)}<b>${want ? `${got}/${want}` : `+${got}`}</b>${done ? icon('check') : ''}</span>
+      <span><b>${label}</b><small>${done ? (got > want ? `Đã đủ, thêm ${got - want} bài` : 'Đã đủ') : KIND_HOW[key]}</small></span>${done ? '' : KIND_GO[key]}</li>`;
+  }).join('');
+  return `<div class="kt-today s-${q.status}"><p class="eyebrow">Hôm nay của bạn · ${weekday(m.today)} ${dm(m.today)}</p><h2 class="kt-h">${head}</h2>
+    ${kinds ? `<ul class="kt-kinds">${kinds}</ul>` : ''}</div>`;
+}
+
+// The rules under the team week, in a fold; the first line follows the viewer's own plan.
+function rulesHtml(m) {
+  const set = m.members.some((x) => x.id === m.ctx.me?.id) && m.quests.day(m.ctx.me.id, m.today).target.set;
+  return `<details class="kt-rules"><summary>Mục tiêu tính thế nào</summary><ul>
+    <li>${set ? 'Quản lý đặt mục tiêu cho từng thứ trong tuần. Kế hoạch lặp lại mỗi tuần cho tới khi quản lý đổi.' : 'Khi chưa có mục tiêu riêng, mỗi ngày là 1 bài seeding cho mỗi tài khoản seeding.'}</li>
+    <li>Ngày đủ bài khi đủ cả seeding và sáng tạo. Bài seeding thừa không bù cho bài sáng tạo thiếu.</li>
+    <li>Mục tiêu là mức tối thiểu. Mỗi ngày đủ bài +${XP.quest} XP, mỗi bài đăng thêm +${XP.extra} XP.</li>
+    <li>Bài bấm Đã đăng xong và link bài tự viết được tính ngay. Máy đọc Threads xác nhận sau, 6 tiếng một lần.</li>
+    <li>Ngày có mục tiêu 0 là ngày nghỉ và không làm đứt chuỗi ngày đủ bài.</li>
+    <li>Tuần tới chỉ hiện kế hoạch của từng người.</li></ul></details>`;
+}
 
 // A week: one row per member, a day per column, a mark and a count per kind in each cell; a tap opens the day under
 // the table.
+// No ranking: the table is for checking status, so members keep one order by name every week and no place shows (Nam,
+// 2026-11-04: the eye should not have to find a new row each week).
 function weekBoard(m, s, days) {
-  const ranked = questRank(m, days);
+  const ranked = questRank(m, days).sort((a, b) => a.mem.name.localeCompare(b.mem.name, 'vi'));
   const open = s.open && days.includes(s.open.day) ? s.open : null;
   return `<div class="qw" role="table" aria-label="Từng người, từng ngày">
     <div class="qw-row qw-head" role="row"><span role="columnheader"></span><span role="columnheader">Thành viên</span>
       ${days.map((d) => `<span role="columnheader" class="${d === m.today ? 'today' : ''}">${weekday(d)}<small>${dm(d)}</small></span>`).join('')}<span role="columnheader">Ngày đủ</span></div>
     ${ranked.map((x, i) => {
       const p = m.profiles.get(x.mem.id);
-      return `<div class="qw-row" role="row" data-member="${esc(x.mem.id)}" style="--i:${i}">
-        <span class="qw-place" role="cell">${x.of ? i + 1 : '–'}</span>
+      return `<div class="qw-row${x.mem.id === m.ctx.me?.id ? ' is-me' : ''}" role="row" data-member="${esc(x.mem.id)}" style="--i:${i}">
+        <span class="qw-place" role="cell"></span>
         <a class="qw-who" role="rowheader" href="#/bang-vang/${esc(x.mem.id)}">${avatar(p, 36)}<span><b>${esc(firstName(x.mem.name))}${flame(p.quest, false, `${p.quest} ngày liền đủ bài`)}</b>${needLine(m, x, days)}</span></a>
-        ${x.qs.map((q) => `<span role="cell" class="qw-c${q.day === m.today ? ' today' : ''}">${['before', 'future'].includes(q.status) ? `<span class="dm s-${q.status}"></span>`
+        ${x.qs.map((q) => `<span role="cell" class="qw-c${q.day === m.today ? ' today' : ''}">${q.status === 'future' ? planCell(x.mem, q)
+          : q.status === 'before' ? `<span class="dm s-${q.status}"></span>`
           : `<button type="button" class="qw-b${open?.member === x.mem.id && open.day === q.day ? ' is-open' : ''}" data-cell="${q.day}" aria-label="${esc(dayText(x.mem, q))}">${dayMark(q)}${dayCounts(q)}</button>`}</span>`).join('')}
         ${sumCell(x)}
       </div>`;
@@ -560,59 +620,58 @@ function weekBoard(m, s, days) {
   ${open ? dayDetail(m, open.member, open.day) : ''}`;
 }
 
-// A month or a quarter: one card per member with her days as a small calendar, weeks as rows, and her totals by kind.
-function periodCards(m, s, days) {
-  const ranked = questRank(m, days);
-  const blank = Array.from({ length: mondayGap(days[0]) }, () => '<span class="mc-d s-none"></span>').join('');
-  return `<div class="mc-grid">${ranked.map((x, i) => {
-    const p = m.profiles.get(x.mem.id);
-    const t = periodTotals(x);
-    const total = KINDS.filter(([key]) => t.want[key] || t[key]).map(([key, label, cls]) => {
-      const state = t[key] > t.want[key] ? 'over' : t.short[key] ? 'short' : 'ok';
-      return `<span class="kc ${state}">${glyph(cls)}${label} <b>${t.want[key] ? `${t[key]}/${t.want[key]}` : `+${t[key]}`}</b></span>`;
-    }).join('');
-    return `<article class="mc" data-member="${esc(x.mem.id)}" style="--i:${i}">
-      <header><span class="qw-place">${x.of ? i + 1 : '–'}</span><a class="qw-who" href="#/bang-vang/${esc(x.mem.id)}">${avatar(p, 34)}<span><b>${esc(firstName(x.mem.name))}</b><small>${x.of ? `${Math.round((x.met / x.of) * 100)}% ngày đủ bài` : 'Chưa có dữ liệu'}</small></span></a>
-        ${sumCell(x)}</header>
-      <div class="mc-cal">${WEEK.map((w) => `<span class="mc-h">${w}</span>`).join('')}${blank}${x.qs.map((q) => `<button type="button" class="mc-d s-${q.status}${q.day === m.today ? ' today' : ''}${s.open?.member === x.mem.id && s.open.day === q.day ? ' is-open' : ''}" data-cell="${q.day}" aria-label="${esc(dayText(x.mem, q))}" title="${esc(dayText(x.mem, q))}">${q.extra ? '<i>+</i>' : ''}</button>`).join('')}</div>
-      ${total ? `<p class="mc-sum">${total}</p>` : ''}
-      ${t.short.seeding + t.short.creative ? `<p class="mc-need">Thiếu ${kindList(t.short)}</p>` : ''}
-    </article>`;
-  }).join('')}</div>
-  ${s.open && days.includes(s.open.day) ? dayDetail(m, s.open.member, s.open.day) : ''}`;
-}
-
-// Each member's posts in the period, seeding and creative stacked, against her plan up to today.
-function countsChart(m, days) {
-  const list = m.members.map((mem) => {
-    const qs = days.filter((d) => d <= m.today).map((d) => m.quests.day(mem.id, d)).filter((q) => q.status !== 'before');
-    return { mem, s: qs.reduce((a, q) => a + q.seeding, 0), c: qs.reduce((a, q) => a + q.creative, 0), want: qs.reduce((a, q) => a + q.target.seeding + q.target.creative, 0) };
-  }).sort((a, b) => b.s + b.c - (a.s + a.c));
-  const max = Math.max(1, ...list.map((x) => Math.max(x.s + x.c, x.want)));
-  return `<ul class="qc-list">${list.map((x, i) => `<li style="--i:${i}"><span class="qc-name">${esc(firstName(x.mem.name))}</span>
-      <span class="qc-bar" title="${esc(`${x.mem.name}: ${x.s} seeding, ${x.c} sáng tạo, mục tiêu ${x.want}`)}"><i class="s" style="--w:${(x.s / max) * 100}%"></i><i class="c" style="--w:${(x.c / max) * 100}%"></i>${x.want ? `<em style="left:${(x.want / max) * 100}%"></em>` : ''}</span>
-      <span class="qc-n"><b>${x.s + x.c}</b>/${x.want}</span></li>`).join('')}</ul>
-    <p class="qc-key"><span class="cc-key"><i class="k-seed"></i>Seeding</span><span class="cc-key"><i class="k-cre dark"></i>Sáng tạo</span><span class="cc-key"><i class="k-mark"></i>Mục tiêu đến hôm nay</span></p>`;
-}
-
-function activityHtml(m, s) {
+// Kho bài's second part (Nam, 2026-11-04): the team's week, one row per member in the same order every week.
+// Arrows step back to earlier weeks and forward up to 4 weeks, where each day shows only the plan; a tap on a day opens
+// it under the table. Cần lưu ý follows, for managers only.
+const AHEAD = 4;
+function teamWeekHtml(m, s, first) {
   const p = s.period;
   const days = periodDays(p);
+  const current = days.includes(m.today);
+  const ahead = p.from > m.today;
+  const last = p.from >= addDays(mondayOf(m.today), AHEAD * 7);
+  const title = current ? 'Tuần này' : ahead && p.from === addDays(mondayOf(m.today), 7) ? 'Tuần tới' : 'Tuần';
   const sample = (status, seeding, extra = 0) => ({ status, target: { seeding: 2, creative: 0 }, seeding, creative: 0, wait: [], extra });
-  return `<section class="bv-act" aria-label="Hoạt động">
-    <div class="bv-quests">
-      <header class="bq-head"><div><h2>Tiến độ mỗi ngày</h2><p class="bq-sub">${p.kind === 'week' ? 'Tuần ' : ''}${periodName(p)} · xếp theo tỷ lệ ngày đủ bài</p></div>
-        ${m.manager ? '<a class="bq-set" href="#/cai-dat" data-set-target="*">Đặt mục tiêu</a>' : ''}</header>
+  return `<div class="bv kb-team${first ? '' : ' is-still'}"><section class="bv-quests" aria-labelledby="kb-team-h">
+      <header class="bq-head"><div><p class="eyebrow">Hoạt động · cả nhóm</p><h2 id="kb-team-h">${title} ${periodName(p)}</h2><p class="bq-sub">${ahead ? 'Chưa tới, chỉ hiện kế hoạch của từng người' : 'Ai đã đăng đủ, ai còn thiếu, từng ngày'}</p></div>
+        <div class="kb-team-acts"><span class="kb-team-step"><button type="button" class="icon-btn" data-week="-1" aria-label="Tuần trước">${icon('left')}</button>
+          <button type="button" class="icon-btn" data-week="1" aria-label="Tuần sau"${last ? ' disabled' : ''}>${icon('right')}</button></span>
+          ${m.manager ? '<a class="bq-set" href="#/cai-dat" data-set-target="*">Đặt mục tiêu</a>' : ''}</div></header>
       <div class="bq-key"><span class="bq-marks"><span>${dayMark(sample('met', 2))}Đủ bài</span><span>${dayMark(sample('missed', 1))}Thiếu bài</span><span>${dayMark(sample('open', 1))}Hôm nay</span><span>${dayMark(sample('met', 3, 1))}Đăng thêm</span></span>
         <span class="bq-kinds">${KINDS.map(([, label, cls]) => `<span>${glyph(cls)}${label}</span>`).join('')}<span><b class="kc short">0/1</b>còn thiếu</span></span></div>
-      ${p.kind === 'week' ? weekBoard(m, s, days) : periodCards(m, s, days)}
-      <p class="bq-foot">${p.kind === 'week' ? 'Mỗi ô là số bài đã đăng / mục tiêu, tách seeding và sáng tạo. ' : ''}Chạm vào một ngày để xem bài nào đã đăng, bài nào còn thiếu. Bài chờ lần đọc tiếp theo được tính ngay. Mỗi ngày đủ bài +${XP.quest} XP, mỗi bài đăng thêm +${XP.extra} XP.</p>
-    </div>
-    <div class="bv-act-side">
-      <section class="bv-panel"><header><h2>Số bài theo người</h2><small>${periodName(p)}</small></header>${countsChart(m, days)}</section>
-      ${alertsHtml(m)}
-    </div>
-  </section>`;
+      ${weekBoard(m, s, days)}
+      <p class="bq-foot">Mỗi ô là số bài đã đăng / mục tiêu, tách seeding và sáng tạo. Chạm vào một ngày để xem bài nào đã đăng, bài nào còn thiếu. Bài chờ lần đọc tiếp theo được tính ngay.</p>
+      ${rulesHtml(m)}
+    </section>${alertsHtml(m)}</div>`;
+}
+
+// Draws the team week into host and returns the viewer's day for the hero today.js draws under it.
+export async function mountTeamWeek(host, ctx, { still: quiet = false } = {}) {
+  const m = await loadModel(ctx);
+  if (!host.isConnected) return { day: '' };
+  const s = { period: periodOf('week', m.today), open: null };
+  const paint = (first = false) => { host.innerHTML = teamWeekHtml(m, s, first); setTargetLinks(host); };
+  paint(!quiet);
+  host.onclick = (e) => {
+    const cell = e.target.closest('[data-cell]');
+    const step = e.target.closest('[data-week]');
+    if (cell) {
+      const member = cell.closest('[data-member]').dataset.member;
+      const same = s.open?.member === member && s.open?.day === cell.dataset.cell;
+      s.open = same ? null : { member, day: cell.dataset.cell };
+      paint();
+      if (!same) host.querySelector('.qx')?.scrollIntoView({ block: 'nearest', behavior: still() ? 'auto' : 'smooth' });
+    } else if (e.target.closest('[data-close]')) {
+      s.open = null;
+      paint();
+    } else if (step && !step.disabled) {
+      s.period = periodOf('week', addDays(s.period.from, Number(step.dataset.week) * 7));
+      s.open = null;
+      paint();
+      host.querySelector(`[data-week="${step.dataset.week}"]`)?.focus();
+    }
+  };
+  return { day: myDayHtml(m) };
 }
 
 /* ---------- Thi đua: crowns, leaderboard, hall of fame, the feed ---------- */
@@ -673,6 +732,7 @@ function boardHtml(m, s) {
 
 const ALERT = { missing: 'Chưa thấy bài', target: 'Hôm qua thiếu bài', streak: 'Chuỗi sắp mất', quiet: 'Vắng', account: 'Tài khoản im ắng' };
 function alertsHtml(m) {
+  // Managers only (Nam, 2026-11-04: the team week is for everyone, the reminders are for managers).
   if (!m.manager) return '';
   const yesterday = addDays(m.today, -1);
   const missed = m.members.map((mem) => ({ mem, q: m.quests.day(mem.id, yesterday) })).filter((x) => x.q.status === 'missed')
@@ -703,6 +763,7 @@ function feedRows(m, s) {
   const p = feedPeriod(s);
   let list = ofKind(m.rows.filter((r) => r.day >= p.from && r.day <= p.to), s.feedKind);
   if (s.who) list = list.filter((r) => r.member.id === s.who);
+  if (s.pillar) list = ofPillar(list, s.pillar);
   if (s.filter === 'hit') list = list.filter((r) => r.views >= HIT);
   if (s.filter === 'win') list = list.filter((r) => r.tier);
   return s.sort === 'views' ? [...list].sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
@@ -723,7 +784,10 @@ function feedHtml(m, s) {
   const next = nextPeriod(p);
   const span = (kind) => `<button type="button" data-fd-span="${kind}" aria-pressed="${p.kind === kind}">${KIND[kind][0]}</button>`;
   const chip = (value, label) => `<button type="button" class="fd-chip" data-fd-filter="${value}" aria-pressed="${s.filter === value}">${label}</button>`;
-  const set = s.feedKind !== 'all' || s.filter !== 'all' || s.who;
+  const set = s.feedKind !== 'all' || s.filter !== 'all' || s.who || s.pillar;
+  // The pillar picker lists the pillars with posts of the chosen kind in the period, with their counts.
+  const pillarCounts = [...PILLARS, NONE].map((p) => ({ p, count: ofPillar(ofK, p.key).length })).filter((o) => o.count || o.p.key === s.pillar);
+  const pl = s.pillar ? pillarMeta(s.pillar) : null;
   return `<section class="bv-feed" aria-label="Bài của cả nhóm">
     <header class="fd-head"><h2 class="bv-h">Bài của nhóm<small>${list.length} bài</small></h2>
       <label class="fd-pick"><select data-fd-sort aria-label="Sắp xếp"><option value="new"${s.sort === 'new' ? ' selected' : ''}>Mới nhất</option><option value="views"${s.sort === 'views' ? ' selected' : ''}>Xem nhiều</option></select>${icon('down')}</label></header>
@@ -742,6 +806,8 @@ function feedHtml(m, s) {
         ${chip('win', 'Nổi bật')}${chip('hit', 'Hit')}
         <label class="fd-pick${s.who ? ' on' : ''}"><span class="fd-av" aria-hidden="true">${who ? faceInner(who) : icon('team')}</span>
           <select data-fd-who aria-label="Lọc theo người"><option value="">Cả nhóm</option>${people.map(({ x, count }) => `<option value="${esc(x.id)}"${s.who === x.id ? ' selected' : ''}>${esc(firstName(x.name))} · ${count}</option>`).join('')}</select>${icon('down')}</label>
+        <label class="fd-pick fd-pl${pl ? ' on' : ''}"${pl ? ` style="--pc:${pl.color}"` : ''}><i class="pl-dot" aria-hidden="true"></i>
+          <select data-fd-pillar aria-label="Lọc theo dạng bài"><option value="">Mọi dạng bài</option>${pillarCounts.map(({ p, count }) => `<option value="${p.key}"${s.pillar === p.key ? ' selected' : ''}>${esc(p.vi)} · ${count}</option>`).join('')}</select>${icon('down')}</label>
         ${set ? '<button type="button" class="fd-clear" data-fd-clear>Xoá lọc</button>' : ''}
       </div>
     </div>
@@ -780,8 +846,10 @@ function wireFeed(main, m, s) {
   feed.querySelectorAll('[data-fd-filter]').forEach((b) => { b.onclick = () => go({ filter: s.filter === b.dataset.fdFilter ? 'all' : b.dataset.fdFilter, shown: PAGE }); });
   feed.querySelector('[data-fd-who]').onchange = (e) => go({ who: e.target.value, shown: PAGE });
   feed.querySelector('[data-fd-sort]').onchange = (e) => go({ sort: e.target.value, shown: PAGE });
+  feed.querySelector('[data-fd-pillar]').onchange = (e) => go({ pillar: e.target.value, shown: PAGE });
   const clear = feed.querySelector('[data-fd-clear]');
-  if (clear) clear.onclick = () => go({ feedKind: 'all', filter: 'all', who: '', shown: PAGE });
+  if (clear) clear.onclick = () => go({ feedKind: 'all', filter: 'all', who: '', pillar: '', shown: PAGE });
+  wirePillarEdits(feed, m, () => paintFeed(main, m, s, {}, { top: false }));
   const more = feed.querySelector('[data-fd-more]');
   if (more) more.onclick = () => go({ shown: s.shown + PAGE }, { top: false });
 }
@@ -792,6 +860,504 @@ function gameHtml(m, s) {
       <aside class="bv-rail">${boardHtml(m, s)}${fameHtml(m)}</aside>
       ${feedHtml(m, s)}
     </div>`;
+}
+
+/* ---------- Nội dung: the numbers by content pillar (Nam, 2026-11-04; second design the same day) ----------
+   The hero is three charts on the lacquer, like the team dashboard: the mix as a treemap, each pillar's average against
+   the team's as diverging bars, and the mix week by week as a stream. Below it: what Studio sees, posts against views,
+   how long Kho bài lasts per pillar, each member's mix, and the table that opens to a pillar's posts. The window is whole
+   weeks ending today (4 or 12) or everything, since one week holds too few posts per pillar (research 2026-11-04). */
+
+const PL_SPANS = [['4w', '4 tuần', 4], ['12w', '12 tuần', 12], ['all', 'Từ đầu', null]];
+const plSpanOf = (v) => PL_SPANS.find(([key]) => key === v) ?? PL_SPANS[0];
+const pct = (x) => x == null ? '–' : `${Math.round(x * 100)}%`;
+const rate = (x) => x == null ? '–' : x.toLocaleString('vi-VN', { maximumFractionDigits: x < 10 ? 1 : 0 });
+// A rate kept per 1,000 views, shown as a percentage of views (Nam, 2026-11-04): 31 → 3,1%, 0,9 → 0,09%.
+const pv = (perK) => { if (perK == null) return '–'; const v = perK / 10; return `${v.toLocaleString('vi-VN', { maximumFractionDigits: v && v < .1 ? 2 : v < 10 ? 1 : 0 })}%`; };
+const mfmt = (mt, v) => (v == null ? '–' : mt.pct ? pv(v) : k(Math.round(v)));
+const times = (x) => `${x.toLocaleString('vi-VN', { maximumFractionDigits: 1, minimumFractionDigits: x < 10 ? 1 : 0 })}×`;
+const timesWord = (x) => `${x.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} lần`;
+const dayCount = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5) + 1;
+const plName = (key) => `<b class="pl-nm" style="--pc:${pillarMeta(key).color}">${esc(pillarMeta(key).vi)}</b>`;
+
+// The window and the one before it, of the same number of days. A window before it that starts before the first post
+// has nothing fair to compare, so it has no prev.
+function plWindow(m, s) {
+  const [key, label, weeks] = plSpanOf(s.plSpan);
+  if (!weeks) return { key, label, from: m.first, to: m.today, prev: null, weeks: Math.max(1, dayCount(m.first, m.today) / 7) };
+  const from = addDays(mondayOf(m.today), -7 * (weeks - 1));
+  const prev = { from: addDays(from, -7 * weeks), to: addDays(m.today, -7 * weeks) };
+  return { key, label, from, to: m.today, prev: prev.from >= m.first ? prev : null, weeks: dayCount(from, m.today) / 7 };
+}
+
+function liftHtml(p) {
+  if (p.lift == null) return '<span class="pl-lift none">–</span>';
+  const cls = !p.solid ? 'thin' : p.lift >= 1.15 ? 'up' : p.lift <= .85 ? 'down' : 'even';
+  const title = p.solid ? 'Trung bình của dạng bài so với mức chung' : `Mới có ${p.read} bài có lượt xem, chưa đủ ${MIN_READ} bài để so sánh`;
+  return `<span class="pl-lift ${cls}" title="${title}">${times(p.lift)}</span>`;
+}
+
+// A member taps a post's tag to fix its pillar; the row changes in place and the view redraws.
+function wirePillarEdits(root, m, redraw) {
+  root.querySelectorAll('[data-pillar-edit]').forEach((b) => {
+    b.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const [kind, id] = b.dataset.pillarEdit.split(':');
+      const row = m.rows.find((r) => r.id === id);
+      const now = row ? pillarOf(row) : null;
+      const next = await pickPillar(now);
+      if (!next || next === now) return;
+      try {
+        await setPillar(kind, id, next);
+        if (row) Object.assign(row, { pillar: next, pillar_by: 'member' });
+        toast(`Đã đổi sang ${pillarMeta(next).vi}`);
+        redraw();
+      } catch (error) {
+        console.error(error);
+        toast('Chưa đổi được dạng bài. Thử lại nhé.');
+      }
+    };
+  });
+}
+
+/* ----- The hero's three charts ----- */
+
+// The mix as a treemap: each pillar's area is its share of the posts; a tile names the pillar and its share and, when
+// it is wide and the pillar is clearly above or below the team, its lift. Every pillar stays in the map (Nam, 2026-11-04):
+// a small pillar's tile takes at least a floor of the area (MIN_TILE of the layout) so its name fits, while its label
+// keeps the true share. Two layouts, one wide and one near square, and the page shows the one that fits; fitTreemap()
+// then sizes each tile's text to its tile.
+const MIN_TILE = { wide: .045, tall: .065 };
+function plTreemap(table) {
+  const all = table.filter((p) => p.posts);
+  const total = all.reduce((sum, p) => sum + p.posts, 0);
+  const sized = (floor) => all.map((p) => ({ key: p.key, value: Math.max(p.posts, floor * total), p }));
+  const one = (W, H, cls) => `<div class="tm ${cls}">${squarify(sized(MIN_TILE[cls]), W, H).map((r, i) => {
+    const { p } = r;
+    const read = `<b>${esc(p.vi)}</b> · ${p.posts} bài (${pct(p.share)}) · trung bình ${k(p.avg)} lượt xem${p.lift != null ? ` · ${times(p.lift)} mức chung${p.solid ? '' : `, mới ${p.read} bài`}` : ''}`;
+    const lift = p.solid && p.lift != null && r.w / W > .28 && r.h / H > .3 && (p.lift >= 1.15 || p.lift <= .85)
+      ? `<em class="tm-lift ${p.lift >= 1.15 ? 'up' : 'down'}">${p.lift >= 1.15 ? '↑' : '↓'}${times(p.lift)}</em>` : '';
+    return `<button type="button" class="tm-t${PLAN.includes(p.key) ? '' : ' aside'}" style="--pc:${p.color};--i:${i};left:${(r.x / W * 100).toFixed(3)}%;top:${(r.y / H * 100).toFixed(3)}%;width:${(r.w / W * 100).toFixed(3)}%;height:${(r.h / H * 100).toFixed(3)}%"${readAttr(read)} aria-label="${esc(p.vi)}: ${p.posts} bài">
+      <span class="tm-in">${lift}<span class="tm-n">${esc(p.vi)}</span><span class="tm-v">${pct(p.share)}</span></span></button>`;
+  }).join('')}</div>`;
+  return `<figure class="pl-tm has-read">${one(16, 9, 'wide')}${one(10, 11, 'tall')}
+    <p class="d-read">Ô càng lớn, dạng bài càng được đăng nhiều · chạm vào ô để xem</p></figure>`;
+}
+
+// Sizes each tile's text to its tile: the font starts at a size set by the tile's width and steps down until the name
+// and the share fit without a cut; at the smallest step the share goes and the name alone fits. Runs after each paint
+// and when a tile changes size, such as on a turn of the phone.
+const TM_FIT = new WeakMap();
+function fitTreemap(root) {
+  root.querySelectorAll('.tm').forEach((tm) => {
+    const fit = () => tm.querySelectorAll('.tm-in').forEach((box) => {
+      const w = box.clientWidth;
+      if (!w) return;
+      // The text sits at the tile's foot, where an overflow at the top does not count, so it is measured from the top.
+      box.classList.remove('no-v', 'no-lift', 'no-n');
+      box.classList.add('tm-measure');
+      let f = Math.max(9, Math.min(17, w / 7.5));
+      const over = () => box.scrollHeight > box.clientHeight + 1 || box.scrollWidth > box.clientWidth + 1;
+      box.style.setProperty('--f', `${f}px`);
+      while (over() && f > 9) { f -= .5; box.style.setProperty('--f', `${f}px`); }
+      if (over()) box.classList.add('no-lift');
+      if (over()) box.classList.add('no-v');
+      if (over()) box.classList.add('no-n');
+      box.classList.remove('tm-measure');
+    });
+    fit();
+    if (!TM_FIT.has(tm) && 'ResizeObserver' in window) {
+      let last = 0;
+      const ro = new ResizeObserver(() => { if (Math.abs(tm.clientWidth - last) > 1) { last = tm.clientWidth; fit(); } });
+      ro.observe(tm);
+      TM_FIT.set(tm, ro);
+    }
+  });
+}
+
+// Each pillar's average against the team's as bars from a centre line, on a log scale so 2× and 0,5× are the same length.
+// Gold reaches right for pillars above the team, coral left for those below; a pillar under MIN_READ read posts is
+// hatched. Only pillars with 3 read posts or more are drawn.
+// The metric switch (Nam, 2026-11-04) picks what the bars compare: views per post, or likes, replies or reposts per
+// 1,000 views. A pillar with no like, reply or repost has no bar on a log scale, so it shows at the left edge as 0.
+function plLiftChart(table, team, mt = METRICS[0]) {
+  const teamV = mt.of(team);
+  const list = table.filter((p) => PLAN.includes(p.key) && p.read >= 3 && mt.of(p) != null)
+    .map((p) => ({ p, lift: p.lifts?.[mt.key] ?? null })).filter((x) => x.lift != null && x.lift > 0).sort((a, b) => b.lift - a.lift);
+  const zero = table.filter((p) => PLAN.includes(p.key) && p.read >= 3 && mt.of(p) === 0);
+  if ((!list.length && !zero.length) || !teamV) return `<p class="pl-calm">Cần có ít nhất 3 bài có lượt xem thuộc một dạng bài${mt.key === 'views' ? '' : `, và nhóm có lượt ${mt.vi.toLowerCase()}`}.</p>`;
+  const fmt = (v) => mfmt(mt, v);
+  const span = Math.min(3, Math.max(1, ...list.map((x) => Math.ceil(Math.abs(Math.log2(x.lift)) * 2) / 2)));
+  const bar = ({ p, lift }, i) => {
+    const v = Math.max(-span, Math.min(span, Math.log2(lift)));
+    const w = (Math.abs(v) / span) * 50;
+    const read = `<b>${esc(p.vi)}</b> · ${fmt(mt.of(p))} ${mt.unit} · ${times(lift)} mức chung ${fmt(teamV)} · ${p.read} bài có lượt xem`;
+    return `<li class="lf${v >= 0 ? ' up' : ' down'}${p.solid ? '' : ' thin'}" style="--i:${i}"${readAttr(read)}>
+      <span class="lf-n"><i class="pl-dot" style="--pc:${p.color}" aria-hidden="true"></i>${esc(p.vi)}</span>
+      <span class="lf-t"><i class="lf-b" style="${v >= 0 ? `left:50%` : `right:50%`};width:${w.toFixed(2)}%"></i><em style="${v >= 0 ? `left:calc(50% + ${w.toFixed(2)}% + 6px)` : `right:calc(50% + ${w.toFixed(2)}% + 6px)`}">${times(lift)}</em></span></li>`;
+  };
+  const none = (p, i) => `<li class="lf down zero" style="--i:${list.length + i}"${readAttr(`<b>${esc(p.vi)}</b> · chưa có lượt ${mt.vi.toLowerCase()} nào trong ${p.read} bài`)}>
+      <span class="lf-n"><i class="pl-dot" style="--pc:${p.color}" aria-hidden="true"></i>${esc(p.vi)}</span><span class="lf-t"><em style="right:calc(50% + 6px)">0</em></span></li>`;
+  return `<figure class="pl-lf has-read"><ol>${list.map(bar).join('')}${zero.map(none).join('')}</ol>
+    <div class="lf-axis" aria-hidden="true"><span>${times(2 ** -span)}</span><span>mức chung ${fmt(teamV)}</span><span>${times(2 ** span)}</span></div>
+    <p class="d-read">${mt.key === 'views' ? 'Lượt xem trung bình mỗi bài' : `Tỷ lệ ${mt.vi.toLowerCase()} trên lượt xem`} · vạch giữa là mức của cả nhóm · sọc là dạng bài chưa đủ ${MIN_READ} bài</p></figure>`;
+}
+
+// The mix week by week as a stream: each band is a pillar's share of the week's posts, the five most posted pillars in
+// the fixed order and the rest in grey, with smooth curves between the weeks. A tap on a week reads its mix.
+function plStream(m, s) {
+  const weeks = [];
+  for (let i = 11; i >= 0; i--) {
+    const from = addDays(mondayOf(m.today), -7 * i);
+    if (addDays(from, 6) < m.first) continue;
+    weeks.push({ from, to: addDays(from, 6) });
+  }
+  if (weeks.length < 2) return '<p class="pl-calm">Cần có bài trong ít nhất 2 tuần.</p>';
+  const rows = ofKind(m.rows.filter((r) => r.day >= weeks[0].from), s.plKind);
+  const { keys, weeks: mix } = mixByWeek(rows, weeks, 5);
+  // A week with no post keeps the week before's mix, so a band never drops to nothing for a quiet week.
+  let last = null;
+  const shares = mix.map((w) => { if (w.posts) last = w.share; return last ?? new Map(keys.map((k2) => [k2, k2 === 'rest' ? 1 : 0])); });
+  const W = 600, H = 170;
+  // Each week sits at the centre of its tap column; the first and last weeks run out to the edges.
+  const x = (i) => ((i + .5) / mix.length) * W;
+  const edge = (vals) => [[0, H - vals[0] * H], ...vals.map((v, i) => [x(i), H - v * H]), [W, H - vals[vals.length - 1] * H]];
+  const color = (key) => (key === 'rest' ? 'var(--st-rest)' : pillarMeta(key).color);
+  const curve = (pts) => pts.map(([px, py], i) => {
+    if (!i) return `M${px.toFixed(1)},${py.toFixed(1)}`;
+    const [qx, qy] = pts[i - 1];
+    const mx = (qx + px) / 2;
+    return `C${mx.toFixed(1)},${qy.toFixed(1)} ${mx.toFixed(1)},${py.toFixed(1)} ${px.toFixed(1)},${py.toFixed(1)}`;
+  }).join('');
+  const base = mix.map(() => 0);
+  const bands = keys.map((key) => {
+    const low = [...base];
+    const high = shares.map((sh, i) => base[i] + (sh.get(key) ?? 0));
+    high.forEach((v, i) => { base[i] = v; });
+    const top = curve(edge(high));
+    const bottom = curve(edge(low).reverse()).replace(/^M/, 'L');
+    return `<path d="${top}${bottom}Z" fill="${color(key)}" class="st-b"/>`;
+  }).join('');
+  const label = (key) => (key === 'rest' ? 'Còn lại' : pillarMeta(key).vi);
+  const cols = mix.map((w) => {
+    const parts = keys.filter((key) => w.share.get(key)).map((key) => `${esc(label(key))} ${pct(w.share.get(key))}`).join(' · ');
+    return `<span class="st-c${w.to >= m.today ? ' now' : ''}"${readAttr(`<b>Tuần ${dm(w.from)}</b> · ${w.posts} bài${parts ? ` · ${parts}` : ''}`)}></span>`;
+  }).join('');
+  return `<figure class="pl-st has-read">
+    <div class="st-plot"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bands}</svg><div class="st-cols">${cols}</div></div>
+    <div class="st-x" aria-hidden="true"><span>${dm(mix[0].from)}</span><span>${dm(mix[Math.floor((mix.length - 1) / 2)].from)}</span><span>Tuần này</span></div>
+    <ul class="st-key">${[...keys].reverse().map((key) => `<li><i style="background:${color(key)}"></i>${esc(label(key))}</li>`).join('')}</ul>
+    <p class="d-read">Mỗi dải là tỷ lệ của một dạng bài trong tuần · chạm vào tuần để xem</p></figure>`;
+}
+
+/* ----- What Studio sees ----- */
+
+// One card per insight: a kicker, the figure that carries it, one sentence and what to do about it.
+function plInsightCard(f, m, best) {
+  const card = (tone, kicker, figure, line, todo, key = null) => `<article class="pi ${tone}"${key ? ` style="--pc:${pillarMeta(key).color}"` : ''}>
+    <p class="pi-k">${kicker}</p><p class="pi-f">${figure}</p><p class="pi-l">${line}</p>${todo ? `<p class="pi-do">${todo}</p>` : ''}</article>`;
+  const p = f.p;
+  switch (f.kind) {
+    case 'thin': return card('calm', 'Chưa đủ dữ liệu', '–', `Chưa có dạng bài nào đủ ${MIN_READ} bài có lượt xem để so sánh.`, 'Chọn 12 tuần hoặc Từ đầu để thấy rõ hơn.');
+    case 'lead': return card('good', 'Kéo lượt xem', times(p.lift), `${plName(p.key)} có trung bình ${k(p.avg)} lượt xem mỗi bài, gấp ${timesWord(p.lift)} mức chung.`, `Ưu tiên lấy bài ${esc(p.vi)} trong Kho bài.`, p.key);
+    case 'drag': return card('weak', 'Đăng nhiều, xem ít', pct(p.share), `${plName(p.key)} chiếm ${pct(p.share)} số bài nhưng trung bình chỉ ${k(p.avg)} lượt xem, bằng ${timesWord(p.lift)} mức chung.`,
+      best && best.key !== p.key ? `Thử thay vài bài ${esc(p.vi)} bằng ${esc(best.vi)}.` : `Thử bớt bài ${esc(p.vi)} trong tuần tới.`, p.key);
+    case 'short': return card('warn', 'Kho sắp hết', `${f.stock.stock} bài`, `${plName(p.key)} đang được xem tốt (${times(p.lift)}) nhưng kho chỉ còn ${f.stock.stock} bài, đủ khoảng ${Math.max(1, Math.round(f.stock.lasts * 7))} ngày.`, `Cần thêm bài ${esc(p.vi)} ở lần tới.`, p.key);
+    case 'hits': return card('good', 'Ra hit', `${f.hits}/${f.of}`, `${f.hits} trong ${f.of} bài hit (trên ${k(HIT_VIEWS)} lượt xem) là ${plName(p.key)}.`, '', p.key);
+    case 'talk': return card('good', 'Được trả lời nhiều', `${pv(p.replyRate)}<small> lượt xem</small>`, `${plName(p.key)} được trả lời trên ${pv(p.replyRate)} lượt xem, mức chung là ${pv(f.team)}.`, 'Hợp để kéo người đọc vào bình luận.', p.key);
+    case 'spread': return card('good', 'Được đăng lại', `${pv(p.spread)}<small> lượt xem</small>`, `${plName(p.key)} được đăng lại trên ${pv(p.spread)} lượt xem, mức chung là ${pv(f.team)}.`, 'Bài dễ lan sang người đọc mới.', p.key);
+    case 'member': {
+      const prof = m.profiles.get(f.member.id);
+      return card('good', 'Thế mạnh riêng', times(f.best.lift), `${esc(firstName(f.member.name))} đăng ${plName(f.best.key)} được xem gấp ${timesWord(f.best.lift)} các bài khác của mình.`,
+        `<a href="#/bang-vang/${esc(f.member.id)}" class="pi-who">${prof ? avatar(prof, 24) : ''}Xem trang của ${esc(firstName(f.member.name))}</a>`, f.best.key);
+    }
+    case 'heavy': return card('calm', 'Kho dư', `${Math.round(f.stock.lasts)} tuần`, `Kho còn ${f.stock.stock} bài ${plName(p.key)}, đủ khoảng ${Math.round(f.stock.lasts)} tuần, nhưng dạng này xem dưới mức chung (${times(p.lift)}).`, 'Có thể chọn ít bài dạng này hơn ở lần sau.', p.key);
+    case 'unused': {
+      const stock = f.list.filter((x) => x.stock);
+      return card('calm', 'Chưa đăng', `${f.list.length}/10`, `Chưa đăng ${f.list.length} dạng bài: ${f.list.map((x) => esc(pillarMeta(x.key).vi)).join(', ')}.`,
+        stock.length ? `Kho còn ${stock.slice(0, 2).map((x) => `${x.stock} bài ${esc(pillarMeta(x.key).vi)}`).join(' và ')} để thử.` : '');
+    }
+    default: return '';
+  }
+}
+
+function plInsights(m, found, table) {
+  if (!found.length) return '';
+  const best = [...table].filter((p) => PLAN.includes(p.key) && p.solid && p.lift != null).sort((a, b) => b.lift - a.lift)[0];
+  const off = table.find((p) => p.key === 'off_topic')?.posts;
+  const none = table.find((p) => p.key === 'none')?.posts;
+  const notes = [off ? `${off} bài không liên quan đến tập luyện hay Vika` : '', none ? `${none} bài đang chờ gắn dạng bài ở lần đọc sau` : ''].filter(Boolean);
+  return `<section class="bv-panel pl-sees"><header><div><h2>Studio nhận thấy</h2><small>Từ số liệu của khoảng đang xem</small></div></header>
+    <div class="pi-grid">${found.map((f) => plInsightCard(f, m, best)).join('')}</div>
+    ${notes.length ? `<p class="pl-note">${notes.join(' · ')}</p>` : ''}</section>`;
+}
+
+/* ----- Posts against views, the pool, the members ----- */
+
+// How long Kho bài's cards of each pillar last at this window's seeding pace, shortest first; a well-viewed pillar under
+// 2 weeks is marked.
+function plSupply(stock, table, m) {
+  if (!stock) return `<section class="bv-panel pl-sup"><header><h2>Kho bài theo dạng bài</h2></header><p class="bv-calm">Chưa tải được Kho bài.</p></section>`;
+  if (!stock.length) return '';
+  const lift = new Map(table.map((p) => [p.key, p]));
+  // The longest stock fills the bar, up to a year, so the pillars stay apart.
+  const cap = Math.min(52, Math.max(4, ...stock.map((x) => x.lasts ?? 0)));
+  const list = [...stock].sort((a, b) => (a.lasts ?? 99) - (b.lasts ?? 99) || b.stock - a.stock);
+  const row = (x, i) => {
+    const p = pillarMeta(x.key);
+    const t = lift.get(x.key);
+    const hot = t?.solid && t.lift >= 1.1;
+    const low = x.lasts != null && x.lasts < 2;
+    const w = x.lasts == null ? 100 : Math.min(1, x.lasts / cap) * 100;
+    const label = x.lasts == null ? 'chưa đăng' : x.lasts < 1 ? 'dưới 1 tuần' : `đủ ${Math.round(x.lasts)} tuần`;
+    const read = `<b>${esc(p.vi)}</b> · ${x.stock} bài trong kho · ${x.perWeek ? `đăng ${rate(x.perWeek)} bài mỗi tuần` : 'chưa có bài seeding trong khoảng này'}`;
+    return `<li class="sp${low ? ' low' : ''}${x.lasts == null ? ' idle' : ''}" style="--pc:${p.color};--i:${i}"${readAttr(read)}>
+      <a href="#/" data-pl-pool="${x.key}" class="sp-n"><i class="pl-dot" aria-hidden="true"></i>${esc(p.vi)}</a>
+      <span class="sp-t"><i style="width:${w.toFixed(1)}%"></i></span>
+      <span class="sp-v"><b>${x.stock}</b> bài · ${label}${low && hot ? '<em>Cần thêm</em>' : low ? '<em class="soft">Sắp hết</em>' : ''}</span></li>`;
+  };
+  return `<section class="bv-panel pl-sup"><header><div><h2>Kho bài còn bao lâu</h2><small>Bài chưa đăng, theo tốc độ đăng seeding hiện tại</small></div></header>
+    <figure class="has-read"><ol>${list.map(row).join('')}</ol>
+      <p class="d-read">Thanh dài nhất là ${Math.round(cap)} tuần · chạm vào tên để mở Kho bài theo dạng đó</p></figure></section>`;
+}
+
+// Each member's posts as one bar split by pillar in the fixed order, and the pillar she does best against her own average.
+function plMembers(m, rows) {
+  const list = memberMix(rows, m.members);
+  if (!list.length) return '';
+  const order = [...PLAN, 'other', 'off_topic', 'none'];
+  const used = order.filter((key) => list.some((x) => x.mix.get(key)));
+  const row = (x, i) => {
+    const prof = m.profiles.get(x.member.id);
+    const segs = order.filter((key) => x.mix.get(key)).map((key) => {
+      const p = pillarMeta(key);
+      const c = x.mix.get(key);
+      return `<i style="--pc:${p.color};flex-grow:${c}"${readAttr(`<b>${esc(firstName(x.member.name))} · ${esc(p.vi)}</b> · ${c} bài (${pct(c / x.posts)})`)}></i>`;
+    }).join('');
+    return `<li class="mm" style="--i:${i}">
+      <a class="mm-who" href="#/bang-vang/${esc(x.member.id)}">${prof ? avatar(prof, 34) : ''}<span><b>${esc(firstName(x.member.name))}</b><small>${x.posts} bài</small></span></a>
+      <span class="mm-bar">${segs}</span>
+      <span class="mm-best">${x.best ? `${pillarTag(x.best.key)}<em>${times(x.best.lift)}</em>` : '<small>Chưa rõ thế mạnh</small>'}</span></li>`;
+  };
+  return `<section class="bv-panel pl-mm"><header><div><h2>Mỗi người đăng gì</h2><small>Bên phải là dạng bài được xem cao nhất so với các bài khác của người đó</small></div></header>
+    <figure class="has-read"><ol>${list.map(row).join('')}</ol>
+      <ul class="mm-key">${used.map((key) => `<li><i style="background:${pillarMeta(key).color}"></i>${esc(pillarMeta(key).vi)}</li>`).join('')}</ul>
+      <p class="d-read">Chạm vào một màu để xem số bài</p></figure></section>`;
+}
+
+/* ----- The table ----- */
+
+// One line per pillar: posts, views per post as a bar with the team's mark, then likes, replies and reposts per 1,000
+// views (Nam, 2026-11-04), and the lift on the chosen metric. The chosen metric's column is lit.
+function plRow(m, s, p, i, maxAvg, team, pool, mt, primary = 'posts') {
+  const open = s.plOpen === p.key;
+  const bw = p.avg != null ? Math.sqrt(p.avg / maxAvg) * 100 : 0;
+  const tm = team.avg != null ? Math.min(100, Math.sqrt(team.avg / maxAvg) * 100) : null;
+  const on = (key) => (primary === key ? ' on' : '');
+  const lift = p.lifts?.[mt.key];
+  return `<li class="pl-row${open ? ' is-open' : ''}${PLAN.includes(p.key) ? '' : ' is-aside'}" style="--pc:${p.color};--i:${i}">
+    <button type="button" class="pl-line" data-pl-open="${p.key}" aria-expanded="${open}">
+      <span class="pl-name"><i class="pl-dot" aria-hidden="true"></i><b>${esc(p.vi)}</b></span>
+      <span class="pl-num pl-cnt${on('posts')}"><b>${p.posts}</b><small>${pct(p.share)}${s.plCmp && p.deltaPosts ? ` · <span class="pl-d ${p.deltaPosts > 0 ? 'up' : 'down'}">${p.deltaPosts > 0 ? '+' : '−'}${Math.abs(p.deltaPosts)}</span>` : ''}</small></span>
+      <span class="pl-med${on('views')}"><span class="pl-mb"><i class="${p.solid ? '' : 'thin'}" style="width:${bw.toFixed(1)}%"></i>${tm != null ? `<s style="left:${tm.toFixed(1)}%"></s>` : ''}</span><b>${k(p.avg)}</b></span>
+      <span class="pl-num pl-lk${on('likes')}"><em>Thích</em><b>${pv(p.likeRate)}</b></span>
+      <span class="pl-num pl-rep${on('replies')}"><em>Trả lời</em><b>${pv(p.replyRate)}</b></span>
+      <span class="pl-num pl-spr${on('reposts')}"><em>Đăng lại</em><b>${pv(p.spread)}</b></span>
+      <span class="pl-num pl-lf${on('lift')}">${liftHtml({ ...p, lift })}</span>
+      <span class="pl-chev" aria-hidden="true">${icon('down')}</span>
+    </button>
+    ${open ? plDetail(m, s, p, pool, team, mt) : ''}
+  </li>`;
+}
+
+// Inside one pillar (Nam, 2026-11-04): its four numbers against the team's, who replies and what readers say, then its
+// best posts by the chosen metric, who posts it and its stock.
+function plDetail(m, s, p, pool, team, mt) {
+  const who = m.members.map((mem) => ({ mem, count: p.rows.filter((r) => r.member.id === mem.id).length })).filter((x) => x.count)
+    .sort((a, b) => b.count - a.count);
+  const stock = pool?.get(p.key) ?? 0;
+  const hits = p.rows.filter((r) => r.views >= HIT_VIEWS).length;
+  const tile = (x) => {
+    const v = x.of(p);
+    const t = x.of(team);
+    const l = p.lifts?.[x.key];
+    const cls = !p.solid || l == null ? '' : l >= 1.15 ? ' up' : l <= .85 ? ' down' : '';
+    const each = x.key === 'views' ? '' : `<small>${x.avg(p) != null ? `${rate(x.avg(p))} mỗi bài` : ''}</small>`;
+    return `<div class="pd-m${x.key === mt.key ? ' on' : ''}${cls}"><dt>${x.vi}<span>${x.key === 'views' ? 'mỗi bài' : 'trên lượt xem'}</span></dt>
+      <dd><b>${mfmt(x, v)}</b>${l != null ? `<em>${times(l)}</em>` : ''}</dd>
+      <p>nhóm ${mfmt(x, t)}${each ? ' · ' : ''}${each}</p></div>`;
+  };
+  // Who replies and what readers say.
+  const voice = replyVoices(p.rows);
+  const mixBar = voice.sampled ? (() => {
+    const parts = [['reader', 'Người đọc kể chuyện của mình'], ['how_to_train', 'Hỏi cách tập'], ['seller', 'Người bán, quảng cáo']]
+      .map(([key, label]) => ({ key, label, n: voice.mix[key] })).filter((x) => x.n);
+    return `<div class="pv-mix has-read"><span class="pv-bar">${parts.map((x) => `<i class="pv-${x.key}" style="flex-grow:${x.n}"${readAttr(`<b>${x.label}</b> · ${x.n} trong ${voice.sampled} trả lời đã đọc (${pct(x.n / voice.sampled)})`)}></i>`).join('')}</span>
+      <p class="pv-key">${parts.map((x) => `<span><i class="pv-${x.key}"></i>${x.label} <b>${pct(x.n / voice.sampled)}</b></span>`).join('')}</p><p class="d-read">Chạm vào một màu để xem số trả lời</p></div>`;
+  })() : '';
+  const said = voice.top.length ? `<ol class="pv-top">${voice.top.map((t) => `<li><span class="pv-n">${t.count}</span><span class="pv-t">${t.kind === 'how_to_train' ? '<em>Hỏi cách tập</em>' : ''}${esc(t.theme)}</span>
+      ${t.row.source_url ? `<a href="${esc(t.row.source_url)}" target="_blank" rel="noopener" aria-label="Mở bài trên Threads">${icon('out')}</a>` : ''}</li>`).join('')}</ol>` : '';
+  const top = p.rows.filter((r) => r.views != null).sort((a, b) => (mt.field(b) ?? 0) - (mt.field(a) ?? 0) || b.views - a.views);
+  const shown = s.plAll ? top : top.slice(0, 3);
+  return `<div class="pl-detail">
+    <p class="pl-hint">${esc(p.hint)} <span>· ${esc(p.en)}</span>${p.solid ? '' : ` <span class="pl-thin">· mới ${p.read} bài có lượt xem, số liệu còn dao động</span>`}</p>
+    <dl class="pd-grid">${METRICS.map(tile).join('')}</dl>
+    <section class="pv"><p class="pl-sub">Người đọc nói gì${voice.posts ? ` <span>· từ ${voice.sampled} trả lời của ${voice.posts} bài</span>` : ''}</p>
+      ${voice.sampled ? `${mixBar}${said || '<p class="pl-calm">Chưa có chủ đề nào của người đọc.</p>'}` : '<p class="pl-calm">Chưa có trả lời nào được đọc cho dạng bài này.</p>'}</section>
+    ${shown.length ? `<div class="pl-top"><p class="pl-sub">${mt.key === 'views' ? 'Xem nhiều nhất' : `Nhiều lượt ${mt.vi.toLowerCase()} nhất`}</p><div class="tp-list">${shown.map((r) => postHtml(m, r)).join('')}</div>
+      ${top.length > 3 ? `<button type="button" class="btn btn-line sm pl-more" data-pl-all>${s.plAll ? 'Thu gọn' : `Xem cả ${top.length} bài`}</button>` : ''}</div>` : ''}
+    <div class="pd-foot">
+      ${who.length ? `<div class="pl-people">${who.map(({ mem, count }) => `<a href="#/bang-vang/${esc(mem.id)}" class="pl-person" title="${esc(mem.name)}: ${count} bài">${avatar(m.profiles.get(mem.id), 30)}<span>${esc(firstName(mem.name))}</span><b>${count}</b></a>`).join('')}</div>` : ''}
+      <p class="pd-facts">${p.seeding} seeding · ${p.creative} sáng tạo · ${hits ? `${hits} hit · ` : ''}${k(p.views)} lượt xem${pool && PLAN.includes(p.key) ? ` · <a href="#/" data-pl-pool="${p.key}">Kho còn ${stock} bài${icon('right')}</a>` : ''}</p>
+    </div>
+  </div>`;
+}
+
+// Sorting (Nam, 2026-11-04, second try: no adding rows). Every column is a pill in one row, always shown. A tap steps a
+// pill through off, Cao → thấp, Thấp → cao and off again; pills that are on sort in the order they were turned on, and
+// each shows that number and its arrow. A tap on a column header does the same. The first pill's column is lit in the
+// header and the rows, and when it is a rate the page's metric follows it, so the chart and the ranking use one number.
+const DIR = { desc: ['Cao → thấp', '↓'], asc: ['Thấp → cao', '↑'] };
+// The next rules after a tap on a column: off -> on, high to low, last in order; high to low -> low to high, same place;
+// low to high -> off.
+// The default (Số bài, high to low, alone) gives way to the first column she turns on, so that tap reorders the table.
+function stepSort(rules, key) {
+  if (rules.length === 1 && rules[0].key === 'posts' && rules[0].dir === 'desc' && key !== 'posts') return [{ key, dir: 'desc' }];
+  const at = rules.findIndex((x) => x.key === key);
+  if (at < 0) return [...rules, { key, dir: 'desc' }];
+  if (rules[at].dir === 'desc') return rules.map((x, j) => (j === at ? { ...x, dir: 'asc' } : x));
+  return rules.filter((_, j) => j !== at);
+}
+function plSortBar(rules) {
+  const plain = rules.length === 1 && rules[0].key === 'posts' && rules[0].dir === 'desc';
+  const pill = ([key, label]) => {
+    const at = rules.findIndex((x) => x.key === key);
+    const rl = rules[at];
+    const next = !rl ? 'bật, cao → thấp' : rl.dir === 'desc' ? 'đổi sang thấp → cao' : 'tắt';
+    return `<button type="button" class="pp${rl ? (at === 0 ? ' on first' : ' on') : ''}" data-pl-col="${key}" aria-pressed="${Boolean(rl)}"
+      title="${label}: chạm để ${next}">${rl && rules.length > 1 ? `<em>${at + 1}</em>` : ''}<span>${label}</span>${rl ? `<i aria-hidden="true">${DIR[rl.dir][1]}</i><small>${DIR[rl.dir][0]}</small>` : ''}</button>`;
+  };
+  return `<div class="psb" role="group" aria-label="Sắp xếp">
+    <div class="psb-top"><span class="psb-l">Sắp xếp theo</span>${plain ? '' : '<button type="button" class="psb-reset" data-psb-reset>Đặt lại</button>'}</div>
+    <div class="psb-pills">${SORT_COLS.map(pill).join('')}</div>
+    <p class="psb-hint">Chạm để bật, chạm lần nữa để đổi chiều, lần ba để tắt. Bật nhiều cột thì xếp theo thứ tự số.</p>
+  </div>`;
+}
+
+function plTable(m, s, table, team, pool, mt) {
+  const rules = cleanSorts(s.plSorts);
+  const primary = rules[0].key;
+  const plan = sortPillars(table.filter((p) => PLAN.includes(p.key)), rules, mt.key);
+  const aside = sortPillars(table.filter((p) => !PLAN.includes(p.key)), rules, mt.key);
+  const maxAvg = Math.max(1, ...table.map((p) => p.avg ?? 0), team.avg ?? 0);
+  const rows = (list, from) => list.map((p, i) => plRow(m, s, p, from + i, maxAvg, team, pool, mt, primary)).join('');
+  const head = ([key, label]) => {
+    const at = rules.findIndex((x) => x.key === key);
+    const rl = rules[at];
+    const title = rl ? `Đang xếp theo ${label.toLowerCase()}, ${DIR[rl.dir][0].toLowerCase()}. Chạm để ${rl.dir === 'desc' ? 'đổi chiều' : 'tắt'}` : `Chạm để xếp theo ${label.toLowerCase()}`;
+    return `<span><button type="button" class="pl-sort${at === 0 ? ' on' : at > 0 ? ' also' : ''}" data-pl-col="${key}" aria-sort="${rl ? (rl.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${title}">${label}<i aria-hidden="true">${rl ? DIR[rl.dir][1] : '↕'}</i>${rl && rules.length > 1 ? `<sup>${at + 1}</sup>` : ''}</button></span>`;
+  };
+  return `<section class="bv-panel pl-list">
+    <header><div><h2>Từng dạng bài</h2><small>Chạm một dòng để xem bên trong dạng bài</small></div></header>
+    ${plSortBar(rules)}
+    <div class="pl-head"><span>Dạng bài</span>${SORT_COLS.map(head).join('')}<span></span></div>
+    <ol class="pl-rows">${rows(plan, 0)}</ol>
+    ${aside.length ? `<p class="pl-group">Ngoài 10 dạng bài chính</p><ol class="pl-rows">${rows(aside, plan.length)}</ol>` : ''}
+    <p class="pl-foot">Views: lượt xem trung bình mỗi bài, vạch mảnh là mức của nhóm (${k(team.avg)}). Thích, trả lời, đăng lại: phần trăm trên lượt xem; mức của nhóm là ${pv(team.likeRate)}, ${pv(team.replyRate)} và ${pv(team.spread)}. Dạng bài chưa đủ ${MIN_READ} bài có lượt xem hiện nhạt và xếp sau. Threads không cho xem số lượt chia sẻ.</p>
+  </section>`;
+}
+
+/* ----- The page ----- */
+
+function pillarsHtml(m, s) {
+  const w = plWindow(m, s);
+  const inside = (q) => (r) => r.day >= q.from && r.day <= q.to;
+  const rows = ofKind(m.rows.filter(inside(w)), s.plKind);
+  const prev = w.prev ? ofKind(m.rows.filter(inside(w.prev)), s.plKind) : [];
+  const mt = metricOf(s.plMetric ?? store.get('studio.board.plMetric'));
+  const table = pillarTable(rows, prev, { sort: 'posts' });
+  const team = groupStats(rows);
+  const pool = poolByPillar(m.pool, m.cards ?? []);
+  const stock = supply(pool, ofKind(m.rows.filter(inside(w)), 'seeding'), w.weeks);
+  const used = table.filter((p) => PLAN.includes(p.key)).length;
+  const found = rows.length ? pillarInsights({ table, rows, pool, stock, members: m.members, max: 4 }) : [];
+  const span = ([key, label]) => `<button type="button" data-pl-span="${key}" aria-pressed="${w.key === key}">${label}</button>`;
+  return `<section class="pl" aria-label="Dạng bài">
+    <section class="stage pl-hero">
+      <div class="dash-top">
+        <div class="dash-title"><p class="eyebrow">Dạng bài${s.plKind === 'all' ? '' : ` · bài ${s.plKind === 'seeding' ? 'seeding' : 'sáng tạo'}`}</p>
+          <h2>${w.key === 'all' ? 'Từ đầu' : `${w.label} gần nhất`}<span>${dm(w.from)} – ${dm(w.to)}</span></h2></div>
+        <div class="dash-ctl">
+          ${kindSwitch('pl-kind', s.plKind, { dark: true })}
+          <div class="seg dark" role="group" aria-label="Khoảng thời gian">${PL_SPANS.map(span).join('')}</div>
+        </div>
+      </div>
+      <div class="pl-metric" role="group" aria-label="Đo theo"><span>Đo theo</span>${METRICS.map((x) => `<button type="button" data-pl-metric="${x.key}" aria-pressed="${mt.key === x.key}">${x.vi}</button>`).join('')}
+      </div>
+      ${rows.length ? `<div class="plh-grid">
+        <article class="d-tile plh-mix"><h3>Đăng gì nhiều nhất</h3>${plTreemap(table)}</article>
+        <article class="d-tile plh-lift"><h3>${mt.pct ? `Tỷ lệ ${mt.vi.toLowerCase()}` : mt.vi} so với mức chung</h3>${plLiftChart(table, team, mt)}</article>
+        <article class="d-tile plh-st"><h3>Tỷ lệ dạng bài qua từng tuần</h3>${plStream(m, s)}</article>
+      </div>
+      <div class="dash-foot"><p class="bv-alltime"><b>${n(team.posts)}</b> bài · <b>${used}</b>/10 dạng bài · <b>${k(team.avg)}</b> lượt xem mỗi bài · tính trên lượt xem: <b>${pv(team.likeRate)}</b> thích, <b>${pv(team.replyRate)}</b> trả lời, <b>${pv(team.spread)}</b> đăng lại</p></div>`
+        : '<p class="pl-empty">Không có bài nào trong khoảng này. Chọn 12 tuần hoặc Từ đầu.</p>'}
+    </section>
+    ${rows.length ? `${plInsights(m, found, table)}
+    ${plTable(m, { ...s, plCmp: Boolean(w.prev) }, table, team, pool, mt)}
+    <div class="pl-two">${plSupply(stock, table, m)}${plMembers(m, rows)}</div>` : ''}
+  </section>`;
+}
+
+function wirePillars(main, m, s, repaint) {
+  const root = main.querySelector('.pl');
+  if (!root) return;
+  fitTreemap(root);
+  root.querySelectorAll('[data-pl-span]').forEach((b) => b.addEventListener('click', () => {
+    store.set('studio.board.plSpan', b.dataset.plSpan);
+    repaint({ plSpan: b.dataset.plSpan, plOpen: null, plAll: false });
+  }));
+  root.querySelectorAll('[data-pl-kind]').forEach((b) => b.addEventListener('click', () => repaint({ plKind: b.dataset.plKind })));
+  // The sort rules live in the browser, so the table opens as she left it.
+  const rules = cleanSorts(s.plSorts);
+  const setRules = (next) => {
+    const clean = cleanSorts(next);
+    store.set('studio.board.plSorts', JSON.stringify(clean));
+    const lead = clean[0].key;
+    const patch = { plSorts: clean, plAll: false };
+    if (METRICS.some((x) => x.key === lead)) { patch.plMetric = lead; store.set('studio.board.plMetric', lead); }
+    repaint(patch);
+  };
+  root.querySelectorAll('[data-pl-col]').forEach((b) => b.addEventListener('click', () => {
+    const key = b.dataset.plCol;
+    setRules(stepSort(rules, key));
+  }));
+  root.querySelector('[data-psb-reset]')?.addEventListener('click', () => setRules([]));
+  // The metric switch (Nam, 2026-11-04): the comparison chart, the lift column, the sort and a pillar's top posts follow it.
+  root.querySelectorAll('[data-pl-metric]').forEach((b) => b.addEventListener('click', () => {
+    store.set('studio.board.plMetric', b.dataset.plMetric);
+    repaint({ plMetric: b.dataset.plMetric, plAll: false });
+  }));
+  root.querySelectorAll('[data-pl-open]').forEach((b) => b.addEventListener('click', () => repaint({ plOpen: s.plOpen === b.dataset.plOpen ? null : b.dataset.plOpen, plAll: false })));
+  root.querySelector('[data-pl-all]')?.addEventListener('click', () => repaint({ plAll: !s.plAll }));
+  // Kho bài opens filtered to the pillar.
+  root.querySelectorAll('[data-pl-pool]').forEach((a) => a.addEventListener('click', () => {
+    try { sessionStorage.setItem(POOL_PILLAR_KEY, a.dataset.plPool); } catch { /* storage blocked */ }
+  }));
+  wirePillarEdits(root, m, () => repaint({}));
+}
+
+// Her posts by pillar on her profile, with the pillar that gets her the most views against the team's on it.
+function pillarMineHtml(mine, all) {
+  const t = pillarTable(mine, [], { sort: 'posts' });
+  if (!t.length) return '';
+  const team = new Map(pillarTable(all).map((p) => [p.key, p]));
+  const max = Math.max(...t.map((p) => p.posts));
+  const best = bestPillar(t, 2);
+  return `<section class="bv-panel pl-mine"><header><h2>Dạng bài</h2><small>số bài · trung bình lượt xem</small></header>
+    ${best ? `<p class="pl-mine-best">Bài ${pillarTag(best.key)} được xem nhiều nhất<span>trung bình <b>${k(best.avg)}</b> · cả nhóm ${k(team.get(best.key)?.avg)}</span></p>` : ''}
+    <ul class="pl-bars">${t.map((p) => `<li class="${PLAN.includes(p.key) ? '' : 'is-aside'}" style="--pc:${p.color}" title="${esc(p.en)}"><span class="pl-bn"><i class="pl-dot" aria-hidden="true"></i>${esc(p.vi)}</span>
+      <span class="pl-bt"><i style="--w:${((p.posts / max) * 100).toFixed(1)}%"></i></span><b>${p.posts}</b><small>${k(p.avg)}</small></li>`).join('')}</ul></section>`;
 }
 
 /* ---------- The page ---------- */
@@ -819,11 +1385,12 @@ function wireBoardSwitch(main, m, s) {
 }
 
 function paintBoard(main, m, s, first = false) {
-  const tab = (view, label, sub) => `<button type="button" role="tab" data-view="${view}" aria-selected="${s.view === view}"><b>${label}</b><small>${sub}</small></button>`;
+  // Two tabs, each its own card with an icon (Nam, 2026-11-04), so the one open reads at a glance.
+  const tab = (view, label, sub, ic) => `<button type="button" role="tab" data-view="${view}" aria-selected="${s.view === view}"><span class="bs-ic" aria-hidden="true">${icon(ic)}</span><span class="bs-tx"><b>${label}</b><small>${sub}</small></span></button>`;
   main.innerHTML = `<div class="bv${first ? '' : ' is-still'}">
     ${dashHtml(m, s)}
-    <div class="bv-switch" role="tablist" aria-label="Chọn phần">${tab('game', 'Thi đua', 'Xếp hạng và bài của nhóm')}${tab('activity', 'Hoạt động', 'Tiến độ mỗi ngày')}</div>
-    <div class="bv-view" role="tabpanel">${s.view === 'activity' ? activityHtml(m, s) : gameHtml(m, s)}</div>
+    <div class="bv-switch" role="tablist" aria-label="Chọn phần">${tab('game', 'Thi đua', 'Xếp hạng và bài của nhóm', 'trophy')}${tab('pillars', 'Content pillars', 'Số liệu theo dạng bài', 'stats')}</div>
+    <div class="bv-view" role="tabpanel">${s.view === 'pillars' ? pillarsHtml(m, s) : gameHtml(m, s)}</div>
     <p class="bv-foot"><a class="linkish" href="#/so-lieu">${icon('stats')}Số liệu chi tiết</a><a class="linkish" href="#/nhom">${icon('team')}Lịch đăng theo ngày</a></p>
   </div>`;
   if (first) countUp(main);
@@ -837,15 +1404,15 @@ function paintBoard(main, m, s, first = false) {
   };
   main.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => {
     store.set('studio.board.kind', b.dataset.kind);
-    repaint({ period: periodOf(b.dataset.kind, min(s.period.to, m.today)), shown: PAGE, open: null, lbKind: null, feedPeriod: null });
+    repaint({ period: periodOf(b.dataset.kind, min(s.period.to, m.today)), shown: PAGE, lbKind: null, feedPeriod: null });
   }));
   main.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => {
-    repaint({ period: periodOf(s.period.kind, b.dataset.go), shown: PAGE, open: null, lbKind: null, feedPeriod: null });
+    repaint({ period: periodOf(s.period.kind, b.dataset.go), shown: PAGE, lbKind: null, feedPeriod: null });
   }));
   wireBoardSwitch(main, m, s);
   main.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
     store.set('studio.board.view', b.dataset.view);
-    repaint({ view: b.dataset.view, open: null });
+    repaint({ view: b.dataset.view });
   }));
   main.querySelector('[data-fold]').addEventListener('click', () => {
     // Folded is the default (Nam, 2026-11-04); a new key, so a dashboard opened before starts folded once.
@@ -857,14 +1424,10 @@ function paintBoard(main, m, s, first = false) {
     store.set('studio.board.dashKind', b.dataset.dashKind);
     repaint({ dashKind: b.dataset.dashKind });
   }));
+  // A member fixes a pillar on any post on the page; the feed wires its own posts again, so a fix there redraws only it.
+  wirePillarEdits(main, m, () => repaint({}));
   wireFeed(main, m, s);
-  main.querySelectorAll('[data-cell]').forEach((b) => b.addEventListener('click', () => {
-    const member = b.closest('[data-member]').dataset.member;
-    const same = s.open?.member === member && s.open?.day === b.dataset.cell;
-    repaint({ open: same ? null : { member, day: b.dataset.cell } });
-    if (!same) main.querySelector('.qx')?.scrollIntoView({ block: 'nearest', behavior: still() ? 'auto' : 'smooth' });
-  }));
-  main.querySelector('[data-close]')?.addEventListener('click', () => repaint({ open: null }));
+  wirePillars(main, m, s, repaint);
 }
 
 /* ---------- A member's profile ---------- */
@@ -939,6 +1502,7 @@ function paintProfile(main, m, id, view = { sort: 'views', shown: PAGE, kind: 'a
       <aside class="bv-rail">
         <section class="bv-panel"><header><h2>Studio nhận thấy</h2><small>Dựa trên dữ liệu bài đăng</small></header>
           ${p.facts.length ? `<ul class="bv-facts">${p.facts.map(factHtml).join('')}</ul>` : '<p class="bv-calm">Cần thêm vài bài nữa để Studio phân tích được xu hướng.</p>'}</section>
+        ${pillarMineHtml(p.rows, all)}
         <section class="bv-panel"><header><h2>Lịch đăng</h2><small>6 tuần</small></header>${calendarHtml(p.rows, m.today)}</section>
       </aside>
       <section class="bv-feed" aria-label="Bài của ${esc(p.member.name)}">
@@ -955,4 +1519,5 @@ function paintProfile(main, m, id, view = { sort: 'views', shown: PAGE, kind: 'a
   main.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => again({ sort: b.dataset.sort, shown: PAGE })));
   main.querySelector('[data-more]')?.addEventListener('click', () => again({ shown: shown + PAGE }));
   main.querySelectorAll('[data-pro-kind]').forEach((b) => b.addEventListener('click', () => again({ kind: b.dataset.proKind, shown: PAGE })));
+  wirePillarEdits(main, m, () => again({}));
 }

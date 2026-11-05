@@ -282,8 +282,10 @@ export function loadPool() {
 // One chunk of the pool in deal order, each card with its notes, so a chunk is one request. Her own held cards stay in
 // it with held set to their assignment id. like_mine marks a card whose look-alike she posted or holds this week or last
 // week. Returns { cards, total }.
-export async function loadPoolPage({ offset = 0, limit = 12, filter = 'all' } = {}) {
-  const rows = must(await supabase.rpc('pool_feed', { p_filter: filter, p_offset: offset, p_limit: limit })) ?? [];
+export async function loadPoolPage({ offset = 0, limit = 12, filter = 'all', pillar = '' } = {}) {
+  // p_pillar exists from migration content_pillars on; it is sent only when she picked a pillar.
+  const args = { p_filter: filter, p_offset: offset, p_limit: limit, ...(pillar ? { p_pillar: pillar } : {}) };
+  const rows = must(await supabase.rpc('pool_feed', args)) ?? [];
   return { cards: rows, total: rows[0]?.total ?? (offset ? offset : 0) };
 }
 
@@ -372,6 +374,14 @@ export function isManager() {
     if (error) throw error;
     return data.user?.app_metadata?.studio_manager === true;
   });
+}
+
+// A member fixes a content pillar (migration content_pillars). kind is 'card' or 'post'. The cached reads drop, so the
+// next paint reads the fix.
+export async function setPillar(kind, id, pillar) {
+  must(await supabase.rpc('set_pillar', { p_kind: kind, p_id: id, p_pillar: pillar }));
+  clearReadCache();
+  return pillar;
 }
 
 // Daily targets (migration member_targets): every row, oldest first; lib/board.js targetOn picks the one in force.

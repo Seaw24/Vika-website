@@ -1,3 +1,4 @@
+import { pillarTag } from './lib/pillars.js?v=20261104f';
 const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
@@ -126,10 +127,10 @@ const PATHS = {
 };
 export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] ?? ''}</svg>`;
 
-// Short labels for the card's two predictions.
+// The card's content pillar (migration content_pillars), then short labels for its two predictions.
 export function cardTags(card, { dark = false } = {}) {
   const engine = { ask: ['ask', 'Hỏi'], line: ['line', 'Một câu'] }[card?.engine];
   const pull = { strong: 'Lan mạnh', some: 'Lan vừa' }[card?.pull];
-  return `${engine ? `<span class="tag${dark ? ' line' : ''}">${icon(engine[0])}${engine[1]}</span>` : ''}${pull
+  return `${pillarTag(card?.pillar ?? null)}${engine ? `<span class="tag${dark ? ' line' : ''}">${icon(engine[0])}${engine[1]}</span>` : ''}${pull
     ? `<span class="tag ${card.pull === 'strong' ? 'gold' : 'line'}">${card.pull === 'strong' ? icon('bolt') : ''}${pull}</span>` : ''}`;
 }

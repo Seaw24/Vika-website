@@ -1,23 +1,17 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard } from '../data.js?v=20261104e';
-import { vnDate, mondayOf, addDays, postingState, remaining, postedToday, postedDay, weekStrip, skippedIds, heldIds, nextRead } from '../lib/week.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104e';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261104f';
+import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261104f';
+import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, nextRead } from '../lib/week.js';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104f';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104e';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104e';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104f';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104f';
 import { settingsFor, isActive, memberR2, postAccounts, linkCode } from './shared.js';
-import { openChat } from './chat.js?v=20261104e';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104e';
+import { openChat } from './chat.js?v=20261104f';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104f';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
-const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const VN = 'Asia/Ho_Chi_Minh';
-
-function formatDay(iso) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return `${DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${d}/${m}`;
-}
-const shortWeek = (iso) => { const [, m, d] = iso.split('-').map(Number); return `${d}/${m}`; };
 const vnTime = (at) => new Intl.DateTimeFormat('vi-VN', { timeZone: VN, hour: '2-digit', minute: '2-digit' }).format(new Date(at));
 const num = (v) => new Intl.NumberFormat('vi-VN').format(v);
 // Accounts of one member differ by their last part (…a, …b), so that letter marks them.
@@ -31,22 +25,6 @@ function whenLabel(at, today) {
   const [y, m, d] = day.split('-').map(Number);
   const diff = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86400000);
   return diff === 1 ? `${vnTime(at)} · hôm qua` : `${vnTime(at)} · ${DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d}/${m}`;
-}
-
-/* ---------- Hero: the week strip and the cards she holds ---------- */
-
-// One row per daily slot: that day's first post, second post …
-function stripHtml(strip, slots) {
-  const head = strip.days.map((d, i) => `<span class="d${d.when === 'today' ? ' today' : ''}">${DAY_SHORT[i]}</span>`).join('');
-  const rows = Array.from({ length: slots }, (_, r) => `<span class="who" title="Bài ${r + 1} mỗi ngày">${r + 1}</span>${strip.days.map((d) => {
-    const dot = d.dots[r];
-    return `<span class="cell ${d.when} ${dot.status}"><i></i></span>`;
-  }).join('')}`).join('');
-  const label = `Tuần này: ${strip.posted} bài đã đăng${strip.waiting ? `, ${strip.waiting} chờ xác nhận` : ''}`;
-  return `<div class="strip" role="img" aria-label="${esc(label)}">
-    <div class="strip-grid" style="--rows:${slots}"><span></span>${head}${rows}</div>
-    <p class="strip-sum"><b>${strip.posted}</b> bài tuần này${strip.waiting ? ` · <b>${strip.waiting}</b> chờ xác nhận` : ''}<span class="strip-key"><i class="k on"></i>đã xác nhận<i class="k ring"></i>chờ</span></p>
-  </div>`;
 }
 
 /* ---------- Giữ bài: the bookmark (Nam, 2026-10-27) ---------- */
@@ -95,13 +73,11 @@ const row = (a, i, { note = null, after = '' } = {}) => `<li${after ? ' class="h
 // The portal sends no reminders, so it asks once to be added to the home screen. It hides for good after
 // "Đã hiểu", and never shows inside the home-screen app itself.
 const A2HS = 'studio.a2hs';
-function homeHint() {
+function showHint() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   let dismissed = false;
   try { dismissed = localStorage.getItem(A2HS) === '1'; } catch { /* storage blocked */ }
-  if (standalone || dismissed) return '';
-  return `<div class="hint" id="a2hs"><p><b>Mở nhanh hơn từ màn hình chính.</b> iPhone: nút Chia sẻ, chọn "Thêm vào MH chính". Android: ⋮, chọn "Thêm vào màn hình chính".</p>
-    <button class="btn sm btn-line" id="a2hs-ok">Đã hiểu</button></div>`;
+  return !standalone && !dismissed;
 }
 
 // Every member gets the tile (Nam, 2026-10-26). A creative account keeps its own Bình luận 2 and link code. Without
@@ -127,14 +103,14 @@ function creativeBody(ctx, creative, s) {
     <div id="minted"></div>`;
 }
 
-async function mint(main, s) {
+async function mint(root, s) {
   const code = mintCreativeCode();
   const ct = buildCt(s.account_code, code);
   const text = fillTemplate(s.r2_template, appLink(ct));
   await recordEvent({ type: 'creative_link', account_id: s.account.id, payload: { ct, code, settings_at: s.created_at } });
-  main.querySelector('#minted').innerHTML = `<div class="minted"><p class="eyebrow">Bình luận 2 · link mới</p><p class="plain">${esc(text)}</p>
+  root.querySelector('#minted').innerHTML = `<div class="minted"><p class="eyebrow">Bình luận 2 · link mới</p><p class="plain">${esc(text)}</p>
     <button class="btn btn-ink sm" id="copy-creative">${icon('copy')}Sao chép</button></div>`;
-  main.querySelector('#copy-creative').onclick = async (e) => {
+  root.querySelector('#copy-creative').onclick = async (e) => {
     const button = e.currentTarget;
     if (await copyText(text)) {
       button.innerHTML = `${icon('check')}Đã sao chép`;
@@ -147,29 +123,27 @@ async function mint(main, s) {
 
 const changedWhat = (entry) => [...new Set(entry.changes.map((c) => `${(PART_LABEL[c.part] ?? c.part).toLowerCase()}${c.source === 'posted' ? ' khi đăng' : ''}`))].join(', ');
 
-// The list stays until each card is explained; closing the chat keeps the card here. A card she just
-// posted after editing opens its chat at once (card.js sets studio.chatFor).
-async function paintFeedback(main, ctx, questions) {
-  const host = main.querySelector('#questions');
+// The list stays until each card is explained; closing the chat keeps the card in it. Since 2026-11-04 it lives behind
+// the hero's Kể lý do sửa button, whose red badge counts the cards. A card she just posted after editing opens its chat
+// at once (card.js sets studio.chatFor).
+const fb = { list: [], cards: new Map(), done: [] };
+async function loadFeedback(main, ctx, questions) {
   let want = null;
   try { want = sessionStorage.getItem('studio.chatFor'); sessionStorage.removeItem('studio.chatFor'); } catch { /* storage blocked */ }
   const since = new Date(Date.now() - LIST_DAYS * 86400000).toISOString();
   const events = await loadMyFeedback(ctx.me.id, since);
   const list = pendingCards({ events, questions, memberId: ctx.me.id });
-  if (!list.length) { host.innerHTML = ''; return; }
   const done = doneChats(events);
-  const cards = new Map((await loadCardsBrief([...list, ...done].map((e) => e.card_id).filter(Boolean))).map((c) => [c.id, c]));
-  const op = (e) => cards.get(e.card_id)?.op ?? e.changes[0].before;
-  host.innerHTML = `<section class="panel sand fb-list" aria-labelledby="fb-title">
-    <p class="eyebrow">Kể lý do sửa · còn ${list.length}</p>
-    <h2 id="fb-title">${list.length === 1 ? 'Bạn đã sửa một bài' : `Bạn đã sửa ${list.length} bài`}</h2>
-    <p class="small muted">Nói nhanh vì sao bạn sửa câu chữ, để bài sau viết đúng hơn. Mỗi bài chừng một phút.</p>
-    <ol class="fb-rows">${list.map((e) => `<li><span class="fb-t"><span class="t">${esc(firstLine(op(e), 90))}</span><span class="tiny muted">Đã sửa ${esc(changedWhat(e))}</span></span>
-      <button type="button" class="btn sm btn-ink" data-talk="${esc(e.assignment_id)}">Nói về bài này</button></li>`).join('')}</ol></section>`;
-  const talk = (entry) => openChat({ entry, card: cards.get(entry.card_id) ?? null, entries: list, cards, done, onSaved: () => paintFeedback(main, ctx, questions) });
-  host.querySelectorAll('[data-talk]').forEach((b) => { b.onclick = () => talk(list.find((e) => e.assignment_id === b.dataset.talk)); });
+  const cards = list.length ? new Map((await loadCardsBrief([...list, ...done].map((e) => e.card_id).filter(Boolean))).map((c) => [c.id, c])) : new Map();
+  Object.assign(fb, { list, cards, done });
+  const bar = main.querySelector('#kb-acts');
+  if (bar && feed.mine) bar.outerHTML = actsBar(feed.mine);
   const asked = want && list.find((e) => e.assignment_id === want);
-  if (asked) talk(asked);
+  if (asked) talkAbout(main, ctx, questions, asked);
+}
+function talkAbout(main, ctx, questions, entry) {
+  openChat({ entry, card: fb.cards.get(entry.card_id) ?? null, entries: fb.list, cards: fb.cards, done: fb.done,
+    onSaved: () => loadFeedback(main, ctx, questions).catch(() => { /* the badge returns on the next visit */ }) });
 }
 
 /* ---------- Her cards: what she holds, this week's posts, the strip ---------- */
@@ -196,8 +170,6 @@ async function loadMine(ctx) {
   const held = heldIds(assignments, holders, cardPosts);
   const available = assignments.filter((a) => held.has(a.id) && !skipped.has(a.id));
   const accountOf = (id) => cardAccounts.find((x) => x.id === id) ?? null;
-  // The daily target stays one post per seeding account; which cards and which account are hers to pick.
-  const slots = Math.max(1, seeding);
   const ledger = assignments.map((a) => ({ a, s: states.get(a.id) }))
     .filter(({ s }) => s && (s.status === 'claimed' || postedDay(s) >= current))
     .map((it) => ({ ...it, account: it.s.status === 'confirmed' ? accountOf(it.s.account_id) : null }));
@@ -206,7 +178,7 @@ async function loadMine(ctx) {
   ledger.sort((x, y) => rank[x.s.status] - rank[y.s.status] || stamp(y.s) - stamp(x.s));
   const observations = await loadLatestObservations(ledger.filter(({ s }) => s.status === 'confirmed').map(({ s }) => s.post.id));
   return {
-    today, current, seeding, slots, creative, questions, assignments, states, observations,
+    today, current, seeding, creative, questions, assignments, states, observations,
     linkFrom: linkSource(ctx, creative),
     holding: remaining(available, states).map((a) => ({ a, s: states.get(a.id) })),
     // Cards she copied or edited: one may be up on Threads already, so giving it back asks first.
@@ -214,46 +186,115 @@ async function loadMine(ctx) {
     ledger: ledger.filter(({ s }) => s.status !== 'missing'),
     // Cards she set aside before the pool became a feed; Dùng lại makes one hers again.
     elsewhere: assignments.filter((a) => held.has(a.id) && skipped.has(a.id) && !states.has(a.id)),
-    strip: weekStrip({ weekId: current, today, slots, states }),
-    doneToday: postedToday(assignments, states, today),
   };
 }
 
-function topHtml(ctx, m) {
+// The page since 2026-11-04 (Nam), from the top: the dark hero (#today-hero), the team's week (#team-week), the pool.
+// Everything of hers lives in the hero: her day (drawn by board.js into #my-day), the cards she holds, and a bar of
+// small buttons for the rest. A red badge marks what asks for her (cards to explain); a quiet count marks the rest
+// (posts waiting for the read). Each button opens a bottom sheet with the details and its actions, like a phone app's
+// notifications.
+function actsBar(m) {
   const waiting = m.ledger.filter(({ s }) => s.status === 'claimed').length;
-  const confirmed = m.ledger.filter(({ s }) => s.status === 'confirmed').length;
-  const headline = !m.seeding ? 'Thêm một tài khoản seeding để đăng bài.'
-    : m.doneToday >= m.slots ? `Hôm nay đã đăng đủ <span class="gold">${m.doneToday}&nbsp;bài</span>. Nghỉ thôi.`
-    : m.doneToday ? `Hôm nay đã đăng <span class="gold">${m.doneToday}/${m.slots}&nbsp;bài</span>.`
-    : `Hôm nay chọn <span class="gold">${m.slots}&nbsp;bài</span> để đăng.`;
-  const lede = !m.seeding ? 'Vào Cài đặt, bấm Thêm tài khoản Threads và chọn Có, seeding. Trước đó bạn vẫn xem và góp ý được mọi bài trong kho chung.'
-    : m.doneToday < m.slots ? (m.holding.length
-      ? `Mở bài bạn đang giữ để đăng, hoặc giữ thêm trong kho chung, tối đa ${HOLD_LIMIT} bài. Đăng trên tài khoản nào của bạn cũng được.`
-      : `Bấm dấu giữ trên bài bạn thích trong kho chung, tối đa ${HOLD_LIMIT} bài, rồi mở bài để đăng. Đăng trên tài khoản nào của bạn cũng được.`)
-    : waiting ? `Máy đọc Threads lúc ${nextRead()} sẽ xác nhận bài và bắt đầu đếm số liệu.`
-    : 'Bài đã đăng có số liệu sau mỗi lần đọc Threads, 6 tiếng một lần.';
+  const act = (key, ico, label, { alert = 0, count = 0 } = {}) => `<button type="button" class="kb-act${alert ? ' is-alert' : ''}" data-sheet="${key}">
+    <span class="kb-act-i">${icon(ico)}${alert ? `<b class="kb-badge" aria-label="${alert} việc cần làm">${alert}</b>` : count ? `<b class="kb-count">${count}</b>` : ''}</span><span>${label}</span></button>`;
+  return `<nav class="kb-acts" id="kb-acts" aria-label="Việc của bạn">
+    ${fb.list.length ? act('fix', 'feedback', 'Kể lý do sửa', { alert: fb.list.length }) : ''}
+    ${act('posted', 'check', waiting ? 'Chờ xác nhận' : 'Đã đăng tuần này', { count: waiting || m.ledger.length })}
+    ${m.linkFrom ? act('link', 'link', 'Tạo link') : ''}
+    ${m.elsewhere.length ? act('skipped', 'undo', 'Đã bỏ qua', { count: m.elsewhere.length }) : ''}
+    ${showHint() ? act('home', 'download', 'Mở nhanh') : ''}
+  </nav>`;
+}
+
+function heroHtml(ctx, m) {
+  const empty = !m.seeding ? 'Thêm một tài khoản seeding trong Cài đặt để giữ và đăng bài. Trước đó bạn vẫn xem và góp ý được mọi bài trong kho chung.'
+    : `Chưa giữ bài nào. Bấm dấu giữ trên bài bạn thích trong kho chung, tối đa ${HOLD_LIMIT} bài, rồi mở bài để đăng.`;
   return `${ctx.me.is_demo ? `<p class="notice">${icon('info')}<span>Tài khoản mẫu để thử portal. Bài là nội dung đã chuẩn bị; các tên @vika.demo chưa phải tài khoản Threads thật.</span></p>` : ''}
-    <section class="stage today-hero pool-hero">
-      <div class="hero-grid">
-        <div class="hero-lead">
-          <p class="eyebrow">${esc(formatDay(m.today))} · Tuần ${esc(shortWeek(m.current))} – ${esc(shortWeek(addDays(m.current, 6)))}</p>
-          <h1>${headline}</h1>
-          <p class="lede">${esc(lede)}</p>
-          <button type="button" class="btn btn-gold sm jump" data-jump>${icon('down')}Xem kho chung</button>
-        </div>
-        ${stripHtml(m.strip, m.slots)}
-      </div>
-      ${m.holding.length ? `<div class="holding"><p class="eyebrow">Bạn đang giữ ${m.holding.length}/${HOLD_LIMIT} bài</p><div class="tickets">${m.holding.map(({ a, s }) => heldTicket(a, s)).join('')}</div></div>` : ''}
-    </section>
-    <div id="questions"></div>
-    <div class="today-folds">
-      <details class="fold"><summary><span>Đã đăng tuần này <span class="muted">· ${confirmed} đã xác nhận${waiting ? `, ${waiting} chờ` : ''}</span></span><span class="plus"></span></summary>
-        <div class="fold-body">${m.ledger.length ? `<ol class="ledger">${m.ledger.map((it) => ledgerRow(it, m.today, it.s.post ? m.observations.get(it.s.post.id) : null)).join('')}</ol>`
-          : '<p class="muted small" style="padding:4px 0 10px">Chưa có bài nào tuần này. Bài bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận, 6 tiếng một lần.</p>'}</div></details>
-      ${m.linkFrom ? `<details class="fold"><summary><span>Bài tự viết <span class="muted">· tạo link tải app</span></span><span class="plus"></span></summary><div class="fold-body">${creativeBody(ctx, m.creative, m.linkFrom)}</div></details>` : ''}
-      ${m.elsewhere.length ? `<details class="fold"><summary><span>Bạn đã bỏ qua <span class="muted">· ${m.elsewhere.length}</span></span><span class="plus"></span></summary><div class="fold-body"><ol class="library">${m.elsewhere.map((a, i) => row(a, i, { note: ['Đã bỏ qua', 'line'], after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol></div></details>` : ''}
-    </div>
-    ${homeHint()}`;
+    <section class="stage today-hero kb-hero" aria-label="Hôm nay của bạn">
+      ${actsBar(m)}
+      <div id="my-day">${teamCache.day}</div>
+      <div class="kb-held"><h3 class="kb-held-h">Bài bạn đang giữ <span>${m.holding.length}/${HOLD_LIMIT}</span></h3>
+        ${m.holding.length ? `<div class="tickets">${m.holding.map(({ a, s }) => heldTicket(a, s)).join('')}</div>` : `<p class="kb-held-empty">${esc(empty)}</p>`}
+        <button type="button" class="btn btn-gold sm jump" data-jump>${icon('down')}Xem kho chung</button></div>
+    </section>`;
+}
+
+// One bottom sheet at a time; its own clicks go to onClick. Closing it, by the button, Esc or the backdrop, removes it.
+function openSheet(inner, onClick = () => {}) {
+  document.querySelector('dialog.kb-sheet')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.className = 'sheet kb-sheet';
+  dialog.innerHTML = `<div class="sheet-grip"></div><button type="button" class="kb-sheet-x" data-x aria-label="Đóng">${icon('close')}</button>${inner}`;
+  document.body.append(dialog);
+  const close = () => { dialog.close(); dialog.remove(); };
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog || e.target.closest('[data-x]')) { close(); return; }
+    onClick(e, close, dialog);
+  });
+  dialog.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+  dialog.showModal();
+  return { dialog, close };
+}
+
+function sheetFor(main, ctx, key) {
+  const m = feed.mine;
+  if (!m) return;
+  if (key === 'fix') {
+    const op = (e) => fb.cards.get(e.card_id)?.op ?? e.changes[0].before;
+    openSheet(`<h2>${fb.list.length === 1 ? 'Bạn đã sửa một bài' : `Bạn đã sửa ${fb.list.length} bài`}</h2>
+      <p class="small muted">Nói nhanh vì sao bạn sửa câu chữ, để bài sau viết đúng hơn. Mỗi bài chừng một phút.</p>
+      <ol class="fb-rows">${fb.list.map((e) => `<li><span class="fb-t"><span class="t">${esc(firstLine(op(e), 90))}</span><span class="tiny muted">Đã sửa ${esc(changedWhat(e))}</span></span>
+        <button type="button" class="btn sm btn-ink" data-talk="${esc(e.assignment_id)}">Nói về bài này</button></li>`).join('')}</ol>`, (e, close) => {
+      const b = e.target.closest('[data-talk]');
+      if (!b) return;
+      close();
+      talkAbout(main, ctx, m.questions, fb.list.find((x) => x.assignment_id === b.dataset.talk));
+    });
+  } else if (key === 'posted') {
+    const waiting = m.ledger.filter(({ s }) => s.status === 'claimed').length;
+    const confirmed = m.ledger.filter(({ s }) => s.status === 'confirmed').length;
+    openSheet(`<h2>Đã đăng tuần này</h2><p class="small muted">${confirmed} đã xác nhận${waiting ? `, ${waiting} chờ máy đọc Threads lúc ${nextRead()}` : ''}. Máy đọc Threads 6 tiếng một lần.</p>
+      ${m.ledger.length ? `<ol class="ledger">${m.ledger.map((it) => ledgerRow(it, m.today, it.s.post ? m.observations.get(it.s.post.id) : null)).join('')}</ol>`
+        : '<p class="muted small">Chưa có bài nào tuần này. Bài bạn đăng sẽ nằm ở đây, chờ máy đọc Threads xác nhận.</p>'}`);
+  } else if (key === 'link' && !m.linkFrom) {
+    openSheet('<h2>Tạo link cho bài tự viết</h2><p class="small muted">Bạn chưa có Bình luận 2. Vào Cài đặt, thêm Bình luận 2 cho tài khoản của bạn rồi quay lại tạo link.</p><div class="row-actions"><a class="btn btn-ink" href="#/cai-dat">Mở Cài đặt</a></div>');
+  } else if (key === 'link') {
+    openSheet(`<h2>Tạo link cho bài tự viết</h2>${creativeBody(ctx, m.creative, m.linkFrom)}`, (e, close, root) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.id === 'mint') mint(root, m.linkFrom);
+      else if (b.dataset.linkAcct) {
+        m.linkFrom = linkSource(ctx, null, ctx.team.accounts.find((x) => x.id === b.dataset.linkAcct));
+        root.querySelectorAll('[data-link-acct]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+        root.querySelector('#minted').innerHTML = '';
+      }
+    });
+  } else if (key === 'skipped') {
+    openSheet(`<h2>Bạn đã bỏ qua ${m.elsewhere.length} bài</h2><p class="small muted">Bấm Dùng lại để đưa bài về mục Bài bạn đang giữ.</p>
+      <ol class="library">${m.elsewhere.map((a, i) => row(a, i, { note: ['Đã bỏ qua', 'line'], after: `<button type="button" class="btn btn-line sm" data-take-back="${esc(a.id)}">Dùng lại</button>` })).join('')}</ol>`, async (e, close) => {
+      const b = e.target.closest('[data-take-back]');
+      if (!b) return;
+      // Dùng lại puts a card she set aside back among the cards she holds (Nam, 2026-09-28).
+      const a = m.assignments.find((x) => x.id === b.dataset.takeBack);
+      b.disabled = true;
+      try {
+        await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
+        toast('Đã đưa bài về mục Bài bạn đang giữ.');
+        close();
+        refreshTop(main, ctx);
+      } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
+    });
+  } else if (key === 'home') {
+    // The portal sends no reminders, so it asks once to be added to the home screen; Đã hiểu hides the button for good.
+    openSheet(`<h2>Mở nhanh hơn từ màn hình chính</h2><p class="small muted">iPhone: nút Chia sẻ, chọn "Thêm vào MH chính". Android: ⋮, chọn "Thêm vào màn hình chính".</p>
+      <div class="row-actions"><button type="button" class="btn btn-ink" data-ok>Đã hiểu</button></div>`, (e, close) => {
+      if (!e.target.closest('[data-ok]')) return;
+      try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
+      close();
+      main.querySelector('[data-sheet="home"]')?.remove();
+    });
+  }
 }
 
 /* ---------- Kho chung: the whole pool as a feed ---------- */
@@ -261,7 +302,10 @@ function topHtml(ctx, m) {
 // The feed outlives the page, so a trip to a card and back lands on the same chunks, filter and notes, and main.js
 // puts her back where she was. After FRESH_MS the page reads the pool again from the top.
 const FRESH_MS = 5 * 60_000;
-const feed = { member: null, filter: 'all', cards: [], total: 0, allTotal: 0, done: false, at: 0, token: 0, next: null, mine: null, holdCount: 0, refreshing: null };
+// Bảng vàng's Nội dung opens Kho bài on one pillar through this key (Nam, 2026-11-04).
+export const POOL_PILLAR_KEY = 'studio.pool.pillar';
+const filtered = () => feed.filter !== 'all' || Boolean(feed.pillar);
+const feed = { member: null, filter: 'all', pillar: '', cards: [], total: 0, allTotal: 0, done: false, at: 0, token: 0, next: null, mine: null, holdCount: 0, refreshing: null };
 
 // A card keeps what she did to it (c.cut once measured, c.full, c.open, c.showOld), so a feed painted again from
 // memory has the same heights and main.js lands her on the same card.
@@ -270,7 +314,7 @@ function feedCard(ctx, c, i) {
   const cut = c.cut === true && !c.full;
   return `<li class="fc${c.full ? ' is-full' : ''}${c.held ? ' is-held' : ''}" data-card="${esc(c.id)}" style="--i:${i}">
     <article class="fc-post">
-      <div class="fc-top"><span class="tags">${cardTags(c)}</span>${c.source_url ? `<a class="fc-src" href="${esc(c.source_url)}" target="_blank" rel="noopener noreferrer">Bài gốc${stats.length ? ` · ${stats.map(([v, l]) => `${v} ${l}`).join(' · ')}` : ''}${icon('out')}</a>` : ''}</div>
+      <div class="fc-top"><span class="tags">${pillarTag(c.pillar ?? null, { edit: `card:${c.id}` })}${cardTags({ ...c, pillar: null })}</span>${c.source_url ? `<a class="fc-src" href="${esc(c.source_url)}" target="_blank" rel="noopener noreferrer">Bài gốc${stats.length ? ` · ${stats.map(([v, l]) => `${v} ${l}`).join(' · ')}` : ''}${icon('out')}</a>` : ''}</div>
       <div class="fc-text${cut ? ' is-cut' : ''}" data-clamp>
         <p class="fc-op">${esc(c.op)}</p>
         ${c.r1 ? `<div class="fc-r1"><span class="fc-lbl">Bình luận 1</span><p>${esc(c.r1)}</p></div>` : ''}
@@ -319,11 +363,9 @@ function refreshTop(main, ctx) {
     feed.mine = fresh;
     feed.holdCount = fresh.holding.length;
     paintCount(main);
-    const top = main.querySelector('#today-top');
-    const html = topHtml(ctx, fresh);
-    if (!top || (before && html === topHtml(ctx, before))) return;
-    top.innerHTML = html;
-    wireTop(main, ctx, fresh);
+    const hero = main.querySelector('#today-hero');
+    const heroNew = heroHtml(ctx, fresh);
+    if (hero && !(before && heroNew === heroHtml(ctx, before))) hero.innerHTML = heroNew;
   }).catch((error) => console.error(error));
   return feed.refreshing;
 }
@@ -355,9 +397,9 @@ function wireFeed(main, ctx, { seeding }) {
   let shown = false;
   const gone = () => { if (main.isConnected) shown = true; return shown && !main.isConnected; };
   const near = () => main.isConnected && end.getBoundingClientRect().top < window.innerHeight + 1600;
-  const pageKey = () => `${feed.filter}:${feed.cards.length}`;
+  const pageKey = () => `${feed.filter}:${feed.pillar}:${feed.cards.length}`;
   const fetchNext = () => {
-    if (feed.next?.key !== pageKey()) feed.next = { key: pageKey(), promise: loadPoolPage({ offset: feed.cards.length, limit: FEED_CHUNK, filter: feed.filter }) };
+    if (feed.next?.key !== pageKey()) feed.next = { key: pageKey(), promise: loadPoolPage({ offset: feed.cards.length, limit: FEED_CHUNK, filter: feed.filter, pillar: feed.pillar }) };
     return feed.next.promise;
   };
 
@@ -370,8 +412,8 @@ function wireFeed(main, ctx, { seeding }) {
   }
   function paintEnd() {
     end.innerHTML = feed.done
-      ? `<p class="feed-done">${feed.cards.length ? (feed.filter === 'all' ? `Hết kho. Bạn đã xem cả ${num(feed.cards.length)} bài.` : `Hết bài khớp bộ lọc này · ${num(feed.cards.length)} bài.`)
-        : feed.filter === 'all' ? 'Kho chung đã hết bài. Admin sẽ thêm bài mới.' : 'Không có bài nào khớp bộ lọc này.'}</p>`
+      ? `<p class="feed-done">${feed.cards.length ? (!filtered() ? `Hết kho. Bạn đã xem cả ${num(feed.cards.length)} bài.` : `Hết bài khớp bộ lọc này · ${num(feed.cards.length)} bài.`)
+        : !filtered() ? 'Kho chung đã hết bài. Admin sẽ thêm bài mới.' : 'Không có bài nào khớp bộ lọc này.'}</p>`
       : skeletons(feed.cards.length ? 1 : 3);
   }
 
@@ -392,8 +434,8 @@ function wireFeed(main, ctx, { seeding }) {
       feed.total = page.total;
       feed.done = page.cards.length < FEED_CHUNK;
       feed.at = Date.now();
-      if (feed.filter === 'all') { feed.allTotal = page.total; title.textContent = poolTitle(page.total); }
-      count.textContent = feed.filter === 'all' ? '' : `${num(page.total)} bài`;
+      if (!filtered()) { feed.allTotal = page.total; title.textContent = poolTitle(page.total); }
+      count.textContent = !filtered() ? '' : `${num(page.total)} bài`;
       append(fresh);
       paintEnd();
       if (!feed.done) fetchNext().catch(() => { feed.next = null; });
@@ -517,12 +559,25 @@ function wireFeed(main, ctx, { seeding }) {
   function setFilter(button) {
     if (feed.filter === button.dataset.filter) return;
     feed.filter = button.dataset.filter;
+    main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === button)));
+    restart();
+  }
+
+  // A pillar picked in the toolbar, or brought from Bảng vàng.
+  function setPillarFilter(key) {
+    if (feed.pillar === key) return;
+    feed.pillar = key;
+    const pick = main.querySelector('[data-pool-pillar]');
+    if (pick) { pick.value = key; paintPillarPick(pick.closest('.fd-pick')); }
+    restart();
+  }
+
+  function restart() {
     feed.token += 1;
     feed.cards = [];
     feed.done = false;
     feed.next = null;
     busy = false;
-    main.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === button)));
     // The list starts again at the top of the pool, and so does she if she had scrolled past it.
     const top = main.querySelector('#pool').getBoundingClientRect().top + window.scrollY - 70;
     if (window.scrollY > top) window.scrollTo({ top, behavior: 'instant' });
@@ -534,7 +589,7 @@ function wireFeed(main, ctx, { seeding }) {
     const b = e.target.closest('button');
     if (!b || !main.contains(b)) return;
     if (b.dataset.hold) toggleHold(b);
-    else if ('holdCount' in b.dataset) main.querySelector('#today-top').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else if ('holdCount' in b.dataset) main.querySelector('#today-hero').scrollIntoView({ behavior: 'smooth', block: 'start' });
     else if ('more' in b.dataset) expand(b);
     else if (b.dataset.filter) setFilter(b);
     else if ('feedRetry' in b.dataset) more();
@@ -545,10 +600,39 @@ function wireFeed(main, ctx, { seeding }) {
       if (card) Object.assign(card, { open: li.querySelector('.talk').classList.contains('is-open'), showOld: card.showOld || 'talkOlder' in b.dataset });
     }
     else if ('jump' in b.dataset) main.querySelector('#pool').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else if (b.dataset.pillarEdit) editPillar(b);
   });
+  main.querySelector('[data-pool-pillar]')?.addEventListener('change', (e) => setPillarFilter(e.target.value));
+
+  // Any member fixes a card's pillar (Nam, 2026-11-04); the tag changes in place.
+  async function editPillar(b) {
+    const id = b.dataset.pillarEdit.split(':')[1];
+    const card = feed.cards.find((c) => c.id === id);
+    const next = await pickPillar(card?.pillar ?? null);
+    if (!next || next === card?.pillar) return;
+    try {
+      await setPillar('card', id, next);
+      if (card) card.pillar = next;
+      b.outerHTML = pillarTag(next, { edit: `card:${id}` });
+      toast(`Đã đổi sang ${pillarMeta(next).vi}`);
+    } catch (error) {
+      console.error(error);
+      toast('Chưa đổi được dạng bài. Thử lại nhé.');
+    }
+  }
+
+  // Bảng vàng sent her here for one pillar: the pool starts again on it.
+  let brought = null;
+  try { brought = sessionStorage.getItem(POOL_PILLAR_KEY); sessionStorage.removeItem(POOL_PILLAR_KEY); } catch { /* storage blocked */ }
+  const arrived = Boolean(brought && (brought === 'none' || PILLARS.some((p) => p.key === brought)) && brought !== feed.pillar);
+  if (arrived) {
+    setPillarFilter(brought);
+    requestAnimationFrame(() => main.querySelector('#pool')?.scrollIntoView({ block: 'start' }));
+  }
 
   // The chunks already in memory come back at once and without the entry motion; otherwise the first chunk loads.
-  if (feed.cards.length) {
+  if (arrived) { /* restart() above loads the pillar's first chunk */ }
+  else if (feed.cards.length) {
     append(feed.cards, { animate: false });
     paintEnd();
   } else more();
@@ -563,33 +647,51 @@ function wireFeed(main, ctx, { seeding }) {
 
 /* ---------- The page ---------- */
 
-function wireTop(main, ctx, m) {
-  const top = main.querySelector('#today-top');
-  top.onclick = async (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    if (b.id === 'a2hs-ok') {
-      try { localStorage.setItem(A2HS, '1'); } catch { /* storage blocked */ }
-      main.querySelector('#a2hs')?.remove();
-    } else if (b.id === 'mint') mint(main, m.linkFrom);
-    else if (b.dataset.linkAcct) {
-      const account = ctx.team.accounts.find((x) => x.id === b.dataset.linkAcct);
-      m.linkFrom = linkSource(ctx, null, account);
-      b.parentElement.querySelectorAll('[data-link-acct]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
-      main.querySelector('#minted').innerHTML = '';
-    }
-    else if (b.dataset.takeBack) {
-      // Dùng lại puts a card she set aside back among the cards she holds (Nam, 2026-09-28).
-      const a = m.assignments.find((x) => x.id === b.dataset.takeBack);
-      b.disabled = true;
-      try {
-        await recordEvent({ type: 'skip_undo', assignment_id: a.id, card_id: a.card.id });
-        toast('Đã đưa bài về mục Bạn đang giữ.');
-        renderToday(main, ctx);
-      } catch { toast('Chưa lưu được. Thử lại nhé.'); b.disabled = false; }
-    }
-  };
-  paintFeedback(main, ctx, m.questions).catch(() => { /* the list returns on the next visit */ });
+// The hero keeps one listener across its repaints: a button of the bar, or a kind's button in her day, opens its sheet.
+function wireHero(main, ctx, m) {
+  main.querySelector('#today-hero').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sheet]');
+    if (b) sheetFor(main, ctx, b.dataset.sheet);
+  });
+  loadFeedback(main, ctx, m.questions).catch(() => { /* the badge returns on the next visit */ });
+}
+
+// The pillar picker beside the filters: one pillar, or all.
+function poolPillarPick() {
+  const p = feed.pillar ? pillarMeta(feed.pillar) : null;
+  return `<label class="fd-pick fd-pl${p ? ' on' : ''}"${p ? ` style="--pc:${p.color}"` : ''}><i class="pl-dot" aria-hidden="true"></i>
+    <select data-pool-pillar aria-label="Lọc theo dạng bài"><option value="">Mọi dạng bài</option>${PILLARS.map((x) => `<option value="${x.key}"${feed.pillar === x.key ? ' selected' : ''}>${esc(x.vi)}</option>`).join('')}</select>${icon('down')}</label>`;
+}
+function paintPillarPick(label) {
+  if (!label) return;
+  const p = feed.pillar ? pillarMeta(feed.pillar) : null;
+  label.classList.toggle('on', Boolean(p));
+  if (p) label.style.setProperty('--pc', p.color); else label.style.removeProperty('--pc');
+}
+
+/* ---------- Hoạt động của nhóm: everyone's week at the top (Nam, 2026-11-04) ---------- */
+
+// Bảng vàng's old Hoạt động tab, drawn by board.js. It loads after the page so the pool is not held up, and the last
+// drawing paints at once on the way back from a card, so the feed below keeps its place while the fresh one loads.
+const teamCache = { html: '', day: '' };
+const teamSkeleton = `<div class="bv-quests kb-team-sk" aria-hidden="true"><span class="sk-line" style="--sk-width:40%"></span>
+  <span class="sk-line" style="--sk-width:90%"></span><span class="sk-line" style="--sk-width:84%"></span><span class="sk-line" style="--sk-width:76%"></span></div>`;
+async function paintTeam(main, ctx) {
+  const host = main.querySelector('#team-week');
+  try {
+    const { mountTeamWeek } = await import('./board.js?v=20261104f');
+    if (!host.isConnected) return;
+    const { day } = await mountTeamWeek(host, ctx, { still: Boolean(teamCache.html) });
+    // Her day fills the hero's slot; refreshTop draws the hero again from this copy.
+    teamCache.day = day;
+    const slot = main.querySelector('#my-day');
+    if (slot && slot.innerHTML !== day) slot.innerHTML = day;
+    // Kept without the entry motion, so a return from a card does not play it again.
+    teamCache.html = host.innerHTML.replace('class="bv kb-team"', 'class="bv kb-team is-still"');
+  } catch (error) {
+    console.error(error);
+    if (!teamCache.html) host.innerHTML = '<p class="muted small">Chưa tải được hoạt động của nhóm. Mở lại trang để thử lại.</p>';
+  }
 }
 
 export async function renderToday(main, ctx) {
@@ -600,25 +702,28 @@ export async function renderToday(main, ctx) {
   const reuse = Boolean(feed.mine && feed.cards.length);
   // Coming back from a card, the page paints from memory at once and main.js restores her place; her cards load
   // behind it and the top repaints in place. A first visit waits for her cards and the first chunk together.
-  if (!feed.cards.length) feed.next = { key: `${feed.filter}:0`, promise: loadPoolPage({ offset: 0, limit: FEED_CHUNK, filter: feed.filter }) };
+  if (!feed.cards.length) feed.next = { key: `${feed.filter}:${feed.pillar}:0`, promise: loadPoolPage({ offset: 0, limit: FEED_CHUNK, filter: feed.filter, pillar: feed.pillar }) };
   const m = reuse ? feed.mine : await loadMine(ctx);
   if (!reuse && feed.next) await feed.next.promise.catch(() => null);
   feed.mine = m;
   feed.holdCount = m.holding.length;
 
-  main.innerHTML = `<div id="today-top">${topHtml(ctx, m)}</div>
+  main.innerHTML = `<div id="today-hero">${heroHtml(ctx, m)}</div>
+    <div id="team-week" class="kb-team-host">${teamCache.html || teamSkeleton}</div>
     <section class="pool-sec" id="pool" aria-labelledby="pool-title">
       <div class="feed-head"><div><p class="eyebrow">Kho chung · cả nhóm</p><h2 class="section-title" id="pool-title">${feed.allTotal ? poolTitle(feed.allTotal) : 'Kho chung'}</h2>
         <p class="sub">Bấm dấu giữ để giữ bài cho bạn, tối đa ${HOLD_LIMIT} bài; bài bạn giữ rời kho của cả nhóm. Thấy ý bài có vấn đề thì viết vào Góp ý nội dung, bài vẫn ở kho cho bạn khác.</p></div></div>
       <div class="feed-tools"><div class="seg" role="group" aria-label="Lọc bài">${FEED_FILTERS.map(([v, l]) => `<button type="button" data-filter="${v}" aria-pressed="${feed.filter === v}">${l}</button>`).join('')}</div>
-        <span class="feed-count" id="feed-count">${feed.filter !== 'all' && feed.total ? `${num(feed.total)} bài` : ''}</span>
+        ${poolPillarPick()}
+        <span class="feed-count" id="feed-count">${filtered() && feed.total ? `${num(feed.total)} bài` : ''}</span>
         <button type="button" class="hold-count${feed.holdCount >= HOLD_LIMIT ? ' is-full' : ''}" data-hold-count aria-label="Bài bạn đang giữ">${countHtml(feed.holdCount)}</button></div>
       <ol class="feed" id="feed"></ol>
       <div class="feed-end" id="feed-end" aria-live="polite"></div>
     </section>`;
   if (reuse) main.dataset.keepScroll = '1';
-  wireTop(main, ctx, m);
+  wireHero(main, ctx, m);
   wireFeed(main, ctx, { seeding: m.seeding });
+  paintTeam(main, ctx);
 
   if (reuse) refreshTop(main, ctx);
 }

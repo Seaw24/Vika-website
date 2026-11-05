@@ -1465,3 +1465,4 @@ body.tt-shell main{max-width:none;padding:0}
 /* A TikTok page that failed to load ("Chưa tải được") sits on the black shell: light text, clear of the floating top bar. */
 body.tt-shell .empty{margin:0!important;padding:calc(84px + env(safe-area-inset-top)) 24px 24px;border:0;color:rgba(255,255,255,.7)}
 body.tt-shell .empty h2{color:#fff}
+
