@@ -1,9 +1,9 @@
-import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261104c';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261104d';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { esc, firstLine, initial } from '../ui.js?v=20261104c';
+import { esc, firstLine, face } from '../ui.js?v=20261104d';
 import { diffHtml } from './shared.js';
-import { latestChatRows } from '../lib/chat.js?v=20261104c';
+import { latestChatRows } from '../lib/chat.js?v=20261104d';
 
 const when = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const KINDS = { skip: ['Bài chưa dùng', 'line'], dismiss: ['Không dùng bài này', 'gold'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''], chat: ['Kể lý do sửa', 'dark'] };
@@ -34,7 +34,7 @@ function fetchFeedback(key, memberIds) {
 function entry(a, edit) {
   const p = a.payload ?? {};
   const [title, tone] = KINDS[p.kind] ?? ['Góp ý', ''];
-  return `<article class="entry"><i class="av light">${esc(initial(a.member?.name))}</i><div class="panel entry-card">
+  return `<article class="entry">${face(a.member, 'light')}<div class="panel entry-card">
     <div class="entry-head"><b>${esc(a.member?.name ?? '')}</b><span class="tiny muted">${esc(when.format(new Date(a.at)))}</span></div>
     <div class="tags" style="margin-top:8px"><span class="tag ${tone}">${esc(title)}</span>${p.part ? `<span class="tag line">${esc(PART_LABEL[p.part] ?? '')}</span>` : ''}${a.account ? `<span class="tag line">@${esc(a.account.handle)}</span>` : ''}</div>
     ${a.card?.op ? `<p class="about">Bài: <q>${esc(firstLine(a.card.op, 90))}</q></p>` : ''}

@@ -1,6 +1,6 @@
-import { addComment, deleteComment } from '../data.js?v=20261104c';
-import { NOTE_TAGS, tagLabel, noteReady, timeAgo } from '../lib/feed.js?v=20261104c';
-import { esc, icon, initial, toast, firstLine } from '../ui.js?v=20261104c';
+import { addComment, deleteComment } from '../data.js?v=20261104d';
+import { NOTE_TAGS, tagLabel, noteReady, timeAgo } from '../lib/feed.js?v=20261104d';
+import { esc, icon, face, toast, firstLine } from '../ui.js?v=20261104d';
 
 // Góp ý nội dung (Nam, 2026-10-27): one thread per card that the whole team reads and writes, beside the card in the
 // feed and on the card page. It replaces Không dùng bài này: a note says what is wrong or right with the idea, and the
@@ -19,7 +19,7 @@ function noteHtml(ctx, note, { old = false } = {}) {
   const tags = (note.tags ?? []).map(tagLabel).filter(Boolean);
   const when = note.failed ? '' : note.pending ? 'Đang gửi…' : timeAgo(note.created_at);
   return `<li class="note${old ? ' is-old' : ''}${note.pending ? ' is-pending' : ''}${note.failed ? ' is-failed' : ''}" data-note="${esc(note.id)}">
-    <i class="av sm ${mine ? 'gold' : 'light'}">${esc(initial(mine ? ctx.me.name : nameOf(ctx, note)))}</i>
+    ${face(mine ? ctx.me : { id: note.member_id, name: nameOf(ctx, note) }, `sm ${mine ? 'gold' : 'light'}`)}
     <div class="note-body"><div class="note-top"><b>${esc(nameOf(ctx, note))}</b><span>${esc(when)}</span>
       ${note.failed ? `<button type="button" class="note-act warn" data-note-retry="${esc(note.id)}">Chưa gửi được · Gửi lại</button>`
         : mine && !note.pending ? `<button type="button" class="note-act" data-note-del="${esc(note.id)}">Xoá</button>` : ''}</div>

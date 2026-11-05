@@ -77,11 +77,36 @@ const ACCOUNT = 'id,handle,member_id,kind,active,created_at';
 
 export async function loadTeam() {
   const [members, accounts, settings] = await Promise.all([
-    supabase.from('members').select('id,name,email,is_demo,is_fixture,tiktok').order('name'),
+    supabase.from('members').select('id,name,email,is_demo,is_fixture,tiktok,avatar_path').order('name'),
     supabase.from('accounts').select(ACCOUNT).order('handle'),
     supabase.from('account_settings_current').select('account_id,r2_template,account_code,created_at'),
   ]);
-  return { members: must(members), accounts: must(accounts), settings: must(settings) };
+  const people = must(members).map((m) => ({ ...m, avatar_url: avatarUrl(m.avatar_path) }));
+  return { members: people, accounts: must(accounts), settings: must(settings) };
+}
+
+// Profile pictures (Nam, 2026-11-04; migration member_avatar): a public bucket with one folder per member. Each upload
+// takes a new name, so no browser shows an old photo from its cache.
+const AVATARS = 'avatars';
+export const avatarUrl = (path) => path ? `${SUPABASE_URL}/storage/v1/object/public/${AVATARS}/${path}` : null;
+// A file left behind after a remove does no harm, so a failed remove is not an error.
+const dropFile = (path) => path ? supabase.storage.from(AVATARS).remove([path]).catch(() => null) : null;
+export async function saveAvatar(memberId, blob, oldPath = null) {
+  const path = `${memberId}/${Date.now().toString(36)}.jpg`;
+  const { error } = await supabase.storage.from(AVATARS).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+  if (error) throw error;
+  try {
+    await updateOwn('members', memberId, { avatar_path: path });
+  } catch (failed) {
+    await dropFile(path);
+    throw failed;
+  }
+  dropFile(oldPath);
+  return { avatar_path: path, avatar_url: avatarUrl(path) };
+}
+export async function removeAvatar(memberId, oldPath) {
+  await updateOwn('members', memberId, { avatar_path: null });
+  dropFile(oldPath);
 }
 
 export async function currentWeekId(today) {
@@ -195,7 +220,7 @@ export async function loadPostedSince(memberId, sinceIso) {
 export async function loadAnswers(memberIds, limit = 200) {
   if (!memberIds.length) return [];
   return must(await supabase.from('events')
-    .select('id,client_id,at,type,payload,member:members(name),card:cards(op),account:accounts(handle)')
+    .select('id,client_id,at,type,payload,member:members(id,name),card:cards(op),account:accounts(handle)')
     .in('type', ['answered', 'edited', 'skipped', 'flagged'])
     .in('member_id', memberIds)
     .order('id', { ascending: false })

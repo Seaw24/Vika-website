@@ -1,13 +1,13 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard } from '../data.js?v=20261104c';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard } from '../data.js?v=20261104d';
 import { vnDate, mondayOf, addDays, postingState, remaining, postedToday, postedDay, weekStrip, skippedIds, heldIds, nextRead } from '../lib/week.js';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104c';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104d';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104c';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104c';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104d';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104d';
 import { settingsFor, isActive, memberR2, postAccounts, linkCode } from './shared.js';
-import { openChat } from './chat.js?v=20261104c';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104c';
+import { openChat } from './chat.js?v=20261104d';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104d';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];

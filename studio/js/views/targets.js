@@ -2,10 +2,10 @@
 // 2026-11-03: "Monday could have a KPI of one seeding, one creative, but Tuesday can have like two seeding, one
 // creative"). Bảng vàng ticks a day she meets it. A new plan starts today; past days keep theirs. Đặt mục tiêu on
 // Bảng vàng and Đổi mục tiêu on a profile land here.
-import { isManager, loadTargets, setMemberTarget } from '../data.js?v=20261104c';
-import { planOn } from '../lib/board.js?v=20261104c';
+import { isManager, loadTargets, setMemberTarget } from '../data.js?v=20261104d';
+import { planOn } from '../lib/board.js?v=20261104d';
 import { vnDate } from '../lib/week.js';
-import { esc, toast, initial } from '../ui.js?v=20261104c';
+import { esc, toast, face } from '../ui.js?v=20261104d';
 
 export const FOCUS_KEY = 'studio.targets.focus';
 const MAX = 20;
@@ -37,7 +37,7 @@ function gridHtml(plan, edit) {
 function rowHtml(ctx, m, plan, edit) {
   const rest = plan.seeding.map((s, i) => s + plan.creative[i] === 0 ? DAYS[i] : null).filter(Boolean);
   return `<li class="tq-row${edit ? ' is-edit' : ''}" data-member="${esc(m.id)}">
-    <div class="tq-top"><span class="tq-who"><i class="av">${esc(initial(m.name))}</i><span><b>${esc(m.name)}</b><small>${esc(note(ctx, plan))}${rest.length && rest.length < 7 ? ` · nghỉ ${rest.join(', ')}` : ''}</small></span></span>
+    <div class="tq-top"><span class="tq-who">${face(m)}<span><b>${esc(m.name)}</b><small>${esc(note(ctx, plan))}${rest.length && rest.length < 7 ? ` · nghỉ ${rest.join(', ')}` : ''}</small></span></span>
       ${edit ? '' : '<button type="button" class="btn btn-line sm" data-edit>Sửa</button>'}</div>
     ${gridHtml(plan, edit)}
     ${edit ? `<div class="tq-acts"><button type="button" class="linkish" data-copy>Sao chép T2 cho cả tuần</button>

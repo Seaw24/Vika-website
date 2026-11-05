@@ -51,6 +51,31 @@ export function initial(name) {
   return (words.at(-1) || '?').charAt(0);
 }
 
+// Profile pictures by member id (Nam, 2026-11-04), filled from the team at sign-in and after she changes hers.
+const faces = new Map();
+export function setFaces(members) {
+  faces.clear();
+  for (const m of members ?? []) if (m.avatar_url) faces.set(m.id, m.avatar_url);
+}
+export function setFace(id, url) {
+  if (url) faces.set(id, url); else faces.delete(id);
+}
+// What goes inside an avatar: her photo when she set one, else her first letter.
+export function faceInner(member) {
+  const letter = initial(member?.name);
+  const url = member?.id ? faces.get(member.id) : null;
+  return url ? `<img src="${esc(url)}" alt="" data-face="${esc(letter)}" loading="lazy" decoding="async" draggable="false">` : esc(letter);
+}
+// The round avatar used across Studio, <i class="av">.
+export const face = (member, cls = '') => `<i class="av${cls ? ` ${cls}` : ''}">${faceInner(member)}</i>`;
+// A photo that fails to load turns back into her letter.
+if (typeof document !== 'undefined') {
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.dataset.face != null) img.replaceWith(img.dataset.face);
+  }, true);
+}
+
 // Textareas grow with their text, so a post is never clipped inside a scroll box.
 export function autoGrow(area) {
   const fit = () => { area.style.height = 'auto'; area.style.height = `${area.scrollHeight + 2}px`; };
@@ -69,6 +94,7 @@ const PATHS = {
   feedback: '<path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 12.5h5"/>',
   settings: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
   user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/>',
+  camera: '<path d="M3.5 8.5A2.5 2.5 0 0 1 6 6h1.8l1.6-2.2h5.2L16.2 6H18a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5z"/><circle cx="12" cy="12.8" r="3.6"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   check: '<path d="M4.5 12.5l5 5 10-11"/>',
   right: '<path d="M5 12h14M13 6l6 6-6 6"/>',

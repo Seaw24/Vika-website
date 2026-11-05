@@ -49,7 +49,9 @@ body.scrolled .top::after{opacity:1}
 .me{display:flex;align-items:center;gap:10px;text-decoration:none;min-height:44px}
 .me:empty{display:none}
 .me .me-name{font-size:14px;font-weight:500;display:none}
-.av{flex:none;display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--dark);color:var(--gold);font-weight:700;font-size:14px;font-style:normal;text-transform:uppercase}
+.av{flex:none;display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--dark);color:var(--gold);font-weight:700;font-size:14px;font-style:normal;text-transform:uppercase}
+/* Her photo fills the circle (Nam, 2026-11-04); the letter stays the fallback. */
+.av img{display:block;width:100%;height:100%;object-fit:cover}
 .av.sm{width:26px;height:26px;font-size:11px}
 .av.light{background:var(--sand);color:var(--ink)}
 .av.gold{background:var(--gold);color:var(--dark)}
@@ -678,6 +680,18 @@ thead th{color:var(--muted);font-weight:500;font-size:12px}
 /* ---------- Cài đặt ---------- */
 .profile{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .profile .av{width:56px;height:56px;font-size:22px}
+.pf-photo{position:relative;flex:none;display:block;border-radius:50%;cursor:pointer}
+.pf-photo [data-face]{display:block}
+.pf-cam{position:absolute;right:-4px;bottom:-4px;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--raised);
+  color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px rgba(23,18,14,.12)}
+.pf-cam svg{width:14px;height:14px}
+.pf-file{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip-path:inset(50%)}
+.pf-photo:focus-within{outline:2px solid var(--gold);outline-offset:3px}
+.profile .grow .pf-acts{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;overflow:visible}
+.pf-btn{padding:0;border:0;background:none;color:var(--gold-text);font:600 13px/1.4 var(--font);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.profile.is-busy .pf-photo{pointer-events:none}
+.profile.is-busy .pf-photo .av{animation:sk-breathe 1.2s ease-in-out infinite}
+.profile.is-busy .pf-acts{opacity:.5;pointer-events:none}
 .profile b{display:block;font-size:22px;font-weight:500;letter-spacing:-.02em;line-height:1.2}
 .profile .out{margin-left:auto}
 .profile .grow{min-width:0;flex:1 1 0}

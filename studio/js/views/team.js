@@ -1,13 +1,13 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261104c';
-import { poolNotice } from '../lib/pool.js?v=20261104c';
+import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261104d';
+import { poolNotice } from '../lib/pool.js?v=20261104d';
 import { addDays, mondayOf, vnDate } from '../lib/week.js';
-import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261104c';
+import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261104d';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { liveNotes } from '../lib/feed.js?v=20261104c';
+import { liveNotes } from '../lib/feed.js?v=20261104d';
 import { PART_LABEL } from '../lib/edits.js';
-import { esc, icon, initial, cardTags } from '../ui.js?v=20261104c';
+import { esc, icon, face, cardTags } from '../ui.js?v=20261104d';
 import { diffHtml } from './shared.js';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104c';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104d';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -32,7 +32,7 @@ function gridHtml(week, members) {
   const head = week.days.map((d, i) => `<span class="tg-d${d.when === 'today' ? ' today' : ''}">${DAY_SHORT[i]}<small>${dm(d.date)}</small></span>`).join('');
   const rows = members.map((m) => {
     const total = week.totals.find((t) => t.member.id === m.id).posted;
-    return `<span class="tg-who"><i class="av sm">${esc(initial(m.name))}</i><span><b>${esc(firstName(m.name))}</b><small>${total} bài</small></span></span>${week.days.map((d) => cell(d, d.perMember.find((p) => p.member.id === m.id))).join('')}`;
+    return `<span class="tg-who">${face(m, 'sm')}<span><b>${esc(firstName(m.name))}</b><small>${total} bài</small></span></span>${week.days.map((d) => cell(d, d.perMember.find((p) => p.member.id === m.id))).join('')}`;
   }).join('');
   return `<div class="tg" style="--rows:${members.length}"><span></span>${head}${rows}</div>
     <p class="strip-sum"><span>Bấm một ô để tới ngày đó.</span><span class="strip-key"><i class="k on"></i>đã xác nhận<i class="k ring"></i>chờ xác nhận<i class="k miss"></i>không đăng</span></p>`;
@@ -60,7 +60,7 @@ function postCard(ctx, it, observations, versions, copies) {
       ${t.changed.map((p) => `<p class="fc-lbl">${esc(PART_LABEL[p])}</p>${diffHtml(card[p], t[p], { from: 'Bản viết sẵn', to: 'Bản đã đăng' })}`).join('')}</details>` : '';
   return `<li class="fc tm-card no-enter${card ? '' : ' solo'}">
     <article class="fc-post">
-      <div class="fc-top"><span class="tm-who"><i class="av sm">${esc(initial(it.member.name))}</i><b>${esc(firstName(it.member.name))}</b>${it.account ? `<span class="tm-handle">@${esc(it.account.handle)}</span>` : ''}${it.kind === 'creative' ? '<span class="tag gold">Tự viết</span>' : ''}</span>
+      <div class="fc-top"><span class="tm-who">${face(it.member, 'sm')}<b>${esc(firstName(it.member.name))}</b>${it.account ? `<span class="tm-handle">@${esc(it.account.handle)}</span>` : ''}${it.kind === 'creative' ? '<span class="tag gold">Tự viết</span>' : ''}</span>
         <span class="led-when">${esc(vnTime(it.at))}</span></div>
       <p class="fc-op">${esc(t.op ?? 'Bài tự viết (chưa đọc được nội dung).')}</p>
       ${t.r1 ? `<div class="fc-r1"><span class="fc-lbl">Bình luận 1</span><p>${esc(t.r1)}</p></div>` : ''}
@@ -91,7 +91,7 @@ function dayHtml(ctx, day, today, observations, versions, copies) {
 function ratioHtml(rows) {
   return `<section class="section fb-ratio" aria-labelledby="fb-ratio-title">
     <div class="section-head"><div><p class="eyebrow">${RATIO_DAYS} ngày qua</p><h2 class="section-title" id="fb-ratio-title">Kể lý do sửa</h2></div></div>
-    <ul class="fb-ratio-list">${rows.map((r) => `<li><i class="av sm">${esc(initial(r.member.name))}</i><b>${esc(firstName(r.member.name))}</b>
+    <ul class="fb-ratio-list">${rows.map((r) => `<li>${face(r.member, 'sm')}<b>${esc(firstName(r.member.name))}</b>
       <span>${r.changed ? `<b>${r.explained}</b>/${r.changed} chỗ sửa có lý do` : 'Chưa sửa bài nào'}</span></li>`).join('')}</ul>
     <p class="tiny muted">Mỗi phần bài đã sửa tính một lần: sửa trong Studio, hoặc sửa khi đăng mà máy đọc Threads thấy.</p></section>`;
 }

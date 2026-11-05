@@ -1,10 +1,11 @@
-import { saveSettings, saveMemberName, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261104c';
-import { addedToast } from '../lib/pool.js?v=20261104c';
+import { saveSettings, saveMemberName, saveAvatar, removeAvatar, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261104d';
+import { squarePhoto } from '../lib/photo.js?v=20261104d';
+import { addedToast } from '../lib/pool.js?v=20261104d';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow } from '../ui.js?v=20261104c';
+import { esc, toast, icon, initial, autoGrow, face, setFace } from '../ui.js?v=20261104d';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode, linkCode, postAccounts } from './shared.js';
 import { showMemberPanel } from './members-admin.js';
-import { showTargetsPanel } from './targets.js?v=20261104c';
+import { showTargetsPanel } from './targets.js?v=20261104d';
 
 // Cài đặt in four sections, each with its own heading (Nam, 2026-11-04: the page ran as one long column with nothing
 // set apart): Hồ sơ, Tài khoản Threads (one row per account, its link code, edited in place), Bình luận 2 (one text for
@@ -51,12 +52,19 @@ function sectionHead(title, sub, aside = '') {
   return `<header class="st-sh"><div><h2>${title}</h2><p>${sub}</p></div>${aside}</header>`;
 }
 
+// Her photo (Nam, 2026-11-04): a tap on the avatar or on Thêm ảnh opens the phone's photos; Studio keeps the middle
+// square (lib/photo.js). Xoá ảnh brings her initial back.
+const photoActs = (me) => `<button type="button" class="pf-btn" data-photo-pick>${me.avatar_url ? 'Đổi ảnh' : 'Thêm ảnh'}</button>${me.avatar_url
+  ? '<button type="button" class="pf-btn" data-photo-drop>Xoá ảnh</button>' : ''}`;
+
 function profile(ctx) {
   return `<section class="st-sec" id="st-profile" aria-labelledby="st-profile-h">
-    <header class="st-sh"><div><h2 id="st-profile-h">Hồ sơ</h2><p>Tên này hiện trong Kho bài, Bảng vàng và Góp ý.</p></div></header>
+    <header class="st-sh"><div><h2 id="st-profile-h">Hồ sơ</h2><p>Tên và ảnh của bạn hiện trong Kho bài, Bảng vàng và Góp ý.</p></div></header>
     <form class="st-card profile-form" id="profile">
-      <div class="profile"><i class="av" data-initial>${esc(initial(ctx.me.name))}</i>
-        <div class="grow"><b data-name>${esc(ctx.me.name)}</b><span class="small muted">${esc(ctx.me.email)}</span></div>
+      <div class="profile"><label class="pf-photo" title="Đổi ảnh đại diện"><span data-face>${face(ctx.me)}</span><span class="pf-cam" aria-hidden="true">${icon('camera')}</span>
+          <input class="pf-file" type="file" accept="image/*" data-photo aria-label="Chọn ảnh đại diện"></label>
+        <div class="grow"><b data-name>${esc(ctx.me.name)}</b><span class="small muted">${esc(ctx.me.email)}</span>
+          <span class="pf-acts" data-photo-acts>${photoActs(ctx.me)}</span></div>
         <button type="button" class="btn btn-line sm out" id="out">Đăng xuất</button></div>
       <label class="field"><span>Tên của bạn trong nhóm</span>
         <span class="inline-save"><input name="name" value="${esc(ctx.me.name)}" maxlength="60" autocomplete="name">
@@ -255,15 +263,69 @@ function wireProfile(ctx, f) {
       const self = ctx.team.members.find((m) => m.id === ctx.me.id);
       if (self) self.name = name;
       f.querySelector('[data-name]').textContent = name;
-      f.querySelector('[data-initial]').textContent = initial(name);
       document.querySelector('#me .me-name')?.replaceChildren(name);
-      document.querySelector('#me .av')?.replaceChildren(initial(name));
+      paintFace(ctx, f);
       toast('Đã đổi tên.');
     } catch (error) {
       console.error(error);
       toast(failure(error, 'Tên'));
     } finally {
       button.disabled = false;
+    }
+  };
+  wirePhoto(ctx, f);
+}
+
+// Her avatar here and in the header, after a new name or a new photo.
+function paintFace(ctx, f) {
+  f.querySelector('[data-face]').innerHTML = face(ctx.me);
+  f.querySelector('[data-photo-acts]').innerHTML = photoActs(ctx.me);
+  const head = document.querySelector('#me .av');
+  if (head) head.outerHTML = face(ctx.me);
+}
+
+function setPhoto(ctx, f, { avatar_path, avatar_url }) {
+  for (const m of new Set([ctx.me, ctx.team.members.find((x) => x.id === ctx.me.id)].filter(Boolean))) Object.assign(m, { avatar_path, avatar_url });
+  setFace(ctx.me.id, avatar_url);
+  paintFace(ctx, f);
+}
+
+function wirePhoto(ctx, f) {
+  const input = f.querySelector('[data-photo]');
+  const box = f.querySelector('.profile');
+  let busy = false;
+  const run = async (work, done, fail) => {
+    if (busy) return;
+    busy = true;
+    box.classList.add('is-busy');
+    try {
+      setPhoto(ctx, f, await work());
+      toast(done);
+    } catch (error) {
+      console.error(error);
+      toast(fail(error));
+    } finally {
+      busy = false;
+      box.classList.remove('is-busy');
+    }
+  };
+  input.onchange = () => {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    run(async () => {
+      let blob;
+      try { blob = await squarePhoto(file); } catch { throw Object.assign(new Error('unreadable'), { unreadable: true }); }
+      return saveAvatar(ctx.me.id, blob, ctx.me.avatar_path);
+    }, 'Đã đổi ảnh đại diện.', (error) => error.unreadable ? 'Ảnh này chưa mở được. Chọn ảnh khác nhé.' : 'Chưa lưu được ảnh. Thử lại nhé.');
+  };
+  f.querySelector('[data-photo-acts]').onclick = (e) => {
+    if (e.target.closest('[data-photo-pick]')) input.click();
+    else if (e.target.closest('[data-photo-drop]')) {
+      run(async () => {
+        await removeAvatar(ctx.me.id, ctx.me.avatar_path);
+        return { avatar_path: null, avatar_url: null };
+      }, 'Đã xoá ảnh đại diện.', () => 'Chưa xoá được ảnh. Thử lại nhé.');
     }
   };
 }

@@ -3,12 +3,12 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Hoạt động (each member's days against her
 // plan, with a tick or a cross). Every member sees all of it except Cần để ý, which only managers see. Charts answer a
 // tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104c';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104d';
 import { vnDate, mondayOf, addDays } from '../lib/week.js';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104c';
-import { esc, icon, initial } from '../ui.js?v=20261104c';
-import { FOCUS_KEY } from './targets.js?v=20261104c';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104d';
+import { esc, icon, faceInner } from '../ui.js?v=20261104d';
+import { FOCUS_KEY } from './targets.js?v=20261104d';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -106,13 +106,15 @@ export async function renderBoard(main, ctx, memberId = null, again = false) {
 
 /* ---------- Shared pieces ---------- */
 
-// Her initial inside a ring that fills with her progress through the level, with the level number on it.
+// Her photo or her initial inside a ring that fills with her progress through the level, with the level number on it.
+// The parts carry their own classes, so the name's b and i rules around an avatar never reach them (Nam, 2026-11-04:
+// .qw-who b made the disc a flex box and pushed it to the ring's left edge in Hoạt động).
 function avatar(p, size = 44) {
   const r = size / 2 - 2.5;
   return `<span class="bv-av" style="--s:${size}px" aria-hidden="true">
     <svg viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="bv-av-track"/>
       <circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="bv-av-fill" pathLength="100" stroke-dasharray="${(Math.min(1, p.level.progress) * 100).toFixed(1)} 100" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>
-    <b>${esc(initial(p.member.name))}</b><i>${p.level.n}</i></span>`;
+    <span class="bv-av-in">${faceInner(p.member)}</span><span class="bv-av-lv">${p.level.n}</span></span>`;
 }
 
 // An empty arc draws nothing, since a round cap on a zero-length stroke shows as a dot.
@@ -134,7 +136,7 @@ function tierTag(r) {
 // One post in Threads' layout: her avatar and a thread line down to the first comment, then the numbers.
 function postHtml(m, r, { feature = false } = {}) {
   const p = m.profiles.get(r.member.id);
-  const r1 = r.r1 ? `<div class="tp-r1"><span class="tp-mini" aria-hidden="true">${esc(initial(r.member.name))}</span>
+  const r1 = r.r1 ? `<div class="tp-r1"><span class="tp-mini" aria-hidden="true">${faceInner(r.member)}</span>
       <div><p class="tp-who"><b>${esc(r.account.handle)}</b></p><p class="tp-text cut">${esc(r.r1)}</p></div></div>` : '';
   const themes = r.themes.length ? `<p class="tp-heard"><span>Người đọc nhắc đến</span>${r.themes.slice(0, 2).map((t) => `<em>${esc(t.theme)}</em>`).join('')}</p>` : '';
   const xp = r.xpParts.map(([key, x]) => `${{ post: 'Đăng', beat: 'Vượt mức', hit: 'Hit', mega: 'Siêu hit' }[key]} +${x}`).join(' · ');
@@ -738,7 +740,7 @@ function feedHtml(m, s) {
         ${kindSwitch('fd-type', s.feedKind, { counts: kindCounts(inPeriod) })}
         <span class="fd-sep" aria-hidden="true"></span>
         ${chip('win', 'Nổi bật')}${chip('hit', 'Hit')}
-        <label class="fd-pick${s.who ? ' on' : ''}"><span class="fd-av" aria-hidden="true">${who ? esc(initial(who.name)) : icon('team')}</span>
+        <label class="fd-pick${s.who ? ' on' : ''}"><span class="fd-av" aria-hidden="true">${who ? faceInner(who) : icon('team')}</span>
           <select data-fd-who aria-label="Lọc theo người"><option value="">Cả nhóm</option>${people.map(({ x, count }) => `<option value="${esc(x.id)}"${s.who === x.id ? ' selected' : ''}>${esc(firstName(x.name))} · ${count}</option>`).join('')}</select>${icon('down')}</label>
         ${set ? '<button type="button" class="fd-clear" data-fd-clear>Xoá lọc</button>' : ''}
       </div>
