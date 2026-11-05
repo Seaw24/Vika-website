@@ -1,13 +1,13 @@
-import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261104g';
-import { poolNotice } from '../lib/pool.js?v=20261104g';
-import { addDays, mondayOf, vnDate } from '../lib/week.js?v=20261104g';
-import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261104g';
+import { loadTeamActivity, loadLatestObservations, loadLatestVersions, loadCopies, loadComments, loadPool } from '../data.js?v=20261104h';
+import { poolNotice } from '../lib/pool.js?v=20261104h';
+import { addDays, mondayOf, vnDate } from '../lib/week.js?v=20261104h';
+import { teamItems, teamWeek, teamWeekIds, postedText } from '../lib/team.js?v=20261104h';
 import { feedbackRatio, RATIO_DAYS } from '../lib/chat.js';
-import { liveNotes } from '../lib/feed.js?v=20261104g';
+import { liveNotes } from '../lib/feed.js?v=20261104h';
 import { PART_LABEL } from '../lib/edits.js';
-import { esc, icon, face, cardTags } from '../ui.js?v=20261104g';
+import { esc, icon, face, cardTags } from '../ui.js?v=20261104h';
 import { diffHtml } from './shared.js';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104g';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104h';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DAY_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];

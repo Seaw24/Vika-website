@@ -45,6 +45,11 @@ function latestReadings(observations, now) {
   return out;
 }
 
+// The download link in her post or her own replies (Nam, 2026-11-05): Vika's App Store address or a campaign code. The
+// reading run saves the post and her first two replies with every read, so a post never read has no answer (null).
+const APP_LINK = /apps\.apple\.com\/\S*id6768359920|[?&]ct=[a-z0-9_]+/i;
+export const hasAppLink = (v) => (v ? APP_LINK.test([v.op, v.r1, v.r2].filter(Boolean).join('\n')) : null);
+
 // Every post of a team member with its numbers, text, tier and XP. Posts of accounts outside the team (fixtures) drop.
 export function postRows({ team, posts = [], observations = [], versions = [], cards = [], events = [] }, now = Date.now()) {
   const accounts = new Map(team.accounts.map((a) => [a.id, a]));
@@ -68,7 +73,7 @@ export function postRows({ team, posts = [], observations = [], versions = [], c
       return { ...p, account, member: members.get(account.member_id), day, week: mondayOf(day), reading: o,
         views: o?.views ?? null, likes: o?.likes ?? null, replies: o?.other_replies ?? o?.replies ?? null,
         reposts: o?.reposts ?? null, quotes: o?.quotes ?? null, themes: (o?.reply_themes ?? []).filter((t) => t.kind !== 'seller'),
-        op: v?.op || card?.op || '', r1: v?.r1 ?? card?.r1 ?? '', card, edited: edited.has(p.assignment_id),
+        op: v?.op || card?.op || '', r1: v?.r1 ?? card?.r1 ?? '', card, edited: edited.has(p.assignment_id), link: hasAppLink(v),
         // Her own post: on a creative account, or with no card. The read stores a post made with a Tạo link cho bài mới
         // link as match_method 'ct' with no card, and one it could not place as 'creative'; both are hers, not a card's.
         creative: account.kind === 'creative' || p.card_id == null };

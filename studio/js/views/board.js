@@ -3,15 +3,15 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
 // plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
 // member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104g';
-import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261104g';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104h';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261104h';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104g';
-import { esc, icon, faceInner, toast } from '../ui.js?v=20261104g';
-import { FOCUS_KEY } from './targets.js?v=20261104g';
-import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261104g';
-import { setPillar } from '../data.js?v=20261104g';
-import { POOL_PILLAR_KEY } from './today.js?v=20261104g';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104h';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261104h';
+import { FOCUS_KEY } from './targets.js?v=20261104h';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261104h';
+import { setPillar } from '../data.js?v=20261104h';
+import { POOL_PILLAR_KEY } from './today.js?v=20261104h';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -147,6 +147,13 @@ function tierTag(r) {
 }
 
 // One post in Threads' layout: her avatar and a thread line down to the first comment, then the numbers.
+// Whether the reading run found the download link in the post or her replies (Nam, 2026-11-05). A post not read yet
+// shows nothing.
+function linkFlag(r, tag = 'span') {
+  if (r.link == null) return '';
+  return `<${tag} class="tp-link ${r.link ? 'ok' : 'no'}" title="${r.link ? 'Có link tải app trong bài hoặc bình luận' : 'Lần đọc không thấy link tải app'}">${icon('link')}${r.link ? 'Có link' : 'Không link'}</${tag}>`;
+}
+
 function postHtml(m, r, { feature = false } = {}) {
   const p = m.profiles.get(r.member.id);
   const r1 = r.r1 ? `<div class="tp-r1"><span class="tp-mini" aria-hidden="true">${faceInner(r.member)}</span>
@@ -167,6 +174,7 @@ function postHtml(m, r, { feature = false } = {}) {
       <li title="Lượt trả lời">${icon('reply')}<b>${k(r.replies)}</b></li>
       <li title="Đăng lại">${icon('repost')}<b>${k(r.reposts)}</b></li>
       ${r.edited ? '<li class="tp-edited">Đã sửa</li>' : ''}
+      ${linkFlag(r, 'li')}
       ${r.source_url ? `<li class="tp-open"><a href="${esc(r.source_url)}" target="_blank" rel="noopener" aria-label="Mở trên Threads">${icon('out')}</a></li>` : ''}
     </ul>
     ${feature ? '' : r1}${themes}
@@ -476,7 +484,7 @@ function dayDetail(m, memberId, day) {
   const q = m.quests.day(memberId, day);
   const mem = m.members.find((x) => x.id === memberId);
   const time = (iso) => new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
-  const item = (r) => `<li><span class="qx-text"><b>@${esc(r.account.handle)} · ${time(r.published_at)}</b><span>${esc(r.op)}</span></span>
+  const item = (r) => `<li><span class="qx-text"><b>@${esc(r.account.handle)} · ${time(r.published_at)} ${linkFlag(r)}</b><span>${esc(r.op)}</span></span>
       ${r.source_url ? `<a href="${esc(r.source_url)}" target="_blank" rel="noopener">${k(r.views)} xem</a>` : ''}</li>`;
   const wait = (w) => `<li class="is-wait"><span class="qx-text"><b>Chờ lần đọc tiếp theo</b><span>${w.kind === 'creative' ? 'Đã tạo link bài sáng tạo' : 'Đã bấm "Đã đăng xong"'}</span></span></li>`;
   const late = q.status === 'open' ? 'Chưa đăng' : 'Không đăng';

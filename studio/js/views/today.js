@@ -1,14 +1,14 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261104g';
-import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261104g';
-import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, deadIds, nextRead } from '../lib/week.js?v=20261104g';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104g';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261104h';
+import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261104h';
+import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, deadIds, nextRead } from '../lib/week.js?v=20261104h';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104h';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104g';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104g';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104h';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104h';
 import { settingsFor, isActive, memberR2, postAccounts, linkCode } from './shared.js';
-import { openChat } from './chat.js?v=20261104g';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104g';
+import { openChat } from './chat.js?v=20261104h';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104h';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const VN = 'Asia/Ho_Chi_Minh';
@@ -662,7 +662,7 @@ const teamSkeleton = `<div class="bv-quests kb-team-sk" aria-hidden="true"><span
 async function paintTeam(main, ctx) {
   const host = main.querySelector('#team-week');
   try {
-    const { mountTeamWeek } = await import('./board.js?v=20261104g');
+    const { mountTeamWeek } = await import('./board.js?v=20261104h');
     if (!host.isConnected) return;
     const { day } = await mountTeamWeek(host, ctx, { still: Boolean(teamCache.html) });
     // Her day fills the hero's slot; refreshTop draws the hero again from this copy.
