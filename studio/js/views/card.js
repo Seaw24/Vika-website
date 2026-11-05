@@ -1,13 +1,13 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261104d';
+import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261104e';
 import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261104d';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261104e';
 import { memberR2, postAccounts, linkCode } from './shared.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { liveNotes } from '../lib/feed.js?v=20261104d';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104d';
+import { liveNotes } from '../lib/feed.js?v=20261104e';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261104e';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';

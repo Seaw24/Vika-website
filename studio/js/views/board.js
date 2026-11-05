@@ -3,12 +3,12 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Hoạt động (each member's days against her
 // plan, with a tick or a cross). Every member sees all of it except Cần để ý, which only managers see. Charts answer a
 // tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104d';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104e';
 import { vnDate, mondayOf, addDays } from '../lib/week.js';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104d';
-import { esc, icon, faceInner } from '../ui.js?v=20261104d';
-import { FOCUS_KEY } from './targets.js?v=20261104d';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104e';
+import { esc, icon, faceInner } from '../ui.js?v=20261104e';
+import { FOCUS_KEY } from './targets.js?v=20261104e';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');

@@ -207,11 +207,14 @@ export const weekdayIndex = (day) => (new Date(`${day}T00:00:00Z`).getUTCDay() +
 
 // The plan in force on a day: the newest row a manager set that starts on or before it. A plan holds 7 seeding and 7
 // creative counts, Monday first, and repeats each week (Nam, 2026-11-03: "Monday could have a KPI of one seeding, one
-// creative, but Tuesday can have like two seeding, one creative"). With no row, one seeding post a day per live
-// seeding account and no creative post, the rule Kho bài already shows.
+// creative, but Tuesday can have like two seeding, one creative"). A day before a member's first plan uses the plan of
+// that first day, so a plan set on a Wednesday also judges that week's Monday (Nam, 2026-11-04); a later change still
+// starts on the day a manager saves it. With no row at all, one seeding post a day per live seeding account and no
+// creative post, the rule Kho bài already shows.
 export function planOn(targets, accounts, memberId, day) {
-  const row = targets.filter((t) => t.member_id === memberId && t.starts_on <= day)
-    .sort((a, b) => a.starts_on.localeCompare(b.starts_on) || String(a.created_at).localeCompare(String(b.created_at))).at(-1);
+  const mine = targets.filter((t) => t.member_id === memberId)
+    .sort((a, b) => a.starts_on.localeCompare(b.starts_on) || String(a.created_at).localeCompare(String(b.created_at)));
+  const row = mine.filter((t) => t.starts_on <= day).at(-1) ?? mine.filter((t) => t.starts_on === mine[0]?.starts_on).at(-1);
   if (row) return { seeding: row.seeding.map(Number), creative: row.creative.map(Number), set: true, by: row.set_by ?? null, at: row.created_at ?? null };
   const n = liveSeeding(accounts, memberId);
   return { seeding: Array(7).fill(n), creative: Array(7).fill(0), set: false };
