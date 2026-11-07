@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261107a';
-import { renderSignIn } from './views/signin.js?v=20261107a';
-import { esc, toast, icon, face, setFaces } from './ui.js?v=20261107a';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261107b';
+import { renderSignIn } from './views/signin.js?v=20261107b';
+import { esc, toast, icon, face, setFaces } from './ui.js?v=20261107b';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
@@ -38,18 +38,18 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261107a').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261107a').then((m) => m.renderCard),
-  settings: () => import('./views/settings.js?v=20261107a').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261107a').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261107a').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261107a').then((m) => m.renderTeam),
-  board: () => import('./views/board.js?v=20261107a').then((m) => m.renderBoard),
-  tiktok: () => import('./views/tiktok.js?v=20261107a').then((m) => m.renderTikTok),
-  intuitions: () => import('./views/intuitions.js?v=20261107a').then((m) => m.renderIntuitions),
+  today: () => import('./views/today.js?v=20261107b').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261107b').then((m) => m.renderCard),
+  settings: () => import('./views/settings.js?v=20261107b').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261107b').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261107b').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261107b').then((m) => m.renderTeam),
+  board: () => import('./views/board.js?v=20261107b').then((m) => m.renderBoard),
+  tiktok: () => import('./views/tiktok.js?v=20261107b').then((m) => m.renderTikTok),
+  intuitions: () => import('./views/intuitions.js?v=20261107b').then((m) => m.renderIntuitions),
 };
 // The floating Insights button follows each page; a failure in it never blocks the page.
-const jot = (hash) => import('./views/jot.js?v=20261107a').then((m) => m.syncJot(ctx, hash)).catch((error) => console.error(error));
+const jot = (hash) => import('./views/jot.js?v=20261107b').then((m) => m.syncJot(ctx, hash)).catch((error) => console.error(error));
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
 const lastIn = { threads: '#/', tiktok: '#/tiktok' };

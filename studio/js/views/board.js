@@ -3,15 +3,15 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
 // plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
 // member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261107a';
-import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261107a';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261107b';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261107b';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261107a';
-import { esc, icon, faceInner, toast } from '../ui.js?v=20261107a';
-import { FOCUS_KEY } from './targets.js?v=20261107a';
-import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261107a';
-import { setPillar } from '../data.js?v=20261107a';
-import { POOL_PILLAR_KEY } from './today.js?v=20261107a';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261107b';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261107b';
+import { FOCUS_KEY } from './targets.js?v=20261107b';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261107b';
+import { setPillar } from '../data.js?v=20261107b';
+import { POOL_PILLAR_KEY } from './today.js?v=20261107b';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');

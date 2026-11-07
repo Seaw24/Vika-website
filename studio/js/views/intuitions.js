@@ -6,13 +6,13 @@
 // Third pass (Nam, same day): reactions beside Đồng ý, and replies as on Threads, folded under a note behind "N câu
 // trả lời" and opened in place with a thread line; Trả lời bạn gathers the threads that answer her. Every 2 weeks the
 // seat reads the new notes; its verdict shows as Vika's reply under a note, and each read is a line in the chat.
-import { loadIntuitions, deleteIntuition, reactIntuition, loadCardsBrief } from '../data.js?v=20261107a';
+import { loadIntuitions, deleteIntuition, reactIntuition, loadCardsBrief } from '../data.js?v=20261107b';
 import { DEFAULT_TAGS, PERIODS, VIEWS, REACTIONS, tagLabel, tagCounts, scopeList, stackMessages, readMarks, unseenCounts, linkify, personSummary,
-  nextReadDay, unreadCount, dayLabel, timeLabel, compact, reactionSummary, splitThreads, replyNews, myThreads } from '../lib/intuitions.js?v=20261107a';
-import { vnDate, addDays } from '../lib/week.js?v=20261107a';
+  nextReadDay, unreadCount, dayLabel, timeLabel, compact, reactionSummary, splitThreads, replyNews, myThreads, GUIDE_ID } from '../lib/intuitions.js?v=20261107b';
+import { vnDate, addDays } from '../lib/week.js?v=20261107b';
 import { diffHtml } from './shared.js';
-import { esc, icon, face, toast, firstLine, copyText } from '../ui.js?v=20261107a';
-import { composerHtml, wireComposer, learnTags, sentToast, FOCUS, openJotSheet } from './jot.js?v=20261107a';
+import { esc, icon, face, toast, firstLine, copyText } from '../ui.js?v=20261107b';
+import { composerHtml, wireComposer, learnTags, sentToast, FOCUS, openJotSheet } from './jot.js?v=20261107b';
 
 const KEY = 'studio.bk.view.v2';
 export const SEEN = 'studio.bk.seen';
@@ -98,6 +98,25 @@ function reactsHtml(ctx, x, { reply = false } = {}) {
     <button type="button" class="bk-act" ${reply ? `data-reply-to="${esc(x.member_id)}"` : 'data-thread-open'} aria-label="Trả lời">${icon('reply')}<span>Trả lời</span></button>
     <button type="button" class="bk-act bk-act-emo" data-picker aria-label="Thả cảm xúc" title="Thả cảm xúc">${icon('smile')}</button>
   </div>`;
+}
+
+// Nam's note on how Insights works (Nam, 2026-11-07): it sits under the chat's header on every view, whole, with his
+// face, and stays while the chat scrolls. It is still a note in the chat, where it takes replies and reactions. A
+// member may fold it to one line on her device; it opens again with one tap.
+const GUIDE_FOLD = 'studio.bk.guideFolded';
+function guideHtml(ctx, view) {
+  const g = view.list.find((x) => x.id === GUIDE_ID);
+  if (!g) return '';
+  const who = whoName(ctx, g.member_id);
+  const folded = view.guideFolded;
+  return `<section class="bk-guide${folded ? ' is-folded' : ''}" aria-label="Insights dùng thế nào">
+    ${face(who)}
+    <div class="bk-guide-main">
+      <p class="bk-guide-h"><b>${esc(who.name)}</b><span>Insights dùng thế nào</span></p>
+      <p class="bk-guide-text">${linkify(esc(g.body))}</p>
+    </div>
+    <button type="button" class="bk-guide-fold" data-guide-fold aria-expanded="${!folded}" aria-label="${folded ? 'Mở lời nhắn' : 'Thu gọn lời nhắn'}">${icon(folded ? 'down' : 'up')}</button>
+  </section>`;
 }
 
 function vikaHtml(x) {
@@ -417,7 +436,7 @@ export async function renderIntuitions(main, ctx) {
   const { notes, replies } = splitThreads(all);
   const view = { list: notes, replies, state: readView(), cards: new Map(), limit: CHUNK, shown: [], searching: false, seenAt,
     unseen: unseenCounts(notes, seenAt, ctx.me.id), news: replyNews(notes, replies, seenAt, ctx.me.id), composer: null,
-    open: new Set(), full: new Set(), boxes: new Map(), feedback: null, fbNew: 0 };
+    open: new Set(), full: new Set(), boxes: new Map(), feedback: null, fbNew: 0, guideFolded: store.get(GUIDE_FOLD) === '1' };
   // An old Góp ý link opens Lý do sửa bài (main.js).
   let openFeedback = false;
   try { openFeedback = sessionStorage.getItem('studio.bk.open') === 'feedback'; sessionStorage.removeItem('studio.bk.open'); } catch { /* storage blocked */ }
@@ -432,6 +451,7 @@ export async function renderIntuitions(main, ctx) {
     <aside class="bk-nav" aria-label="Kênh và thành viên" id="bk-nav">${navHtml(ctx, view)}</aside>
     <section class="bk-pane" aria-label="Insights">
       <header class="bk-head" id="bk-head">${headHtml(ctx, view)}</header>
+      <div class="bk-guide-host" id="bk-guide">${guideHtml(ctx, view)}</div>
       <div class="bk-findrow" id="bk-findrow" hidden></div>
       <div class="bk-scroll" id="bk-scroll"><div class="bk-stream" id="bk-stream" aria-live="polite">${streamHtml(ctx, view)}</div></div>
       <button type="button" class="bk-jump" id="bk-jump" hidden>${icon('down')}<span>Insight mới</span></button>
@@ -523,6 +543,7 @@ export async function renderIntuitions(main, ctx) {
     stream.innerHTML = streamHtml(ctx, view);
     wireThreads();
     main.querySelector('#bk-head').innerHTML = headHtml(ctx, view);
+    main.querySelector('#bk-guide').innerHTML = guideHtml(ctx, view);
     const n = main.querySelector('#bk-find-n');
     if (n) n.textContent = s.query ? `${view.shown.length} kết quả` : '';
     view.composer?.setPlaceholder(placeholderFor(view));
@@ -588,7 +609,7 @@ export async function renderIntuitions(main, ctx) {
   // Lý do sửa bài loads behind the chat, so its count shows in the list and the view opens at once later.
   async function loadFeedback(fresh = false) {
     try {
-      const { loadFeedbackItems } = await import('./answers.js?v=20261107a');
+      const { loadFeedbackItems } = await import('./answers.js?v=20261107b');
       const items = await loadFeedbackItems(ctx, { fresh });
       view.feedback = items;
       view.fbNew = seenAt ? items.filter((f) => f.member_id !== ctx.me.id && f.at > seenAt).length : 0;
@@ -701,6 +722,7 @@ export async function renderIntuitions(main, ctx) {
   async function onClick(e) {
     const t = e.target;
     if (t.closest('[data-jot]')) return;
+    if (t.closest('[data-guide-fold]')) { view.guideFolded = !view.guideFolded; store.set(GUIDE_FOLD, view.guideFolded ? '1' : '0'); main.querySelector('#bk-guide').innerHTML = guideHtml(ctx, view); return; }
     const pick = t.closest('.bk-picker [data-react]');
     if (pick) {
       const x = find(pick.closest('.bk-picker').dataset.for);

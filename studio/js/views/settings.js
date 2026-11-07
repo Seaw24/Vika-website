@@ -1,11 +1,11 @@
-import { saveSettings, saveMemberName, saveAvatar, removeAvatar, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261107a';
-import { squarePhoto } from '../lib/photo.js?v=20261107a';
-import { addedToast } from '../lib/pool.js?v=20261107a';
+import { saveSettings, saveMemberName, saveAvatar, removeAvatar, saveHandle, addAccount, setAccountActive, loadTeam, signOut } from '../data.js?v=20261107b';
+import { squarePhoto } from '../lib/photo.js?v=20261107b';
+import { addedToast } from '../lib/pool.js?v=20261107b';
 import { hasLinkSlot, isValidAccountCode, appLink, buildCt } from '../lib/ct.js';
-import { esc, toast, icon, initial, autoGrow, face, setFace } from '../ui.js?v=20261107a';
+import { esc, toast, icon, initial, autoGrow, face, setFace } from '../ui.js?v=20261107b';
 import { settingsFor, homeAccount, isActive, memberR2, freshCode, linkCode, postAccounts } from './shared.js';
 import { showMemberPanel } from './members-admin.js';
-import { showTargetsPanel } from './targets.js?v=20261107a';
+import { showTargetsPanel } from './targets.js?v=20261107b';
 
 // Cài đặt in four sections, each with its own heading (Nam, 2026-11-04: the page ran as one long column with nothing
 // set apart): Hồ sơ, Tài khoản Threads (one row per account, its link code, edited in place), Bình luận 2 (one text for

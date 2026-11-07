@@ -1,10 +1,10 @@
 // Góp ý's feedback (why members edited a card, cards they did not use, picks they found wrong), read for Insights. Nam
 // merged the Góp ý tab into Insights on 2026-11-07: one page for what members learn. The rows are events; this module
 // reads them and shapes each into one entry the Insights chat paints under Phản hồi, Lý do sửa bài.
-import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261107a';
+import { loadAnswers, loadAnswerQuestions } from '../data.js?v=20261107b';
 import { REASONS, NEXT_TIME, PART_LABEL, labelFor } from '../lib/edits.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { latestChatRows } from '../lib/chat.js?v=20261107a';
+import { latestChatRows } from '../lib/chat.js?v=20261107b';
 
 const KINDS = { skip: ['Bài chưa dùng', 'line'], dismiss: ['Không dùng bài này', 'gold'], wrong_pick: ['Góp ý về bài chọn', 'gold'], posted_edit: ['Chỗ sửa khi đăng', 'dark'], edit: ['Chỗ sửa trên portal', ''], chat: ['Kể lý do sửa', 'dark'] };
 // A v2 or v3 chat answer (docs/plans/2026-10-12-feedback-chat-v3.md) says whether the draft was wrong and where the problem sits.

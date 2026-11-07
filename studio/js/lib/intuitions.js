@@ -131,6 +131,8 @@ export const unreadCount = (list) => list.filter((x) => !x.read_at).length;
 
 /* ---------- The chat view (2026-11-07, second design) ---------- */
 
+// Nam's note on how Insights works (2026-11-07, live id): it stays at the top of the chat for everyone, in full.
+export const GUIDE_ID = '6497e5af-92cf-4cf7-ac30-f52ba45a8134';
 export const VIEWS = [['all', 'Cả nhóm'], ['replies', 'Trả lời bạn'], ['top', 'Nổi bật'], ['used', 'Đã dùng'], ['feedback', 'Lý do sửa bài']];
 // The notes a scope shows. all and used run oldest first, like a chat; top runs by agrees.
 export function scopeList(list, s, today = vnDate()) {

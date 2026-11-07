@@ -553,3 +553,26 @@ body.chat main{padding-bottom:0}
 .bk-hello.is-small p{margin:0}
 /* The sheet keeps its tags in view; its foot already names the N key. */
 .jot--sheet .jot-key{display:none!important}
+
+/* ---------- The guide (2026-11-07): Nam's note on how Insights works, under the chat's header ---------- */
+.bk-guide-host{flex:none}
+.bk-guide{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;margin:10px 14px 2px;padding:12px 8px 12px 16px;
+  border-radius:18px;background:linear-gradient(135deg,#fff7e2,#fbefd2);box-shadow:inset 0 0 0 1px rgba(160,116,16,.3),0 12px 26px -22px rgba(23,18,14,.55);overflow:hidden;
+  animation:jot-in .3s var(--ease)}
+.bk-guide::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(var(--gold-2),var(--gold))}
+.bk-guide > .av{width:38px;height:38px;font-size:15px;box-shadow:0 0 0 2px #fff7e2,0 0 0 4px var(--gold)}
+.bk-guide-main{min-width:0}
+.bk-guide-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;line-height:1.3}
+.bk-guide-h b{font-size:14.5px;font-weight:700;color:var(--ink)}
+.bk-guide-h span{font-size:12px;font-weight:500;color:#6a4b05}
+.bk-guide-text{margin-top:3px;font-size:14.5px;line-height:1.6;color:#1a140f;white-space:pre-wrap}
+.bk-guide-text a{color:#5e4204}
+.bk-guide-fold{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;color:#6a4b05}
+.bk-guide-fold svg{width:15px;height:15px}
+.bk-guide-fold:hover{background:rgba(160,116,16,.12)}
+.bk-guide.is-folded{align-items:center;padding:7px 8px 7px 14px}
+.bk-guide.is-folded > .av{width:26px;height:26px;font-size:11px;box-shadow:0 0 0 2px #fff7e2,0 0 0 3px var(--gold)}
+.bk-guide.is-folded .bk-guide-h{display:none}
+.bk-guide.is-folded .bk-guide-text{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13.5px}
+@media (max-width:899px){.bk-guide{margin:8px 8px 2px;padding:10px 6px 10px 14px;gap:10px}.bk-guide > .av{width:32px;height:32px;font-size:13px}.bk-guide-text{font-size:14px}}
+@media (prefers-reduced-motion:reduce){.bk-guide{animation:none}}
