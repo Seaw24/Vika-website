@@ -220,7 +220,7 @@ export async function loadPostedSince(memberId, sinceIso) {
 export async function loadAnswers(memberIds, limit = 200) {
   if (!memberIds.length) return [];
   return must(await supabase.from('events')
-    .select('id,client_id,at,type,payload,member:members(id,name),card:cards(op),account:accounts(handle)')
+    .select('id,client_id,at,type,card_id,payload,member:members(id,name),card:cards(op),account:accounts(handle)')
     .in('type', ['answered', 'edited', 'skipped', 'flagged'])
     .in('member_id', memberIds)
     .order('id', { ascending: false })
@@ -321,6 +321,50 @@ export async function deleteComment(id) {
 export async function loadComments(cardIds) {
   if (!cardIds.length) return [];
   return inChunks(cardIds, (part) => supabase.from('card_comments').select(COMMENT).in('card_id', part).is('deleted_at', null).order('created_at').order('id'));
+}
+
+/* ---------- Insights (Nam, 2026-11-07; migration intuitions) ---------- */
+
+const INTUITION = 'id,client_id,member_id,parent_id,body,tags,card_id,created_at,edited_at,read_at,outcome,outcome_note,intuition_reactions(member_id,kind)';
+// reactions: [{ member_id, kind }]; agrees: who chose Đồng ý, which Nổi bật and the seat's read count.
+const shapeIntuition = ({ intuition_reactions: reactions, ...x }) => {
+  const list = (reactions ?? []).map((r) => ({ member_id: r.member_id, kind: r.kind }));
+  return { ...x, reactions: list, agrees: list.filter((r) => r.kind === 'agree').map((r) => r.member_id) };
+};
+// The whole chat, notes and replies, newest first. A team writes a few notes a day, so one read holds them all.
+export function loadIntuitions() {
+  return cached('intuitions', 10000, async () => (await allRows(() => supabase.from('intuitions').select(INTUITION)
+    .is('deleted_at', null).order('created_at', { ascending: false }).order('id'))).map(shapeIntuition));
+}
+const dropIntuitions = () => readCache.delete('intuitions');
+// client_id is unique, so a retry after a lost answer returns the note it already wrote.
+export async function addIntuition({ client_id, body, tags, card_id = null, parent_id = null }) {
+  dropIntuitions();
+  const { data, error } = await supabase.from('intuitions').insert({ client_id, body, tags, card_id, parent_id }).select(INTUITION).single();
+  if (!error) return shapeIntuition(data);
+  if (error.code !== '23505') throw error;
+  return shapeIntuition(must(await supabase.from('intuitions').select(INTUITION).eq('client_id', client_id).single()));
+}
+export async function editIntuition(id, { body, tags }) {
+  dropIntuitions();
+  const rows = must(await supabase.from('intuitions').update({ body, tags, edited_at: new Date().toISOString() }).eq('id', id).select(INTUITION));
+  if (!rows.length) throw Object.assign(new Error('not yours'), { code: '42501' });
+  return shapeIntuition(rows[0]);
+}
+export async function deleteIntuition(id) {
+  dropIntuitions();
+  const rows = must(await supabase.from('intuitions').update({ deleted_at: new Date().toISOString() }).eq('id', id).select('id'));
+  if (!rows.length) throw Object.assign(new Error('not yours'), { code: '42501' });
+}
+// A reaction on a note or a reply, or taking it back. Đồng ý is never on her own note.
+export async function reactIntuition(id, memberId, kind, on) {
+  dropIntuitions();
+  if (on) {
+    const { error } = await supabase.from('intuition_reactions').insert({ intuition_id: id, kind });
+    if (error && error.code !== '23505') throw error;
+  } else {
+    must(await supabase.from('intuition_reactions').delete().eq('intuition_id', id).eq('member_id', memberId).eq('kind', kind));
+  }
 }
 
 /* ---------- The feedback chat (docs/plans/2026-10-12-feedback-chat-v2.md) ---------- */

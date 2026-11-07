@@ -1,16 +1,17 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261104h';
-import { renderSignIn } from './views/signin.js?v=20261104h';
-import { esc, toast, icon, face, setFaces } from './ui.js?v=20261104h';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261107a';
+import { renderSignIn } from './views/signin.js?v=20261107a';
+import { esc, toast, icon, face, setFaces } from './ui.js?v=20261107a';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
 // TikTok space; a new member starts without it and sees Threads exactly as before.
 // Nhóm: every member sees the whole team's posts, by day (Nam, 2026-09-27).
 // Bảng vàng takes the place of the Số liệu and Nhóm tabs (Nam, 2026-11-03); both pages stay, linked from its foot.
+// Insights (Nam, 2026-11-07): the team's board of what members learn while they pick and write posts.
 const SPACES = {
   threads: { label: 'Threads', icon: 'threads', home: '#/',
-    tabs: [['#/', 'Kho bài', 'stack'], ['#/bang-vang', 'Bảng vàng', 'trophy'], ['#/gop-y', 'Góp ý', 'feedback'], ['#/cai-dat', 'Cài đặt', 'settings']] },
+    tabs: [['#/', 'Kho bài', 'stack'], ['#/bang-vang', 'Bảng vàng', 'trophy'], ['#/insights', 'Insights', 'bulb'], ['#/cai-dat', 'Cài đặt', 'settings']] },
   tiktok: { label: 'TikTok', icon: 'tiktok', home: '#/tiktok',
     tabs: [['#/tiktok', 'Chờ đăng', 'tiktok'], ['#/tiktok/da-dang', 'Đã đăng', 'check'], ['#/tiktok/bo-qua', 'Đã bỏ qua', 'flag']] },
 };
@@ -37,16 +38,18 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261104h').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261104h').then((m) => m.renderCard),
-  answers: () => import('./views/answers.js?v=20261104h').then((m) => m.renderAnswers),
-  settings: () => import('./views/settings.js?v=20261104h').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261104h').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261104h').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261104h').then((m) => m.renderTeam),
-  board: () => import('./views/board.js?v=20261104h').then((m) => m.renderBoard),
-  tiktok: () => import('./views/tiktok.js?v=20261104h').then((m) => m.renderTikTok),
+  today: () => import('./views/today.js?v=20261107a').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261107a').then((m) => m.renderCard),
+  settings: () => import('./views/settings.js?v=20261107a').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261107a').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261107a').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261107a').then((m) => m.renderTeam),
+  board: () => import('./views/board.js?v=20261107a').then((m) => m.renderBoard),
+  tiktok: () => import('./views/tiktok.js?v=20261107a').then((m) => m.renderTikTok),
+  intuitions: () => import('./views/intuitions.js?v=20261107a').then((m) => m.renderIntuitions),
 };
+// The floating Insights button follows each page; a failure in it never blocks the page.
+const jot = (hash) => import('./views/jot.js?v=20261107a').then((m) => m.syncJot(ctx, hash)).catch((error) => console.error(error));
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
 const lastIn = { threads: '#/', tiktok: '#/tiktok' };
@@ -82,10 +85,13 @@ function paintShell(active, signedIn = Boolean(ctx?.me)) {
   if (theme) theme.content = tt ? '#000000' : '#F4EEE2';
 }
 
-// Page modes: the sign-in gate hides the shell; a focused task swaps the phone tab bar for its own dock.
-function mode(target, { gate = false, focus = false, narrow = false } = {}) {
+// Page modes: the sign-in gate hides the shell; a focused task swaps the phone tab bar for its own dock; a chat
+// (Insights) fills the screen and scrolls inside itself.
+function mode(target, { gate = false, focus = false, narrow = false, chat = false } = {}) {
   document.body.classList.toggle('gate', gate);
   document.body.classList.toggle('focus', focus);
+  document.body.classList.toggle('chat', chat);
+  if (!chat) document.body.classList.remove('bk-typing');
   target.classList.toggle('narrow', narrow);
 }
 
@@ -96,7 +102,7 @@ const skLine = (width) => `<span class="sk-line" style="--sk-width:${width}%"></
 const skCard = (index) => `<div class="sk-card" style="--sk-index:${index}">
   ${skLine(36)}${skLine(84)}${skLine(62)}<span class="sk-pill"></span></div>`;
 function routeSkeleton(hash) {
-  const feedback = hash === '#/gop-y';
+  const feedback = hash === '#/insights';
   const today = hash === '#/' || hash === '';
   const head = `<div class="sk-head">${skLine(22)}${skLine(60)}${skLine(78)}</div>`;
   // TikTok: the feed's black frame, or the cover grid, the shape each page lands in.
@@ -132,9 +138,15 @@ async function route() {
   }
   const started = performance.now();
   const id = ++routeId;
+  // Góp ý lives in Insights since 2026-11-07 (Phản hồi, Lý do sửa bài); an old link opens it there.
+  if (location.hash === '#/gop-y') {
+    try { sessionStorage.setItem('studio.bk.open', 'feedback'); } catch { /* storage blocked: Insights opens where she left it */ }
+    history.replaceState(null, '', '#/insights');
+  }
   const hash = location.hash || '#/';
   if (shownHash !== null) scrollMemo.set(shownHash, window.scrollY);
   shownHash = hash;
+  if (ctx) ctx.jotCard = null;
   const nextMain = document.createElement('main');
   nextMain.id = 'main';
   nextMain.tabIndex = -1;
@@ -174,10 +186,10 @@ async function route() {
       paintTabs('#/');
       mode(nextMain, { narrow: true });
       await (await views.review())(nextMain, ctx, decodeURIComponent(hash.slice('#/cuoi-tuan/'.length)));
-    } else if (hash === '#/gop-y') {
-      paintTabs('#/gop-y');
-      mode(nextMain, { narrow: true });
-      await (await views.answers())(nextMain, ctx);
+    } else if (hash === '#/insights') {
+      paintTabs('#/insights');
+      mode(nextMain, { chat: true });
+      await (await views.intuitions())(nextMain, ctx);
     } else if (hash === '#/cai-dat') {
       paintTabs('#/cai-dat');
       // Cài đặt has its own width and side menu (2026-11-04).
@@ -204,6 +216,7 @@ async function route() {
   main.classList.add('enter');
   main.focus({ preventScroll: true });
   window.scrollTo(0, main.dataset.keepScroll ? scrollMemo.get(hash) ?? 0 : 0);
+  jot(ctx?.me ? hash : null);
 }
 
 // The team (members, accounts, settings) is kept on the device, so a return visit opens at once from it while a
@@ -257,7 +270,7 @@ async function boot() {
   const cached = readTeam(email);
   const fresh = loadTeam();
   // The page's code downloads while the team loads.
-  const warm = { '#/tiktok': 'tiktok', '#/tiktok/da-dang': 'tiktok', '#/tiktok/bo-qua': 'tiktok', '#/so-lieu': 'stats', '#/nhom': 'team', '#/bang-vang': 'board', '#/gop-y': 'answers', '#/cai-dat': 'settings' };
+  const warm = { '#/tiktok': 'tiktok', '#/tiktok/da-dang': 'tiktok', '#/tiktok/bo-qua': 'tiktok', '#/so-lieu': 'stats', '#/nhom': 'team', '#/bang-vang': 'board', '#/insights': 'intuitions', '#/gop-y': 'intuitions', '#/cai-dat': 'settings' };
   views[warm[location.hash] ?? (location.hash.startsWith('#/bai/') ? 'card' : 'today')]().catch(() => {});
   if (cached) {
     applyTeam(email, cached);

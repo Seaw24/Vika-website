@@ -3,15 +3,15 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
 // plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
 // member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261104h';
-import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261104h';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261107a';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261107a';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261104h';
-import { esc, icon, faceInner, toast } from '../ui.js?v=20261104h';
-import { FOCUS_KEY } from './targets.js?v=20261104h';
-import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261104h';
-import { setPillar } from '../data.js?v=20261104h';
-import { POOL_PILLAR_KEY } from './today.js?v=20261104h';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261107a';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261107a';
+import { FOCUS_KEY } from './targets.js?v=20261107a';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261107a';
+import { setPillar } from '../data.js?v=20261107a';
+import { POOL_PILLAR_KEY } from './today.js?v=20261107a';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -89,7 +89,7 @@ export async function renderBoard(main, ctx, memberId = null, again = false) {
   // A period that held the old today moves with the day; a period she stepped back to stays.
   const was = before?.state.period;
   const period = was && !(was.from <= before.today && before.today <= was.to) ? was : periodOf(was?.kind ?? kind, today);
-  const state = before ? Object.assign(before.state, { period }) : { period, view: store.get('studio.board.view') === 'pillars' ? 'pillars' : 'game',
+  const state = before ? Object.assign(before.state, { period }) : { period, view: 'game',
     filter: 'all', who: '', sort: 'new', shown: PAGE, chart: 'views', folded: store.get('studio.board.dashOpen') !== '1',
     dashKind: isKind(store.get('studio.board.dashKind')) ? store.get('studio.board.dashKind') : 'all', feedKind: 'all', feedPeriod: null,
     // Nội dung (content pillars): its own window and kind, the list's order, the pillar opened in it and whether all its
@@ -1085,7 +1085,7 @@ function plInsightCard(f, m, best) {
     case 'heavy': return card('calm', 'Kho dư', `${Math.round(f.stock.lasts)} tuần`, `Kho còn ${f.stock.stock} bài ${plName(p.key)}, đủ khoảng ${Math.round(f.stock.lasts)} tuần, nhưng dạng này xem dưới mức chung (${times(p.lift)}).`, 'Có thể chọn ít bài dạng này hơn ở lần sau.', p.key);
     case 'unused': {
       const stock = f.list.filter((x) => x.stock);
-      return card('calm', 'Chưa đăng', `${f.list.length}/10`, `Chưa đăng ${f.list.length} dạng bài: ${f.list.map((x) => esc(pillarMeta(x.key).vi)).join(', ')}.`,
+      return card('calm', 'Chưa đăng', `${f.list.length}/${PLAN.length}`, `Chưa đăng ${f.list.length} dạng bài: ${f.list.map((x) => esc(pillarMeta(x.key).vi)).join(', ')}.`,
         stock.length ? `Kho còn ${stock.slice(0, 2).map((x) => `${x.stock} bài ${esc(pillarMeta(x.key).vi)}`).join(' và ')} để thử.` : '');
     }
     default: return '';
@@ -1281,7 +1281,7 @@ function plTable(m, s, table, team, pool, mt, { ctl = '', when = 'Chạm một d
     ${plSortBar(rules)}
     <div class="pl-head"><span>Dạng bài</span>${SORT_COLS.map(head).join('')}<span></span></div>
     <ol class="pl-rows">${rows(plan, 0)}</ol>
-    ${aside.length ? `<p class="pl-group">Ngoài 10 dạng bài chính</p><ol class="pl-rows">${rows(aside, plan.length)}</ol>` : ''}
+    ${aside.length ? `<p class="pl-group">Ngoài ${PLAN.length} dạng bài chính</p><ol class="pl-rows">${rows(aside, plan.length)}</ol>` : ''}
     <p class="pl-foot">Views: lượt xem trung bình mỗi bài, vạch mảnh là mức của nhóm (${k(team.avg)}). Thích, trả lời, đăng lại: phần trăm trên lượt xem; mức của nhóm là ${pv(team.likeRate)}, ${pv(team.replyRate)} và ${pv(team.spread)}. Dạng bài chưa đủ ${MIN_READ} bài có lượt xem hiện nhạt và xếp sau. Threads không cho xem số lượt chia sẻ.</p>
   </section>`;
 }
@@ -1331,7 +1331,7 @@ function pillarsHtml(m, s) {
         <article class="d-tile plh-lift"><h3>${mt.pct ? `Tỷ lệ ${mt.vi.toLowerCase()}` : mt.vi} so với mức chung</h3>${plLiftChart(table, team, mt)}</article>
         <article class="d-tile plh-st"><h3>Tỷ lệ dạng bài qua từng tuần</h3>${plStream(m, s)}</article>
       </div>
-      <div class="dash-foot"><p class="bv-alltime"><b>${n(team.posts)}</b> bài · <b>${used}</b>/10 dạng bài · <b>${k(team.avg)}</b> lượt xem mỗi bài · tính trên lượt xem: <b>${pv(team.likeRate)}</b> thích, <b>${pv(team.replyRate)}</b> trả lời, <b>${pv(team.spread)}</b> đăng lại</p></div>`
+      <div class="dash-foot"><p class="bv-alltime"><b>${n(team.posts)}</b> bài · <b>${used}</b>/${PLAN.length} dạng bài · <b>${k(team.avg)}</b> lượt xem mỗi bài · tính trên lượt xem: <b>${pv(team.likeRate)}</b> thích, <b>${pv(team.replyRate)}</b> trả lời, <b>${pv(team.spread)}</b> đăng lại</p></div>`
         : '<p class="pl-empty">Không có bài nào trong khoảng này. Chọn 12 tuần hoặc Từ đầu.</p>'}
     </section>
     ${rows.length ? `${plInsights(m, found, table)}
@@ -1446,7 +1446,7 @@ function paintBoard(main, m, s, first = false) {
   }));
   wireBoardSwitch(main, m, s);
   main.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
-    store.set('studio.board.view', b.dataset.view);
+    // Bảng vàng always opens on Thi đua (Nam, 2026-11-05); a switch holds only until she leaves the page.
     repaint({ view: b.dataset.view });
   }));
   main.querySelector('[data-fold]').addEventListener('click', () => {

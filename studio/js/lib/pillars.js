@@ -1,6 +1,6 @@
 // Content pillars (Nam, 2026-11-04; migration content_pillars). Every card and every post carries one pillar, labelled on
-// the desktop by Claude Sonnet 5.5 (vika-ops tools/portal/pillars.cjs); any member can fix one in Studio. The 10 pillars
-// are the team's list; other is about fitness or Vika but in none of them; off_topic has nothing to do with either.
+// the desktop by Claude Sonnet 5.5 (vika-ops tools/portal/pillars.cjs); any member can fix one in Studio. The 11 pillars
+// are the team's list (relatable joined on 2026-11-07 from the team's reference, migration pillar_relatable); other is about fitness or Vika but in none of them; off_topic has nothing to do with either.
 // The keys match the migration's check and pillars.cjs. Numbers here count a post's latest reading, like the rest of
 // Bảng vàng.
 // Nội dung's numbers follow how social tools report tags (research 2026-11-04: Socialinsider, Rival IQ, Brandwatch,
@@ -11,24 +11,27 @@
 // validator on the lacquer (#1b1510) and the ivory (#fbf7ee): every adjacent pair clears CVD dE 8.5 and normal-vision
 // dE 17.3, all inside the lightness band. Stacked charts draw in this order, so the checked pairs are the neighbours on
 // screen, and every chart names its marks, since two tones sit under 3:1 on ivory. other and off_topic are warm greys.
+// relatable's olive (2026-11-07) passes the same validator in both themes: CVD dE 8.2 against its neighbour news, and
+// normal-vision dE 10.5 or more against every other tone.
 
 export const PILLARS = [
   { key: 'educate', vi: 'Kiến thức', en: 'Educate', hint: 'Mẹo, cách tập, kiến thức về cơ thể', color: '#3f84d8' },
-  { key: 'opinion', vi: 'Quan điểm', en: 'Opinion / Hot take', hint: 'Hot take, than phiền, nhận định dễ gây tranh luận', color: '#e0663d' },
-  { key: 'story', vi: 'Kể chuyện', en: 'Storytelling', hint: 'Câu chuyện của bản thân hoặc người khác', color: '#9b6ad6' },
-  { key: 'case_study', vi: 'Case study', en: 'Case Study', hint: 'Kết quả trước - sau, có số liệu thực tế', color: '#2ea676' },
+  { key: 'opinion', vi: 'Quan điểm', en: 'Opinion / Hot take', hint: 'Lập trường, nhận định, phản biện, có lý do', color: '#e0663d' },
+  { key: 'story', vi: 'Kể chuyện', en: 'Storytelling', hint: 'Câu chuyện có diễn biến, trải nghiệm thật', color: '#9b6ad6' },
+  { key: 'case_study', vi: 'Case study', en: 'Case Study', hint: 'Phân tích một trường hợp cụ thể: thương hiệu, sản phẩm, chiến dịch', color: '#2ea676' },
   { key: 'meme', vi: 'Meme / Hài', en: 'Meme / Humor', hint: 'Đùa, meme, tự trào cho vui', color: '#c27e16' },
-  { key: 'engagement', vi: 'Thảo luận', en: 'Engagement / Discussion', hint: 'Đặt câu hỏi, xin ý kiến, tạo bình chọn', color: '#df5f8c' },
+  { key: 'engagement', vi: 'Thảo luận', en: 'Discussion', hint: 'Câu hỏi mở, lựa chọn A/B, mời chia sẻ trải nghiệm', color: '#df5f8c' },
   { key: 'review', vi: 'Review', en: 'Review / Recommendation', hint: 'Đánh giá, gợi ý, so sánh sản phẩm', color: '#16a0b5' },
-  { key: 'bts', vi: 'Hậu trường', en: 'Behind the Scenes', hint: 'Góc tập, một ngày tập, cách làm nội dung', color: '#b8742f' },
+  { key: 'bts', vi: 'Hậu trường', en: 'Behind the Scenes', hint: 'Phía sau công việc, dự án, cách làm nội dung', color: '#b8742f' },
   { key: 'trend', vi: 'Trend', en: 'Trend / Challenge', hint: 'Bắt trend, thử thách đang hot', color: '#8a7cf2' },
   { key: 'news', vi: 'Tin tức', en: 'News / Updates', hint: 'Tin mới, nghiên cứu, cập nhật', color: '#c45a5a' },
-  { key: 'other', vi: 'Khác', en: 'Other', hint: 'Về tập luyện, cơ thể hoặc Vika nhưng ngoài 10 dạng trên', color: '#8f877b' },
+  { key: 'relatable', vi: 'Đồng cảm', en: 'Relatable', hint: 'Suy nghĩ, cảm xúc, mong muốn mà nhiều người thấy mình trong đó', color: '#8f9a1a' },
+  { key: 'other', vi: 'Khác', en: 'Other', hint: 'Về tập luyện, cơ thể hoặc Vika nhưng ngoài các dạng trên', color: '#8f877b' },
   { key: 'off_topic', vi: 'Không liên quan', en: 'Not relevant', hint: 'Không liên quan đến tập luyện hay Vika', color: '#6f675c' },
 ];
 export const NONE = { key: 'none', vi: 'Chưa gắn', en: 'Not labelled', hint: 'Đang chờ lần đọc sau để tự động gắn nhãn', color: '#cfc5b3' };
-// The team's 10, without other, off_topic and none.
-export const PLAN = PILLARS.slice(0, 10).map((p) => p.key);
+// The team's 11, without other, off_topic and none.
+export const PLAN = PILLARS.slice(0, 11).map((p) => p.key);
 export const MIN_READ = 5;
 const BY_KEY = new Map([...PILLARS, NONE].map((p) => [p.key, p]));
 export const pillarMeta = (key) => BY_KEY.get(key ?? 'none') ?? NONE;

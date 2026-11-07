@@ -1,11 +1,20 @@
-import { pillarTag } from './lib/pillars.js?v=20261104h';
+import { pillarTag } from './lib/pillars.js?v=20261107a';
 const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
 let toastTimer;
-export function toast(message) {
+// action { label, href, onClick } adds one link after the message (Insights's "Xem"); the toast then stays longer.
+export function toast(message, action = null) {
   const el = document.getElementById('toast');
   el.textContent = message;
+  if (action) {
+    const a = document.createElement('a');
+    a.className = 'toast-act';
+    a.href = action.href;
+    a.textContent = action.label;
+    a.addEventListener('click', () => { action.onClick?.(); el.classList.remove('show'); });
+    el.append(' ', a);
+  }
   // A popover sits in the top layer, above any open dialog. Hiding it first puts it above a dialog that opened after
   // the last toast; it stays open between toasts, and the show class does the fading.
   if (el.showPopover) {
@@ -14,7 +23,7 @@ export function toast(message) {
   }
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  toastTimer = setTimeout(() => el.classList.remove('show'), action ? 4500 : 2400);
 }
 
 export async function copyText(text) {
@@ -124,6 +133,17 @@ const PATHS = {
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   bookmark: '<path d="M7 3.5h10a1.5 1.5 0 0 1 1.5 1.5v16l-6.5-4.3L5.5 21V5A1.5 1.5 0 0 1 7 3.5z"/>',
   stack: '<rect x="4" y="9" width="16" height="11.5" rx="2.5"/><path d="M6.5 5.8h11M9 2.8h6"/>',
+  // Insights (2026-11-07).
+  bulb: '<path d="M9.2 18h5.6M10.2 21h3.6"/><path d="M12 3a6.2 6.2 0 0 0-3.8 11.1c.8.6 1.2 1.4 1.2 2.4h5.2c0-1 .4-1.8 1.2-2.4A6.2 6.2 0 0 0 12 3z"/>',
+  pen: '<path d="M4 20h4.2L19.4 8.8a2.1 2.1 0 0 0 0-3l-1.2-1.2a2.1 2.1 0 0 0-3 0L4 15.8z"/><path d="M13.5 6.3l4.2 4.2"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  hash: '<path d="M5 9.2h14.5M4.5 14.8H19M10.2 4 8.2 20M15.8 4l-2 16"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  send: '<path d="M4.5 11.8 20 4.5l-5.6 15.2-3.2-6.4z"/><path d="M11.2 13.3 20 4.5"/>',
+  more: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
+  agree: '<path d="M7.5 10.5v9H4.5v-9zM7.5 19.5h9.2a2 2 0 0 0 2-1.6l1.2-6a2 2 0 0 0-2-2.4h-4.4l.7-3.6a1.8 1.8 0 0 0-3.4-1.1L7.5 10.5"/>',
+  smile: '<circle cx="11" cy="12.5" r="8"/><path d="M7.8 14.6a4 4 0 0 0 6.4 0M8.6 10.2v.4M13.4 10.2v.4"/><path d="M19.5 2.5v5M17 5h5"/>',
+  thread: '<path d="M6 3.5v9.5a4 4 0 0 0 4 4h9"/><path d="M15.5 13.5 19 17l-3.5 3.5"/>',
 };
 export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] ?? ''}</svg>`;
 

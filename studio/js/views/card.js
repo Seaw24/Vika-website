@@ -1,13 +1,13 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261104h';
-import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js?v=20261104h';
+import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261107a';
+import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js?v=20261107a';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261104h';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261107a';
 import { memberR2, postAccounts, linkCode } from './shared.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { liveNotes } from '../lib/feed.js?v=20261104h';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104h';
+import { liveNotes } from '../lib/feed.js?v=20261107a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261107a';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';
@@ -27,6 +27,8 @@ export async function renderCard(main, ctx, assignmentId) {
     return;
   }
   const mine = a.member_id === ctx.me.id && !a.released_at;
+  // A Insights note written from this page carries the card (views/jot.js); main.js clears it on the next page.
+  ctx.jotCard = { id: a.card.id, op: a.card.op };
   const [events, posts, notes, today] = await Promise.all([loadEvents([a.id]), loadPosts([a.id]), loadComments([a.card.id]),
     mine ? loadPostedSince(a.member_id, new Date(`${vnDate()}T00:00:00+07:00`).toISOString()).catch(() => []) : []]);
   threads.set(a.card.id, liveNotes(notes));
@@ -329,6 +331,8 @@ async function markPosted(view) {
     return;
   }
   toast('Đã ghi: đã đăng.');
+  // Right after a post is when a member has an idea to keep: Insights asks once a day (views/jot.js).
+  import('./jot.js?v=20261107a').then((m) => m.nudgeAfterPost(view.ctx, view.card)).catch(() => {});
   afterChoice(view);
   q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }

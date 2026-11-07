@@ -1,14 +1,16 @@
-import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261104h';
-import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261104h';
-import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, deadIds, nextRead } from '../lib/week.js?v=20261104h';
-import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261104h';
+import { loadMyCards, loadCardHolders, loadCardPosts, loadEvents, loadQuestions, loadLatestObservations, recordEvent, loadMyFeedback, loadCardsBrief, loadPoolPage, takeCard, releaseCard, setPillar } from '../data.js?v=20261107a';
+import { PILLARS, pillarMeta, pillarTag, pickPillar } from '../lib/pillars.js?v=20261107a';
+import { vnDate, mondayOf, postingState, remaining, postedDay, skippedIds, heldIds, deadIds, nextRead } from '../lib/week.js?v=20261107a';
+import { pendingCards, doneChats, LIST_DAYS } from '../lib/chat.js?v=20261107a';
 import { PART_LABEL } from '../lib/edits.js';
 import { appLink, buildCt, fillTemplate, mintCreativeCode } from '../lib/ct.js';
-import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261104h';
-import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261104h';
+import { FEED_CHUNK, FEED_FILTERS, HOLD_LIMIT, shortCount, takeMessage } from '../lib/feed.js?v=20261107a';
+import { esc, copyText, toast, icon, cardTags, firstLine } from '../ui.js?v=20261107a';
 import { settingsFor, isActive, memberR2, postAccounts, linkCode } from './shared.js';
-import { openChat } from './chat.js?v=20261104h';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261104h';
+import { openChat } from './chat.js?v=20261107a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261107a';
+// Insights (2026-11-07): a composer bar under the hero, so a member writes the idea the moment it comes.
+import { inlineHtml, wireInline } from './intuitions.js?v=20261107a';
 
 const DAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const VN = 'Asia/Ho_Chi_Minh';
@@ -662,7 +664,7 @@ const teamSkeleton = `<div class="bv-quests kb-team-sk" aria-hidden="true"><span
 async function paintTeam(main, ctx) {
   const host = main.querySelector('#team-week');
   try {
-    const { mountTeamWeek } = await import('./board.js?v=20261104h');
+    const { mountTeamWeek } = await import('./board.js?v=20261107a');
     if (!host.isConnected) return;
     const { day } = await mountTeamWeek(host, ctx, { still: Boolean(teamCache.html) });
     // Her day fills the hero's slot; refreshTop draws the hero again from this copy.
@@ -692,6 +694,7 @@ export async function renderToday(main, ctx) {
   feed.holdCount = m.holding.length;
 
   main.innerHTML = `<div id="today-hero">${heroHtml(ctx, m)}</div>
+    ${inlineHtml(ctx)}
     <div id="team-week" class="kb-team-host">${teamCache.html || teamSkeleton}</div>
     <section class="pool-sec" id="pool" aria-labelledby="pool-title">
       <div class="feed-head"><div><p class="eyebrow">Kho chung · cả nhóm</p><h2 class="section-title" id="pool-title">${feed.allTotal ? poolTitle(feed.allTotal) : 'Kho chung'}</h2>
@@ -705,6 +708,7 @@ export async function renderToday(main, ctx) {
     </section>`;
   if (reuse) main.dataset.keepScroll = '1';
   wireHero(main, ctx, m);
+  wireInline(main.querySelector('.bk-inline'), ctx);
   wireFeed(main, ctx, { seeding: m.seeding });
   paintTeam(main, ctx);
 
