@@ -3,10 +3,10 @@
 // one draft is shared by every composer and survives a reload, the two default tags are one tap, a #word in the text
 // becomes a tag, and the card open on her screen goes with the note. On a computer Enter sends and Shift Enter makes a
 // new line, as in a chat; on a phone the keyboard's Enter makes a new line and the button sends.
-import { loadIntuitions, addIntuition, editIntuition } from '../data.js?v=20261107b';
+import { loadIntuitions, addIntuition, editIntuition } from '../data.js?v=20261109a';
 import { DEFAULT_TAGS, MAX_TAGS, MAX_BODY, tagLabel, takeHashtags, hashAtCaret, suggestTags, tagCounts, resolveTag, normalizeTag,
-  splitThreads, unseenCounts, replyNews } from '../lib/intuitions.js?v=20261107b';
-import { esc, icon, face, toast, firstLine, draftStore } from '../ui.js?v=20261107b';
+  splitThreads, unseenCounts, replyNews } from '../lib/intuitions.js?v=20261109a';
+import { esc, icon, face, toast, firstLine, draftStore } from '../ui.js?v=20261109a';
 
 // One draft for every new-note composer; each thread's reply box keeps its own.
 const draftKey = (key = null) => (key ? `intuition.${key}` : 'intuition');

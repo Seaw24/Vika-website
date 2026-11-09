@@ -6,13 +6,13 @@
 // Third pass (Nam, same day): reactions beside Đồng ý, and replies as on Threads, folded under a note behind "N câu
 // trả lời" and opened in place with a thread line; Trả lời bạn gathers the threads that answer her. Every 2 weeks the
 // seat reads the new notes; its verdict shows as Vika's reply under a note, and each read is a line in the chat.
-import { loadIntuitions, deleteIntuition, reactIntuition, loadCardsBrief } from '../data.js?v=20261107b';
+import { loadIntuitions, deleteIntuition, reactIntuition, loadCardsBrief } from '../data.js?v=20261109a';
 import { DEFAULT_TAGS, PERIODS, VIEWS, REACTIONS, tagLabel, tagCounts, scopeList, stackMessages, readMarks, unseenCounts, linkify, personSummary,
-  nextReadDay, unreadCount, dayLabel, timeLabel, compact, reactionSummary, splitThreads, replyNews, myThreads, GUIDE_ID } from '../lib/intuitions.js?v=20261107b';
-import { vnDate, addDays } from '../lib/week.js?v=20261107b';
+  nextReadDay, unreadCount, dayLabel, timeLabel, compact, reactionSummary, splitThreads, replyNews, myThreads, GUIDE_ID } from '../lib/intuitions.js?v=20261109a';
+import { vnDate, addDays } from '../lib/week.js?v=20261109a';
 import { diffHtml } from './shared.js';
-import { esc, icon, face, toast, firstLine, copyText } from '../ui.js?v=20261107b';
-import { composerHtml, wireComposer, learnTags, sentToast, FOCUS, openJotSheet } from './jot.js?v=20261107b';
+import { esc, icon, face, toast, firstLine, copyText } from '../ui.js?v=20261109a';
+import { composerHtml, wireComposer, learnTags, sentToast, FOCUS, openJotSheet } from './jot.js?v=20261109a';
 
 const KEY = 'studio.bk.view.v2';
 export const SEEN = 'studio.bk.seen';
@@ -609,7 +609,7 @@ export async function renderIntuitions(main, ctx) {
   // Lý do sửa bài loads behind the chat, so its count shows in the list and the view opens at once later.
   async function loadFeedback(fresh = false) {
     try {
-      const { loadFeedbackItems } = await import('./answers.js?v=20261107b');
+      const { loadFeedbackItems } = await import('./answers.js?v=20261109a');
       const items = await loadFeedbackItems(ctx, { fresh });
       view.feedback = items;
       view.fbNew = seenAt ? items.filter((f) => f.member_id !== ctx.me.id && f.at > seenAt).length : 0;

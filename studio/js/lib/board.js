@@ -51,8 +51,14 @@ const APP_LINK = /apps\.apple\.com\/\S*id6768359920|[?&]ct=[a-z0-9_]+/i;
 export const hasAppLink = (v) => (v ? APP_LINK.test([v.op, v.r1, v.r2].filter(Boolean).join('\n')) : null);
 
 // Every post of a team member with its numbers, text, tier and XP. Posts of accounts outside the team (fixtures) drop.
-export function postRows({ team, posts = [], observations = [], versions = [], cards = [], events = [] }, now = Date.now()) {
+export function postRows({ team, posts = [], observations = [], versions = [], cards = [], events = [], installs = [], links = [] }, now = Date.now()) {
   const accounts = new Map(team.accounts.map((a) => [a.id, a]));
+  // The link reply's newest view count, and the newest App Store download count of each link code (Nam, 2026-11-09).
+  // Apple lists a link code only from 5 downloads up, so a code it never listed has no count, not zero.
+  const newest = (list, keyOf) => { const out = new Map(); for (const x of list) { const k = keyOf(x); const had = out.get(k);
+    if (Date.parse(x.captured_at) <= now && (!had || x.captured_at > had.captured_at)) out.set(k, x); } return out; };
+  const linkViews = newest(links, (x) => x.post_id);
+  const storeOf = newest(installs, (x) => x.ct);
   const members = new Map(team.members.map((m) => [m.id, m]));
   const latest = latestReadings(observations, now);
   const text = new Map();
@@ -73,7 +79,8 @@ export function postRows({ team, posts = [], observations = [], versions = [], c
       return { ...p, account, member: members.get(account.member_id), day, week: mondayOf(day), reading: o,
         views: o?.views ?? null, likes: o?.likes ?? null, replies: o?.other_replies ?? o?.replies ?? null,
         reposts: o?.reposts ?? null, quotes: o?.quotes ?? null, themes: (o?.reply_themes ?? []).filter((t) => t.kind !== 'seller'),
-        op: v?.op || card?.op || '', r1: v?.r1 ?? card?.r1 ?? '', card, edited: edited.has(p.assignment_id), link: hasAppLink(v),
+        op: v?.op || card?.op || '', r1: v?.r1 ?? card?.r1 ?? '', r2: v?.r2 ?? '', r2Views: linkViews.get(p.id)?.r2_views ?? null,
+        dl: p.ct ? storeOf.get(p.ct)?.installs ?? null : null, card, edited: edited.has(p.assignment_id), link: hasAppLink(v),
         // Her own post: on a creative account, or with no card. The read stores a post made with a Tạo link cho bài mới
         // link as match_method 'ct' with no card, and one it could not place as 'creative'; both are hers, not a card's.
         creative: account.kind === 'creative' || p.card_id == null };

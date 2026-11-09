@@ -3,15 +3,15 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
 // plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
 // member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261107b';
-import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261107b';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261109a';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261109a';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261107b';
-import { esc, icon, faceInner, toast } from '../ui.js?v=20261107b';
-import { FOCUS_KEY } from './targets.js?v=20261107b';
-import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261107b';
-import { setPillar } from '../data.js?v=20261107b';
-import { POOL_PILLAR_KEY } from './today.js?v=20261107b';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261109a';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261109a';
+import { FOCUS_KEY } from './targets.js?v=20261109a';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261109a';
+import { setPillar } from '../data.js?v=20261109a';
+import { POOL_PILLAR_KEY } from './today.js?v=20261109a';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -110,7 +110,8 @@ async function loadModel(ctx) {
   const today = vnDate();
   const members = ctx.team.members.filter((m) => !m.is_demo);
   const team = { members, accounts: ctx.team.accounts };
-  const rows = postRows({ team, posts: data.posts, observations: data.observations, versions: data.versions, cards: data.cards, events: activity.events }, now);
+  const rows = postRows({ team, posts: data.posts, observations: data.observations, versions: data.versions, cards: data.cards, events: activity.events,
+    installs: data.installs, links: data.links }, now);
   const pending = pendingWork({ events: [...activity.events, ...links], posts: data.posts }, now);
   const quests = makeQuests({ rows, pending, targets, accounts: ctx.team.accounts, today });
   return { ctx, rows, members, team, activity, manager, now, today, quests, pool, cards: data.cards, first: rows[0]?.day ?? today,
@@ -154,9 +155,44 @@ function linkFlag(r, tag = 'span') {
   return `<${tag} class="tp-link ${r.link ? 'ok' : 'no'}" title="${r.link ? 'Có link tải app trong bài hoặc bình luận' : 'Lần đọc không thấy link tải app'}">${icon('link')}${r.link ? 'Có link' : 'Không link'}</${tag}>`;
 }
 
+// The link reply (R2) under R1, and what its link brought (Nam, 2026-11-09). Icons and numbers only; each number's
+// words and rate sit in its tooltip. A number with no source shows nothing: Threads counts no link taps, and Apple
+// lists a link code's downloads only from 5 up.
+const pctOf = (a, b) => a != null && b ? `${(a / b * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%` : '';
+const one = (v) => v.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+function dlNorm(m) {
+  if (m.dlNorm != null) return m.dlNorm;
+  const xs = m.rows.filter((r) => r.dl != null && r.views).map((r) => r.dl / r.views * 1000).sort((a, b) => a - b);
+  m.dlNorm = xs.length ? xs[Math.floor(xs.length / 2)] : 0;
+  return m.dlNorm;
+}
+function linkPill(m, r) {
+  const seg = (name, v, title, cls = '') => `<span class="tf-s${cls}" title="${esc(title)}">${icon(name)}<b>${v}</b></span>`;
+  const parts = [];
+  if (r.r2Views != null) parts.push(seg('link', k(r.r2Views), `${n(r.r2Views)} lượt xem bình luận có link${r.views ? ` · bằng ${pctOf(r.r2Views, r.views)} lượt xem bài` : ''}`));
+  if (r.dl != null) parts.push(seg('download', k(r.dl), `${n(r.dl)} lượt tải qua link này (App Store, cộng dồn)${r.r2Views ? ` · ${pctOf(r.dl, r.r2Views)} lượt xem link` : ''}`, ' dl'));
+  if (!parts.length) return '';
+  let sig = '';
+  if (r.dl != null && r.views) {
+    const per = r.dl / r.views * 1000, norm = dlNorm(m);
+    const level = per >= norm * 1.5 ? 3 : per >= norm * 0.67 ? 2 : 1;
+    const text = `${one(per)} lượt tải trên 1.000 lượt xem bài · mức chung của nhóm ${one(norm)}`;
+    sig = `<span class="tf-sig l${level}" title="${esc(text)}" aria-label="${esc(text)}"><i></i><i></i><i></i></span>`;
+  }
+  return `<div class="tf-row"><div class="tp-funnel" aria-label="Link trong bình luận">${parts.join('<i class="tf-a"></i>')}</div>${sig}</div>`;
+}
+function r2Html(m, r, { feature = false } = {}) {
+  const pill = linkPill(m, r);
+  if (feature) return pill ? `<div class="tp-r2 solo">${pill}</div>` : '';
+  if (!r.r2) return '';
+  const text = String(r.r2).replace(/\S*apps\.apple\.com\S*/g, '').trim();
+  return `<div class="tp-r2"><span class="tp-mini" aria-hidden="true">${faceInner(r.member)}</span>
+      <div><p class="tp-who"><b>${esc(r.account.handle)}</b></p>${text ? `<p class="tp-text cut">${esc(text)}</p>` : ''}${pill}</div></div>`;
+}
+
 function postHtml(m, r, { feature = false } = {}) {
   const p = m.profiles.get(r.member.id);
-  const r1 = r.r1 ? `<div class="tp-r1"><span class="tp-mini" aria-hidden="true">${faceInner(r.member)}</span>
+  const r1 = r.r1 ? `<div class="tp-r1${r.r2 ? ' has-r2' : ''}"><span class="tp-mini" aria-hidden="true">${faceInner(r.member)}</span>
       <div><p class="tp-who"><b>${esc(r.account.handle)}</b></p><p class="tp-text cut">${esc(r.r1)}</p></div></div>` : '';
   const themes = r.themes.length ? `<p class="tp-heard"><span>Người đọc nhắc đến</span>${r.themes.slice(0, 2).map((t) => `<em>${esc(t.theme)}</em>`).join('')}</p>` : '';
   const xp = r.xpParts.map(([key, x]) => `${{ post: 'Đăng', beat: 'Vượt mức', hit: 'Hit', mega: 'Siêu hit' }[key]} +${x}`).join(' · ');
@@ -177,7 +213,7 @@ function postHtml(m, r, { feature = false } = {}) {
       ${linkFlag(r, 'li')}
       ${r.source_url ? `<li class="tp-open"><a href="${esc(r.source_url)}" target="_blank" rel="noopener" aria-label="Mở trên Threads">${icon('out')}</a></li>` : ''}
     </ul>
-    ${feature ? '' : r1}${themes}
+    ${feature ? r2Html(m, r, { feature: true }) : r1 + r2Html(m, r)}${themes}
   </article>`;
 }
 

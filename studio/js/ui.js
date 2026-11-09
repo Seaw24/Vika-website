@@ -1,4 +1,4 @@
-import { pillarTag } from './lib/pillars.js?v=20261107b';
+import { pillarTag } from './lib/pillars.js?v=20261109a';
 const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
@@ -122,6 +122,8 @@ const PATHS = {
   tiktok: '<rect x="5" y="2.5" width="14" height="19" rx="3.5"/><path d="M10.5 9.2v5.6l4.6-2.8z"/>',
   play: '<path d="M8 5.2v13.6L19 12z"/>',
   threads: '<circle cx="12" cy="12" r="3.6"/><path d="M15.6 12v1.3a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.4 6.9"/>',
+  store: '<path d="M5.5 8h13l-1.1 11.2a1.5 1.5 0 0 1-1.5 1.3H8.1a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5"/>',
+  dumbbell: '<rect x="2.5" y="9.2" width="3" height="5.6" rx="1.2"/><rect x="5.5" y="6.5" width="3.2" height="11" rx="1.4"/><rect x="15.3" y="6.5" width="3.2" height="11" rx="1.4"/><rect x="18.5" y="9.2" width="3" height="5.6" rx="1.2"/><path d="M8.7 12h6.6"/>',
   download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
   upload: '<path d="M12 20V9M7 13.5l5-5 5 5M5 4h14"/>',
   expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',

@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
-import { currentEmail, loadTeam, flushPending } from './data.js?v=20261107b';
-import { renderSignIn } from './views/signin.js?v=20261107b';
-import { esc, toast, icon, face, setFaces } from './ui.js?v=20261107b';
+import { currentEmail, loadTeam, flushPending } from './data.js?v=20261109a';
+import { renderSignIn } from './views/signin.js?v=20261109a';
+import { esc, toast, icon, face, setFaces } from './ui.js?v=20261109a';
 
 // Threads and TikTok are two separate spaces (Nam, 2026-10-09). Each has its own tabs; a side rail on a computer and
 // a switch in the phone header move between them. Only members Nam lets in (members.tiktok) get the switch and the
@@ -11,7 +11,7 @@ import { esc, toast, icon, face, setFaces } from './ui.js?v=20261107b';
 // Insights (Nam, 2026-11-07): the team's board of what members learn while they pick and write posts.
 const SPACES = {
   threads: { label: 'Threads', icon: 'threads', home: '#/',
-    tabs: [['#/', 'Kho bài', 'stack'], ['#/bang-vang', 'Bảng vàng', 'trophy'], ['#/insights', 'Insights', 'bulb'], ['#/cai-dat', 'Cài đặt', 'settings']] },
+    tabs: [['#/', 'Kho bài', 'stack'], ['#/bang-vang', 'Bảng vàng', 'trophy'], ['#/tang-truong', 'Tăng trưởng', 'stats'], ['#/insights', 'Insights', 'bulb'], ['#/cai-dat', 'Cài đặt', 'settings']] },
   tiktok: { label: 'TikTok', icon: 'tiktok', home: '#/tiktok',
     tabs: [['#/tiktok', 'Chờ đăng', 'tiktok'], ['#/tiktok/da-dang', 'Đã đăng', 'check'], ['#/tiktok/bo-qua', 'Đã bỏ qua', 'flag']] },
 };
@@ -38,18 +38,19 @@ if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 // Views load lazily so a failure in one never blocks sign-in.
 const views = {
-  today: () => import('./views/today.js?v=20261107b').then((m) => m.renderToday),
-  card: () => import('./views/card.js?v=20261107b').then((m) => m.renderCard),
-  settings: () => import('./views/settings.js?v=20261107b').then((m) => m.renderSettings),
-  stats: () => import('./views/stats.js?v=20261107b').then((m) => m.renderStats),
-  review: () => import('./views/review.js?v=20261107b').then((m) => m.renderReview),
-  team: () => import('./views/team.js?v=20261107b').then((m) => m.renderTeam),
-  board: () => import('./views/board.js?v=20261107b').then((m) => m.renderBoard),
-  tiktok: () => import('./views/tiktok.js?v=20261107b').then((m) => m.renderTikTok),
-  intuitions: () => import('./views/intuitions.js?v=20261107b').then((m) => m.renderIntuitions),
+  today: () => import('./views/today.js?v=20261109a').then((m) => m.renderToday),
+  card: () => import('./views/card.js?v=20261109a').then((m) => m.renderCard),
+  settings: () => import('./views/settings.js?v=20261109a').then((m) => m.renderSettings),
+  stats: () => import('./views/stats.js?v=20261109a').then((m) => m.renderStats),
+  review: () => import('./views/review.js?v=20261109a').then((m) => m.renderReview),
+  team: () => import('./views/team.js?v=20261109a').then((m) => m.renderTeam),
+  board: () => import('./views/board.js?v=20261109a').then((m) => m.renderBoard),
+  tiktok: () => import('./views/tiktok.js?v=20261109a').then((m) => m.renderTikTok),
+  growth: () => import('./views/growth.js?v=20261109a').then((m) => m.renderGrowth),
+  intuitions: () => import('./views/intuitions.js?v=20261109a').then((m) => m.renderIntuitions),
 };
 // The floating Insights button follows each page; a failure in it never blocks the page.
-const jot = (hash) => import('./views/jot.js?v=20261107b').then((m) => m.syncJot(ctx, hash)).catch((error) => console.error(error));
+const jot = (hash) => import('./views/jot.js?v=20261109a').then((m) => m.syncJot(ctx, hash)).catch((error) => console.error(error));
 
 // The space links remember the last page opened in each space, so switching back lands where she left off.
 const lastIn = { threads: '#/', tiktok: '#/tiktok' };
@@ -72,7 +73,29 @@ function paintTabs(active) {
   rail.innerHTML = both ? links('space') : '';
   switcher.innerHTML = both ? links('space-m') : '';
   me.innerHTML = ctx?.me ? `<span class="me-name">${esc(ctx.me.name)}</span>${face(ctx.me)}` : '';
+  paintPulse();
   if (ctx?.me) me.setAttribute('aria-label', `${ctx.me.name}, cài đặt`);
+}
+
+// Three numbers beside her face (Nam, 2026-11-09): icons and numbers only, the words in each tooltip. They come from
+// Tăng trưởng's PostHog table; before it exists, or on a failed read, the pill stays empty.
+let pulseDrawn = false;
+function paintPulse() {
+  const pulse = document.getElementById('pulse');
+  if (!pulse) return;
+  if (!ctx?.me) { pulse.innerHTML = ''; pulseDrawn = false; return; }
+  if (pulseDrawn) return;
+  pulseDrawn = true;
+  import('./views/growth.js?v=20261109a').then((m) => m.pulseNumbers()).then((p) => {
+    if (!p) { pulse.innerHTML = ''; return; }
+    const r = 7, c = 2 * Math.PI * r;
+    const ring = `<svg class="pu-ring" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="${r}" class="t"/><circle cx="9" cy="9" r="${r}" class="v" stroke-dasharray="${(Math.min(1, p.back) * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 9 9)"/></svg>`;
+    const pct = `${Math.round(p.back * 100)}%`;
+    pulse.innerHTML = `<span class="pu" title="${p.apple ? `${p.opened} lượt tải lần đầu từ khi ra mắt (App Store, đến ${p.apple})` : `${p.opened} người mở app lần đầu từ khi ra mắt`}">${icon('download')}<b>${p.opened.toLocaleString('vi-VN')}</b></span>
+      <span class="pu" title="${p.trained} người tập xong ít nhất 1 buổi tuần này">${icon('dumbbell')}<b>${p.trained}</b></span>
+      <span class="pu wide" title="${pct} người mới tuần ${p.cohort} mở lại app ở tuần sau">${ring}<b>${pct}</b></span>`;
+    pulse.setAttribute('aria-label', `Tăng trưởng: ${p.opened} lượt tải, ${p.trained} người tập tuần này, ${pct} quay lại tuần sau`);
+  }).catch(() => { pulse.innerHTML = ''; pulseDrawn = false; });
 }
 
 // The TikTok space wears TikTok's shell (Nam, 2026-10-11): black, the feed full screen on a phone under floating
@@ -186,6 +209,10 @@ async function route() {
       paintTabs('#/');
       mode(nextMain, { narrow: true });
       await (await views.review())(nextMain, ctx, decodeURIComponent(hash.slice('#/cuoi-tuan/'.length)));
+    } else if (hash === '#/tang-truong') {
+      paintTabs('#/tang-truong');
+      mode(nextMain);
+      await (await views.growth())(nextMain, ctx);
     } else if (hash === '#/insights') {
       paintTabs('#/insights');
       mode(nextMain, { chat: true });

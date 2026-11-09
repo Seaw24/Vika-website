@@ -1,13 +1,13 @@
-import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261107b';
-import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js?v=20261107b';
+import { loadAssignment, loadEvents, loadPosts, recordEvent, loadComments, releaseCard, loadPostedSince } from '../data.js?v=20261109a';
+import { issuedLink, postingState, vnDate, skippedIds, nextRead } from '../lib/week.js?v=20261109a';
 import { appLink, buildCt, fillTemplate } from '../lib/ct.js';
 import { ENGINE_LABEL, PULL_LABEL, isEdited } from '../lib/edits.js';
 import { pendingCards } from '../lib/chat.js';
-import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261107b';
+import { esc, copyText, toast, draftStore, icon, cardTags, autoGrow } from '../ui.js?v=20261109a';
 import { memberR2, postAccounts, linkCode } from './shared.js';
 import { SKIP_REASONS } from '../lib/feedback.js';
-import { liveNotes } from '../lib/feed.js?v=20261107b';
-import { talkHtml, wireTalk, threads } from './talk.js?v=20261107b';
+import { liveNotes } from '../lib/feed.js?v=20261109a';
+import { talkHtml, wireTalk, threads } from './talk.js?v=20261109a';
 
 const THREADS_LIMIT = 500;
 const THREADS_URL = 'https://www.threads.com/';
@@ -332,7 +332,7 @@ async function markPosted(view) {
   }
   toast('Đã ghi: đã đăng.');
   // Right after a post is when a member has an idea to keep: Insights asks once a day (views/jot.js).
-  import('./jot.js?v=20261107b').then((m) => m.nudgeAfterPost(view.ctx, view.card)).catch(() => {});
+  import('./jot.js?v=20261109a').then((m) => m.nudgeAfterPost(view.ctx, view.card)).catch(() => {});
   afterChoice(view);
   q(view, '#pick')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }

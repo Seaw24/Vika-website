@@ -164,9 +164,17 @@ export async function loadAnalytics() {
   return cached('analytics', 60000, async () => {
     const tables = { posts: 'posts', observations: 'observations', installs: 'install_observations',
       versions: 'post_versions', cards: 'cards', runs: 'collection_runs', keywords: 'card_keywords' };
-    return Object.fromEntries(await Promise.all(Object.entries(tables).map(async ([key, table]) =>
+    const out = Object.fromEntries(await Promise.all(Object.entries(tables).map(async ([key, table]) =>
       [key, await allRows(() => supabase.from(table).select('*').order(table === 'card_keywords' ? 'card_id' : 'id'))])));
+    // The link reply's views (migration link_and_growth, 2026-11-09). Before the migration the page runs without them.
+    out.links = await allRows(() => supabase.from('link_observations').select('post_id,captured_at,r2_views').order('id')).catch(() => []);
+    return out;
   });
+}
+
+// Tăng trưởng's app numbers from PostHog, one row per period and metric (migration link_and_growth, 2026-11-09).
+export function loadGrowth() {
+  return cached('growth', 5 * 60000, async () => allRows(() => supabase.from('growth_metrics').select('kind,start,metric,value,updated_at').order('start')));
 }
 
 const ASSIGNMENT = 'id,week_id,member_id,suggested_order,released_at,card:cards(*)';

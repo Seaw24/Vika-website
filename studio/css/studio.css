@@ -1466,3 +1466,28 @@ body.tt-shell main{max-width:none;padding:0}
 body.tt-shell .empty{margin:0!important;padding:calc(84px + env(safe-area-inset-top)) 24px 24px;border:0;color:rgba(255,255,255,.7)}
 body.tt-shell .empty h2{color:#fff}
 
+
+/* The quick numbers beside her face (Nam, 2026-11-09). */
+.top-right{display:flex;align-items:center;gap:8px;justify-self:end;min-width:0}
+.pulse{display:flex;align-items:center;gap:2px;height:36px;padding:0 4px;border-radius:999px;text-decoration:none;color:var(--muted);background:var(--sand);transition:background .2s}
+.pulse:empty{display:none}
+.pu{display:inline-flex;align-items:center;gap:5px;padding:0 8px;height:28px;border-radius:999px;font-size:13.5px}
+.pu+.pu{box-shadow:-1px 0 0 0 var(--line-2)}
+.pu svg{width:15px;height:15px}
+.pu b{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.pu-ring{width:15px;height:15px}
+.pu-ring .t{fill:none;stroke:var(--line-2);stroke-width:2.6}
+.pu-ring .v{fill:none;stroke:var(--gold-text);stroke-width:2.6;stroke-linecap:round}
+.pulse:hover{background:var(--sand-2)}
+@media (max-width:420px){.pu.wide{display:none}}
+@media (min-width:900px){
+  .pulse{background:rgba(244,238,226,.07);color:var(--on-dark-muted)}
+  .pulse:hover{background:rgba(244,238,226,.12)}
+  .pu{padding:0 7px;font-size:13px}
+  .pu+.pu{box-shadow:-1px 0 0 0 rgba(244,238,226,.14)}
+  .pu b{color:var(--on-dark)}
+  .pu-ring .t{stroke:rgba(244,238,226,.18)}
+  .pu-ring .v{stroke:var(--gold)}
+  .me{padding-left:4px}
+  .top-right .pulse:not(:empty)+.me .me-name{display:none}
+}
