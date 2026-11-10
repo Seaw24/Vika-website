@@ -2,9 +2,13 @@
 // months and quarters, and what the team shipped around each change. Everything here is a real number:
 //   Threads views of our posts and their link replies: Studio's own readings (observations, link_observations).
 //   The app's steps and returns: PostHog, written to growth_metrics by vika-ops tools/portal/growth.cjs.
-//   App Store page views and first-time downloads: Apple's App Analytics by day, through its newest day (asc_through),
-//   written to growth_metrics by vika-ops tools/portal/appstore.cjs. Apple counts a device's first download and PostHog
-//   a person's first open; a reinstall or a new phone is new to PostHog only, so the link between them shows no rate.
+//   App Store page views, first-time downloads and downloads from a link (ref): Apple's report files by day, through
+//   its newest day (asc_through), written to growth_metrics by vika-ops tools/portal/asc.cjs and appstore.cjs.
+// The chain (Nam, 2026-11-10: "fix it or eliminate it") holds only steps a rate can join. App Store page views left
+// it: a link tap opens the App Store app, which Apple almost never counts as a page view, while the page views it
+// counts come from every source. In their place is Tải qua link, the first-time downloads that came from another
+// app (Apple's "App referrer"), so Xem link → Tải qua link is downloads per link view. Tải qua link → Mở app shows
+// no rate and no dial: PostHog's new people ran 54% to 215% of Apple's downloads by week, so the two never divide.
 import { loadAnalytics, loadGrowth } from '../data.js?v=20261109a';
 import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261109a';
 
@@ -14,8 +18,7 @@ const LIVE = '2026-08-03';
 const STEPS = [
   { key: 'views', name: 'Xem bài Threads', short: 'Xem bài', group: 'Threads' },
   { key: 'r2', name: 'Xem bình luận có link', short: 'Xem link', group: 'Threads' },
-  { key: 'store', name: 'Xem trang App Store', short: 'App Store', group: 'App Store', apple: true },
-  { key: 'dl', name: 'Tải lần đầu', short: 'Tải về', group: 'App Store', apple: true },
+  { key: 'ref', name: 'Tải qua link', short: 'Tải qua link', group: 'App Store', apple: true },
   { key: 'new', name: 'Mở app lần đầu', short: 'Mở app', group: 'Trong app', from: LIVE },
   { key: 'onboard', name: 'Xong onboarding', short: 'Onboarding', group: 'Trong app', from: '2026-09-07' },
   { key: 'start', name: 'Bắt đầu buổi tập', short: 'Bắt đầu tập', group: 'Trong app', from: '2026-10-26' },
@@ -30,6 +33,7 @@ const CHANGES = [
   { n: 5, date: '2026-11-04', day: '4/11', kind: 'Studio', title: 'Bảng vàng, link theo tài khoản' },
 ];
 const UNIT = { week: 'tuần', month: 'tháng', quarter: 'quý' };
+const IDX = (key) => STEPS.findIndex((st) => st.key === key);
 
 let ROOT = document;
 const el = (id) => ROOT.querySelector(`#${id}`);
@@ -80,9 +84,12 @@ function build(kind) {
   const ph = (metricKey) => { const out = blank(); for (const r of RAW.g) if (r.kind === kind && r.metric === metricKey) { const i = groups.findIndex((g) => g.start === r.start); if (i >= 0) out[i] = +r.value; } return out; };
   const s = STEPS.map((st) => st.key === 'views' ? views : st.key === 'r2' ? r2 : ph(st.key));
   const through = RAW.g.filter((r) => r.metric === 'asc_through').map((r) => r.start).sort().at(-1) ?? null;
+  const appleWhole = (g) => through != null && g.start >= LIVE && g.end <= addDays(through, 1);
+  // All first-time downloads and App Store page views stay on the page outside the chain.
+  const dl = ph('dl'), store = ph('store'), dlCov = groups.map((g, i) => dl[i] != null && appleWhole(g));
   const cov = STEPS.map((st, j) => groups.map((g, i) => {
     if (s[j][i] == null) return false;
-    if (st.apple) return through != null && g.start >= LIVE && g.end <= addDays(through, 1);
+    if (st.apple) return appleWhole(g);
     if (st.key === 'views') return g.start >= mondayOf(firstPost);
     if (st.key === 'r2') return linkPosts[i][0] > 0 && linkPosts[i][1] / linkPosts[i][0] >= 0.8;
     return g.start >= st.from;
@@ -102,15 +109,12 @@ function build(kind) {
     return { label: kind === 'week' ? dm(g.start) : g.short, size, back: back.slice(0, back.indexOf(null) < 0 ? 6 : back.indexOf(null)) };
   });
   const w2 = cohorts.map((c) => c?.back[0] ?? null);
-  return { m: kind, groups, cov, n: groups.length, s, tr: s[7], w2, cohorts, unit: UNIT[kind], through };
+  return { m: kind, groups, cov, n: groups.length, s, tr: s[IDX('done')], dl, dlCov, store, w2, cohorts, unit: UNIT[kind], through };
 }
 
-// Two links have no rate, because their two numbers come from counters that do not match. Xem link → App Store: Threads
-// counts no link taps, and a link tap opens the App Store app, which Apple rarely counts as a page view (a link code
-// with 57 downloads showed 1 page view on 2026-11-09), while the page views it counts come from every source.
-// Tải về → Mở app: Apple counts devices, PostHog people (see the top of the file).
-const NO_RATE = new Map([[1, 'Threads không đếm lượt bấm link, và Apple gần như không tính lượt bấm link là lượt xem trang; hai số không chia cho nhau được'],
-  [3, 'Apple đếm máy tải lần đầu, PostHog đếm người mở app lần đầu; hai số không chia cho nhau được']]);
+// The one link with no rate: Apple's downloads and PostHog's people do not divide (see the top of the file). It draws
+// no dial and no text.
+const NO_RATE = new Set([IDX('ref')]);
 const rate = (j, i) => { if (NO_RATE.has(j) || i < 0 || !V.cov[j][i] || !V.cov[j + 1][i]) return null; const a = V.s[j][i], b = V.s[j + 1][i]; return a && b != null ? b / a * 100 : null; };
 const relAt = (c) => { const i = V.groups.findIndex((g) => c.date >= g.start && c.date < g.end); const g = V.groups[i]; return { i, f: i < 0 ? 0 : days(g.start, c.date) / days(g.start, g.end) }; };
 const partialChip = () => `<span class="chip flat">${V.unit} chưa hết · đến ${dm(TODAY)}</span>`;
@@ -154,14 +158,14 @@ function renderHero() {
   // The newest cohort whose week after has ended.
   let w2i = i; while (w2i >= 0 && V.w2[w2i] == null) w2i--;
   const tiles = [
-    { l: 'Lượt tải', v: V.s[3], f: fmt, apple: true },
-    { l: 'Người mới mở app', v: V.s[4], f: fmt },
+    { l: 'Lượt tải', v: V.dl, f: fmt, apple: true },
+    { l: 'Người mới mở app', v: V.s[IDX('new')], f: fmt },
     { l: 'Người tập xong 1 buổi', v: V.tr, f: fmt, gold: true, from: '26/10' },
     { l: 'Quay lại tuần sau', sub: w2i >= 0 ? `nhóm ${V.cohorts[w2i].label}` : '', v: V.w2, at: w2i, f: pct, unit: ' điểm', max: 60, rate: true },
   ];
   const box = el('hero');
   box.innerHTML = tiles.map((t) => { const at = t.at ?? i, v = at >= 0 ? t.v[at] : null;
-    const chip = part && !t.rate ? partialChip() : t.apple && v != null && !V.cov[3][at] ? `<span class="chip flat">số Apple đến ${dm(V.through)}</span>`
+    const chip = part && !t.rate ? partialChip() : t.apple && v != null && !V.dlCov[at] ? `<span class="chip flat">số Apple đến ${dm(V.through)}</span>`
       : delta(v, at > 0 ? t.v[at - 1] : null, t.unit);
     return `<div class="kpi"><div class="l">${t.l}${t.sub ? ` <em>· ${t.sub}</em>` : ''}</div>
       <div class="v num${t.gold ? ' gold' : ''}">${v == null ? '–' : t.f(v)}</div><div>${chip}</div><div class="sp"></div></div>`; }).join('');
@@ -184,8 +188,7 @@ function renderFlow() {
   const frac = (v) => v == null || v <= 0 ? 0 : Math.max(.012, Math.log10(Math.max(1, v)) / lmax + (v < 2 ? .012 : 0));
   const val = (j, at) => (at >= 0 ? V.s[j][at] : null);
   const shown = (j, v) => (v != null ? '' : STEPS[j].apple ? 'chờ số Apple' : 'chưa đo');
-  const dialTitle = (j, r) => NO_RATE.has(j) ? NO_RATE.get(j)
-    : `${STEPS[j].short} → ${STEPS[j + 1].short}: ${r == null ? 'chưa đo' : `${pct(r)} đi tiếp`}`;
+  const dialTitle = (j, r) => `${STEPS[j].short} → ${STEPS[j + 1].short}: ${r == null ? 'chưa đo' : `${pct(r)} đi tiếp`}`;
 
   if (narrow()) {
     let last = '', h = '<div class="vflow">';
@@ -194,7 +197,7 @@ function renderFlow() {
       const v = val(j, i), p = val(j, i - 1);
       h += `<div class="vs${st.wait ? ' wait' : ''}"><div class="vs-top"><span>${st.name}</span><b class="num">${v == null ? `<small>${shown(j, v)}</small>` : fmt(v)}</b></div>
         <div class="vbar"><i style="width:${frac(v) * 100}%"></i>${p != null ? `<u style="left:${frac(p) * 100}%"></u>` : ''}</div></div>`;
-      if (j < STEPS.length - 1) { const r = rate(j, i);
+      if (j < STEPS.length - 1 && !NO_RATE.has(j)) { const r = rate(j, i);
         h += `<button type="button" class="vl${j === weak ? ' weak' : ''}" data-j="${j}"><span class="ring">${dial(r == null ? null : r / 100, 40, j === weak)}<b>${r == null ? '–' : pct(r).replace('%', '')}</b></span>
           <span class="vt">${r == null ? 'chưa đo' : 'đi tiếp'}${j === weak ? ' · yếu nhất' : ''}</span><span class="dd">${dd(j)}</span></button>`; }
     });
@@ -216,7 +219,7 @@ function renderFlow() {
       if (p != null) svg += `<line class="prev" x1="${x - 4}" x2="${x + sw + 4}" y1="${y(p)}" y2="${y(p)}"/>`;
       svg += `<rect class="hit" data-j="${j}" x="${x - 4}" y="0" width="${sw + 8}" height="${H}"/>`; });
     svg += '</svg>';
-    const dials = STEPS.slice(0, -1).map((st, j) => { const r = rate(j, i);
+    const dials = STEPS.slice(0, -1).map((st, j) => { if (NO_RATE.has(j)) return ''; const r = rate(j, i);
       return `<button type="button" class="dial${j === weak ? ' weak' : ''}" data-j="${j}" style="grid-column:${3 + 2 * j}" title="${dialTitle(j, r)}">
         <span class="ring">${dial(r == null ? null : r / 100, 50, j === weak)}<b>${r == null ? '–' : pct(r)}</b></span><span class="dd">${dd(j)}</span></button>`; }).join('');
     const labels = STEPS.map((st, j) => { const v = val(j, i);
@@ -239,12 +242,14 @@ function renderFlow() {
 /* ---------- Over time ---------- */
 const METRICS = () => [
   { id: 'done', label: 'Người tập', kind: 'col', vals: V.tr, f: fmt, note: 'người xong ít nhất 1 buổi' },
-  { id: 'dl', label: 'Lượt tải', kind: 'col', vals: V.s[3], f: fmt, note: 'lượt tải lần đầu trên App Store' },
-  { id: 'new', label: 'Người mới mở app', kind: 'col', vals: V.s[4], f: fmt, note: 'người mở app lần đầu' },
-  { id: 'views', label: 'Lượt xem bài', kind: 'col', vals: V.s[0], f: fmt, note: 'lượt xem các bài đăng trong kỳ' },
-  { id: 'r2', label: 'Xem link', kind: 'col', vals: V.s[1], f: fmt, note: 'lượt xem bình luận có link' },
+  { id: 'dl', label: 'Lượt tải', kind: 'col', vals: V.dl, f: fmt, note: 'lượt tải lần đầu trên App Store, mọi nguồn' },
+  { id: 'ref', label: 'Tải qua link', kind: 'col', vals: V.s[IDX('ref')], f: fmt, note: 'lượt tải lần đầu từ link trong một app khác, gần như toàn bộ là Threads' },
+  { id: 'new', label: 'Người mới mở app', kind: 'col', vals: V.s[IDX('new')], f: fmt, note: 'người mở app lần đầu' },
+  { id: 'views', label: 'Lượt xem bài', kind: 'col', vals: V.s[IDX('views')], f: fmt, note: 'lượt xem các bài đăng trong kỳ' },
+  { id: 'r2', label: 'Xem link', kind: 'col', vals: V.s[IDX('r2')], f: fmt, note: 'lượt xem bình luận có link' },
+  { id: 'store', label: 'Xem trang App Store', kind: 'col', vals: V.store, f: fmt, note: 'lượt xem trang App Store, mọi nguồn' },
   { id: 'w2', label: 'Quay lại tuần sau', kind: 'line', vals: V.w2, f: pct, max: 100, note: 'người mới mở lại app ở tuần sau' },
-  ...STEPS.slice(0, -1).map((st, j) => ({ id: `l${j}`, link: true, label: `${st.short} → ${STEPS[j + 1].short}`, kind: 'line', vals: V.groups.map((_, i) => rate(j, i)), f: pct, max: 100, note: 'đi tiếp sang bước sau' })),
+  ...STEPS.slice(0, -1).filter((st, j) => !NO_RATE.has(j)).map((st) => { const j = STEPS.indexOf(st); return { id: `l${j}`, link: true, label: `${st.short} → ${STEPS[j + 1].short}`, kind: 'line', vals: V.groups.map((_, i) => rate(j, i)), f: pct, max: 100, note: 'đi tiếp sang bước sau' }; }),
 ];
 const M = () => METRICS().find((m) => m.id === metric) ?? METRICS()[1];
 
