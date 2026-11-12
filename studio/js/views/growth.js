@@ -124,6 +124,31 @@ function delta(now, before, unit = '', cls = 'chip') {
   if (d === 0) return `<span class="${cls} flat">bằng ${V.unit} trước</span>`;
   return `<span class="${cls} ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toLocaleString('vi-VN')}${unit}</span>`;
 }
+// Why a ring has no rate (2026-11-12): an empty ring said only "–", so a feed that had stopped looked like a broken page.
+function why(j, i) {
+  if (i < 0) return '';
+  for (const k of [j, j + 1]) {
+    if (V.cov[k][i]) continue;
+    const st = STEPS[k];
+    if (st.apple) return V.groups[i].partial ? 'chờ hết kỳ' : 'chờ số Apple';
+    if (st.key === 'r2' && V.s[k][i] != null) return 'chưa đọc đủ link';
+    return 'chưa đo';
+  }
+  return '';
+}
+
+// When each source last wrote (2026-11-12). On 2026-11-11 the link read stopped and the page gave no sign of it.
+// Link views and PostHog refresh with every reading run (every 6 hours); a reading older than 12 hours shows warn.
+function freshness() {
+  const vn = (iso) => { const d = new Date(iso); return `${d.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })} ${dm(vnDate(d))}`; };
+  const old = (iso) => Date.now() - Date.parse(iso) > 12 * 3600e3;
+  const link = RAW.a.links.reduce((m, x) => (x.captured_at > m ? x.captured_at : m), '');
+  const app = RAW.g.filter((r) => r.source === 'posthog' || (r.source == null && !['dl', 'store', 'ref', 'asc_through'].includes(r.metric)))
+    .reduce((m, r) => (r.updated_at > m ? r.updated_at : m), '');
+  const part = (label, iso) => (iso ? `<span class="${old(iso) ? 'stale' : ''}">${label} ${vn(iso)}</span>` : `<span class="stale">${label} chưa có</span>`);
+  return [part('Đọc link lúc', link), part('Số trong app lúc', app), `<span>Số Apple đến ${V.through ? dm(V.through) : '–'}</span>`].join(' · ');
+}
+
 function weakest(i) { let at = -1, low = Infinity; for (let j = 0; j < STEPS.length - 1; j++) { const r = rate(j, i); if (r != null && r < low) { low = r; at = j; } } return at; }
 
 /* ---------- Pieces ---------- */
@@ -181,14 +206,16 @@ function renderFlow() {
   el('weak-chip').innerHTML = weak < 0 ? '' : `<i></i>Yếu nhất: ${STEPS[weak].short} → ${STEPS[weak + 1].short} · ${pct(rate(weak, i))}`;
   el('weak-chip').hidden = weak < 0;
   [...box.children].forEach((c) => { if (c !== tip) c.remove(); });
-  const dd = (j) => { const r = rate(j, i), rb = rate(j, i - 1); if (r == null || rb == null) return ''; const d = Math.round(r - rb);
+  el('fresh').innerHTML = freshness();
+  // On a phone the ring's own label says why it is empty, so the reason shows only under the desktop dials.
+  const dd = (j, reason = true) => { const r = rate(j, i), rb = rate(j, i - 1); if (r == null) return reason ? `<span class="why">${why(j, i)}</span>` : ''; if (rb == null) return ''; const d = Math.round(r - rb);
     return Math.abs(d) < 1 ? '<span class="flat">=</span>' : `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`; };
   const top = Math.max(10, ...V.s.flat().filter((v) => v != null));
   const lmax = Math.min(7, Math.max(5, Math.ceil(Math.log10(top))));
   const frac = (v) => v == null || v <= 0 ? 0 : Math.max(.012, Math.log10(Math.max(1, v)) / lmax + (v < 2 ? .012 : 0));
   const val = (j, at) => (at >= 0 ? V.s[j][at] : null);
   const shown = (j, v) => (v != null ? '' : STEPS[j].apple ? 'chờ số Apple' : 'chưa đo');
-  const dialTitle = (j, r) => `${STEPS[j].short} → ${STEPS[j + 1].short}: ${r == null ? 'chưa đo' : `${pct(r)} đi tiếp`}`;
+  const dialTitle = (j, r) => `${STEPS[j].short} → ${STEPS[j + 1].short}: ${r == null ? why(j, i) || 'chưa đo' : `${pct(r)} đi tiếp`}`;
 
   if (narrow()) {
     let last = '', h = '<div class="vflow">';
@@ -199,7 +226,7 @@ function renderFlow() {
         <div class="vbar"><i style="width:${frac(v) * 100}%"></i>${p != null ? `<u style="left:${frac(p) * 100}%"></u>` : ''}</div></div>`;
       if (j < STEPS.length - 1 && !NO_RATE.has(j)) { const r = rate(j, i);
         h += `<button type="button" class="vl${j === weak ? ' weak' : ''}" data-j="${j}"><span class="ring">${dial(r == null ? null : r / 100, 40, j === weak)}<b>${r == null ? '–' : pct(r).replace('%', '')}</b></span>
-          <span class="vt">${r == null ? 'chưa đo' : 'đi tiếp'}${j === weak ? ' · yếu nhất' : ''}</span><span class="dd">${dd(j)}</span></button>`; }
+          <span class="vt">${r == null ? why(j, i) || 'chưa đo' : 'đi tiếp'}${j === weak ? ' · yếu nhất' : ''}</span><span class="dd">${dd(j, false)}</span></button>`; }
     });
     box.insertAdjacentHTML('beforeend', `${h}</div>`);
   } else {
@@ -422,7 +449,7 @@ const BODY = `<div class="gr">${DEFS}
     <section class="card chain">
       <div class="sec-head"><h2 id="chain-title">Chuỗi của tuần</h2><span class="weak-chip" id="weak-chip"></span></div>
       <div class="flow" id="flow"><div class="ftip" id="ftip"></div></div>
-      <div class="flow-foot"><span class="k"><i></i> <span id="prev-lbl">mức tuần trước</span></span><span>Cột theo thang log. Vòng tròn là phần trăm đi tiếp. Bấm vòng tròn để xem qua các kỳ.</span><span>Threads không đếm lượt bấm link. Số App Store trễ 2 ngày. Buổi tập đo từ 26/10.</span></div>
+      <div class="flow-foot"><span class="k"><i></i> <span id="prev-lbl">mức tuần trước</span></span><span>Cột theo thang log. Vòng tròn là phần trăm đi tiếp. Bấm vòng tròn để xem qua các kỳ.</span><span>Threads không đếm lượt bấm link. Số App Store trễ 2 ngày. Buổi tập đo từ 26/10.</span><span class="fresh" id="fresh"></span></div>
     </section>
     <section class="card trend" id="trend-card">
       <div class="sec-head"><h2>Theo thời gian</h2><p>Bấm một ghim để so trước và sau</p></div>
