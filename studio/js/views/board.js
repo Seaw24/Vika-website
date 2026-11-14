@@ -3,15 +3,15 @@
 // crowns, the leaderboard by XP and everyone's posts in Threads' layout) and Nội dung. Each member's days against her
 // plan, the old Hoạt động tab, sits in Kho bài since 2026-11-04 (Nam): mountTeamWeek draws it under her hero, for every
 // member. Cần lưu ý stays for managers. Charts answer a tap or a hover in a line under them, never in a box over them. The rules live in lib/board.js.
-import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261109a';
-import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261109a';
+import { loadAnalytics, loadTeamActivity, isManager, loadTargets, loadCreativeLinks, loadPool } from '../data.js?v=20261113a';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261113a';
 import { postRows, profiles, crowns, teamWeek, teamAllTime, dailySeries, alerts, calendar, makeQuests, pendingWork, periodSeries,
-  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261109a';
-import { esc, icon, faceInner, toast } from '../ui.js?v=20261109a';
-import { FOCUS_KEY } from './targets.js?v=20261109a';
-import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261109a';
-import { setPillar } from '../data.js?v=20261109a';
-import { POOL_PILLAR_KEY } from './today.js?v=20261109a';
+  viewBands, chain, periodOf, prevPeriod, nextPeriod, periodDays, questsOf, ofKind, facts, XP, HIT, MEGA, BEAT } from '../lib/board.js?v=20261113a';
+import { esc, icon, faceInner, toast } from '../ui.js?v=20261113a';
+import { FOCUS_KEY } from './targets.js?v=20261113a';
+import { PILLARS, NONE, PLAN, MIN_READ, HIT_VIEWS, pillarMeta, pillarOf, ofPillar, pillarTable, pillarInsights, bestPillar, squarify, mixByWeek, supply, memberMix, poolByPillar, groupStats, pillarTag, pickPillar, METRICS, metricOf, replyVoices, SORT_COLS, cleanSorts, sortPillars } from '../lib/pillars.js?v=20261113a';
+import { setPillar } from '../data.js?v=20261113a';
+import { POOL_PILLAR_KEY } from './today.js?v=20261113a';
 
 const compact = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('vi-VN');
@@ -171,13 +171,19 @@ function linkPill(m, r) {
   const parts = [];
   if (r.r2Views != null) parts.push(seg('link', k(r.r2Views), `${n(r.r2Views)} lượt xem bình luận có link${r.views ? ` · bằng ${pctOf(r.r2Views, r.views)} lượt xem bài` : ''}`));
   if (r.dl != null) parts.push(seg('download', k(r.dl), `${n(r.dl)} lượt tải qua link này (App Store, cộng dồn)${r.r2Views ? ` · ${pctOf(r.dl, r.r2Views)} lượt xem link` : ''}`, ' dl'));
+  else if (r.dlUnder5) parts.push(seg('download', '&lt;5', 'Dưới 5 lượt tải: Apple chỉ hiện số của một link từ 5 lượt tải', ' dl hid'));
   if (!parts.length) return '';
   let sig = '';
+  const norm = dlNorm(m);
   if (r.dl != null && r.views) {
-    const per = r.dl / r.views * 1000, norm = dlNorm(m);
+    const per = r.dl / r.views * 1000;
     const level = per >= norm * 1.5 ? 3 : per >= norm * 0.67 ? 2 : 1;
     const text = `${one(per)} lượt tải trên 1.000 lượt xem bài · mức chung của nhóm ${one(norm)}`;
     sig = `<span class="tf-sig l${level}" title="${esc(text)}" aria-label="${esc(text)}"><i></i><i></i><i></i></span>`;
+  } else if (r.dlUnder5 && r.views && 5 / r.views * 1000 < norm * 0.67) {
+    // Under 5 downloads on enough views is below the team's level for sure.
+    const text = `Dưới ${one(5 / r.views * 1000)} lượt tải trên 1.000 lượt xem bài · mức chung của nhóm ${one(norm)}`;
+    sig = `<span class="tf-sig l1" title="${esc(text)}" aria-label="${esc(text)}"><i></i><i></i><i></i></span>`;
   }
   return `<div class="tf-row"><div class="tp-funnel" aria-label="Link trong bình luận">${parts.join('<i class="tf-a"></i>')}</div>${sig}</div>`;
 }

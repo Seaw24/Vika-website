@@ -2,10 +2,11 @@
 // not about one card. Pure helpers for tags, filters, order and day groups; the page and the composer use them.
 import { vnDate, addDays } from './week.js';
 
-// The two default tags. A tag is stored lower case; the label puts back the first capital.
+// The three default tags. A tag is stored lower case; the label puts back the first capital.
 export const DEFAULT_TAGS = [
   { key: 'viết lại', hint: 'Cách viết lại bài cho hay' },
   { key: 'chọn bài', hint: 'Bài, chủ đề nào dễ lan' },
+  { key: 'app', hint: 'App nên sửa hay thêm gì' },
 ];
 export const MAX_TAGS = 5;
 export const MAX_TAG_LENGTH = 24;

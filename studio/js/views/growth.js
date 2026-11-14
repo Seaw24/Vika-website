@@ -9,8 +9,8 @@
 // counts come from every source. In their place is Tải qua link, the first-time downloads that came from another
 // app (Apple's "App referrer"), so Xem link → Tải qua link is downloads per link view. Tải qua link → Mở app shows
 // no rate and no dial: PostHog's new people ran 54% to 215% of Apple's downloads by week, so the two never divide.
-import { loadAnalytics, loadGrowth } from '../data.js?v=20261109a';
-import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261109a';
+import { loadAnalytics, loadGrowth } from '../data.js?v=20261113a';
+import { vnDate, mondayOf, addDays } from '../lib/week.js?v=20261113a';
 
 const LIVE = '2026-08-03';
 // Each step and the first period it was measured in whole. A rate shows only when both its steps were measured for the

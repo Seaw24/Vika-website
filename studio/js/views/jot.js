@@ -3,10 +3,10 @@
 // one draft is shared by every composer and survives a reload, the two default tags are one tap, a #word in the text
 // becomes a tag, and the card open on her screen goes with the note. On a computer Enter sends and Shift Enter makes a
 // new line, as in a chat; on a phone the keyboard's Enter makes a new line and the button sends.
-import { loadIntuitions, addIntuition, editIntuition } from '../data.js?v=20261109a';
+import { loadIntuitions, addIntuition, editIntuition } from '../data.js?v=20261113a';
 import { DEFAULT_TAGS, MAX_TAGS, MAX_BODY, tagLabel, takeHashtags, hashAtCaret, suggestTags, tagCounts, resolveTag, normalizeTag,
-  splitThreads, unseenCounts, replyNews } from '../lib/intuitions.js?v=20261109a';
-import { esc, icon, face, toast, firstLine, draftStore } from '../ui.js?v=20261109a';
+  splitThreads, unseenCounts, replyNews } from '../lib/intuitions.js?v=20261113a';
+import { esc, icon, face, toast, firstLine, draftStore } from '../ui.js?v=20261113a';
 
 // One draft for every new-note composer; each thread's reply box keeps its own.
 const draftKey = (key = null) => (key ? `intuition.${key}` : 'intuition');
@@ -35,7 +35,7 @@ export function composerHtml(ctx, { variant = 'chat', card = null, initial = nul
   // A prefilled box (a feedback turned into a note) starts from the feedback until she changes it.
   const d = edit ? initial : saved.body ? saved : prefill ? { body: prefill, tags: prefillTags } : saved;
   const tags = [...new Set([...DEFAULT_TAGS.map((t) => t.key), ...(d.tags ?? [])])];
-  const ph = placeholder ?? (variant === 'inline' ? 'Vừa nhận ra điều gì? Ghi lại một insight…' : 'Bạn nhận ra điều gì khi chọn bài hay viết bài?');
+  const ph = placeholder ?? (variant === 'inline' ? 'Vừa nhận ra điều gì? Ghi lại một insight…' : 'Bạn nhận ra điều gì khi chọn bài, viết bài hay dùng app?');
   const avatar = variant === 'inline' || variant === 'sheet';
   return `<form class="jot jot--${variant}${bare ? ' is-bare' : ''}${d.body ? ' is-open' : ''}" novalidate data-jot>
     ${avatar ? `<div class="jot-av">${face(ctx.me)}</div>` : ''}

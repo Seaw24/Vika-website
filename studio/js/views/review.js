@@ -1,8 +1,8 @@
-import { loadAssignments, loadCardHolders, loadCardPosts, loadEvents, recordEvent } from '../data.js?v=20261109a';
+import { loadAssignments, loadCardHolders, loadCardPosts, loadEvents, recordEvent } from '../data.js?v=20261113a';
 import { reviewable } from '../lib/feedback.js';
-import { heldIds } from '../lib/week.js?v=20261109a';
-import { esc, toast, icon, cardTags } from '../ui.js?v=20261109a';
-import { feedbackForm, wireFeedback } from './feedback.js?v=20261109a';
+import { heldIds } from '../lib/week.js?v=20261113a';
+import { esc, toast, icon, cardTags } from '../ui.js?v=20261113a';
+import { feedbackForm, wireFeedback } from './feedback.js?v=20261113a';
 
 export async function renderReview(main, ctx, week) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('bad week');

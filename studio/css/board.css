@@ -1133,3 +1133,5 @@ figure:has(.mm-bar .is-on) .mm-bar i:not(.is-on){opacity:.35}
 .tf-sig.l3 i{background:var(--ok)}
 .bv-best .tp-funnel{background:rgba(255,248,230,.55);box-shadow:none}
 @media (max-width:520px){.tp-r2{margin-left:0}.tp-r1.has-r2::after{display:none}}
+.tf-s.dl.hid{background:none}
+.tf-s.dl.hid b{color:var(--muted);font-weight:500}

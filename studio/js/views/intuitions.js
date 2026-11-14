@@ -6,13 +6,13 @@
 // Third pass (Nam, same day): reactions beside Đồng ý, and replies as on Threads, folded under a note behind "N câu
 // trả lời" and opened in place with a thread line; Trả lời bạn gathers the threads that answer her. Every 2 weeks the
 // seat reads the new notes; its verdict shows as Vika's reply under a note, and each read is a line in the chat.
-import { loadIntuitions, deleteIntuition, reactIntuition, loadCardsBrief } from '../data.js?v=20261109a';
+import { loadIntuitions, deleteIntuition, reactIntuition, loadCardsBrief } from '../data.js?v=20261113a';
 import { DEFAULT_TAGS, PERIODS, VIEWS, REACTIONS, tagLabel, tagCounts, scopeList, stackMessages, readMarks, unseenCounts, linkify, personSummary,
-  nextReadDay, unreadCount, dayLabel, timeLabel, compact, reactionSummary, splitThreads, replyNews, myThreads, GUIDE_ID } from '../lib/intuitions.js?v=20261109a';
-import { vnDate, addDays } from '../lib/week.js?v=20261109a';
+  nextReadDay, unreadCount, dayLabel, timeLabel, compact, reactionSummary, splitThreads, replyNews, myThreads, GUIDE_ID } from '../lib/intuitions.js?v=20261113a';
+import { vnDate, addDays } from '../lib/week.js?v=20261113a';
 import { diffHtml } from './shared.js';
-import { esc, icon, face, toast, firstLine, copyText } from '../ui.js?v=20261109a';
-import { composerHtml, wireComposer, learnTags, sentToast, FOCUS, openJotSheet } from './jot.js?v=20261109a';
+import { esc, icon, face, toast, firstLine, copyText } from '../ui.js?v=20261113a';
+import { composerHtml, wireComposer, learnTags, sentToast, FOCUS, openJotSheet } from './jot.js?v=20261113a';
 
 const KEY = 'studio.bk.view.v2';
 export const SEEN = 'studio.bk.seen';
@@ -71,8 +71,8 @@ function scopeSub(ctx, view) {
   if (!s.people.size && !s.tags.size) {
     if (s.view === 'replies') return 'Các cuộc trò chuyện có bạn, mới nhất ở dưới';
     if (s.view === 'top') return 'Insight được nhiều bạn đồng ý nhất';
-    if (s.view === 'used') return 'Insight Vika đã đưa vào cách chọn bài và viết bài';
-    return 'Điều cả nhóm nhận ra khi chọn bài và viết bài';
+    if (s.view === 'used') return 'Insight Vika đã đưa vào cách chọn bài, viết bài và vào app';
+    return 'Điều cả nhóm nhận ra khi chọn bài, viết bài và dùng app';
   }
   return `${n} insight`;
 }
@@ -305,7 +305,7 @@ function streamHtml(ctx, view) {
   if (s.view === 'replies' && !s.people.size && !s.tags.size) for (const x of all) view.open.add(x.id);
   if (!view.list.length) {
     return `<div class="bk-hello"><span class="bk-hello-i">${icon('bulb')}</span><h2>Insight đầu tiên là của bạn</h2>
-      <p>Ghi điều bạn nhận ra sau nhiều bài: viết lại sao cho hay, bài kiểu nào dễ lan. Cả nhóm cùng thấy, và cứ 2 tuần Vika đọc hết.</p></div>`;
+      <p>Ghi điều bạn nhận ra sau nhiều bài: viết lại sao cho hay, bài kiểu nào dễ lan, app nên sửa gì. Cả nhóm cùng thấy, và cứ 2 tuần Vika đọc hết.</p></div>`;
   }
   if (!all.length) {
     const empty = s.query ? `Không có insight nào có chữ “${esc(s.query)}”.` : s.view === 'replies' ? 'Khi có bạn trả lời insight của bạn, hoặc trả lời trong cuộc trò chuyện bạn tham gia, nó hiện ở đây.' : 'Bộ lọc này chưa có insight nào.';
@@ -609,7 +609,7 @@ export async function renderIntuitions(main, ctx) {
   // Lý do sửa bài loads behind the chat, so its count shows in the list and the view opens at once later.
   async function loadFeedback(fresh = false) {
     try {
-      const { loadFeedbackItems } = await import('./answers.js?v=20261109a');
+      const { loadFeedbackItems } = await import('./answers.js?v=20261113a');
       const items = await loadFeedbackItems(ctx, { fresh });
       view.feedback = items;
       view.fbNew = seenAt ? items.filter((f) => f.member_id !== ctx.me.id && f.at > seenAt).length : 0;

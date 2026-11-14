@@ -59,6 +59,10 @@ export function postRows({ team, posts = [], observations = [], versions = [], c
     if (Date.parse(x.captured_at) <= now && (!had || x.captured_at > had.captured_at)) out.set(k, x); } return out; };
   const linkViews = newest(links, (x) => x.post_id);
   const storeOf = newest(installs, (x) => x.ct);
+  // Apple's newest read. A link code it does not list in that read had fewer than 5 downloads, once Apple has counted
+  // the post's first 2 days.
+  const appleRead = installs.reduce((m, x) => (Date.parse(x.captured_at) <= now && x.captured_at > m ? x.captured_at : m), '');
+  const underFive = (p) => Boolean(p.ct && appleRead && !storeOf.has(p.ct) && Date.parse(p.published_at) + 2 * 864e5 <= Date.parse(appleRead));
   const members = new Map(team.members.map((m) => [m.id, m]));
   const latest = latestReadings(observations, now);
   const text = new Map();
@@ -80,7 +84,7 @@ export function postRows({ team, posts = [], observations = [], versions = [], c
         views: o?.views ?? null, likes: o?.likes ?? null, replies: o?.other_replies ?? o?.replies ?? null,
         reposts: o?.reposts ?? null, quotes: o?.quotes ?? null, themes: (o?.reply_themes ?? []).filter((t) => t.kind !== 'seller'),
         op: v?.op || card?.op || '', r1: v?.r1 ?? card?.r1 ?? '', r2: v?.r2 ?? '', r2Views: linkViews.get(p.id)?.r2_views ?? null,
-        dl: p.ct ? storeOf.get(p.ct)?.installs ?? null : null, card, edited: edited.has(p.assignment_id), link: hasAppLink(v),
+        dl: p.ct ? storeOf.get(p.ct)?.installs ?? null : null, dlUnder5: underFive(p), card, edited: edited.has(p.assignment_id), link: hasAppLink(v),
         // Her own post: on a creative account, or with no card. The read stores a post made with a Tạo link cho bài mới
         // link as match_method 'ct' with no card, and one it could not place as 'creative'; both are hers, not a card's.
         creative: account.kind === 'creative' || p.card_id == null };
